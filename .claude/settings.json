@@ -1,0 +1,60 @@
+{
+  "allowedTools": [
+    "Read",
+    "Grep",
+    "Glob"
+  ],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "comment": "Prevent accidental modification of lock files and env files",
+            "command": "python3 -c \"import json, sys; data=json.load(sys.stdin); path=data.get('tool_input',{}).get('file_path',''); sys.exit(2 if any(p in path for p in ['.env', 'package-lock.json', 'pnpm-lock.yaml', '.git/']) else 0)\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "comment": "Auto-format TypeScript/JavaScript files",
+            "command": "file_path=$(jq -r '.tool_input.file_path'); if echo \"$file_path\" | grep -qE '\\.(ts|tsx|js|jsx)$'; then npx prettier --write \"$file_path\" 2>/dev/null || true; fi"
+          },
+          {
+            "type": "command",
+            "comment": "Auto-format markdown files",
+            "command": "file_path=$(jq -r '.tool_input.file_path'); if echo \"$file_path\" | grep -qE '\\.md$'; then npx prettier --write \"$file_path\" 2>/dev/null || true; fi"
+          },
+          {
+            "type": "command",
+            "comment": "Validate YAML syntax after editing",
+            "command": "file_path=$(jq -r '.tool_input.file_path'); if echo \"$file_path\" | grep -qE '\\.ya?ml$'; then node -e \"require('js-yaml').load(require('fs').readFileSync('$file_path', 'utf8'))\" 2>/dev/null || echo \"⚠️  YAML validation failed for $file_path\"; fi"
+          },
+          {
+            "type": "command",
+            "comment": "Quick TypeScript type check (first 20 errors only)",
+            "command": "file_path=$(jq -r '.tool_input.file_path'); if echo \"$file_path\" | grep -qE '\\.(ts|tsx)$'; then dir=$(dirname \"$file_path\"); if [ -f \"$dir/tsconfig.json\" ]; then cd \"$dir\" && npx tsc --noEmit 2>&1 | head -20 || true; fi; fi"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "comment": "Remind about pre-commit checks when committing",
+            "command": "echo \"$PROMPT\" | grep -qiE 'commit|커밋|git add' && echo \"\\n📋 Pre-commit checklist:\\n  ✓ npx tsc --noEmit (TypeScript type check)\\n  ✓ npx prettier --check . (Format check)\\n  ✓ Test manually if needed\\n\" || true"
+          }
+        ]
+      }
+    ]
+  }
+}
