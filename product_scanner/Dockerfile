@@ -1,4 +1,4 @@
-# 화해 상품 가격 정보 스크래퍼 서버
+# 상품 정보 스크래퍼 서버
 # Playwright 최신 버전 기반 Docker 이미지
 FROM mcr.microsoft.com/playwright:v1.56.1-noble
 

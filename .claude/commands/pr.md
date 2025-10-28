@@ -10,22 +10,54 @@ Create a well-formatted GitHub PR for the current branch.
 
 **MUST ALL PASS before creating PR:**
 
+**참고**: docker build 대신 docker-compose를 사용합니다.
+
+### product_search 모듈
+
 ```bash
-# 1. Docker Build (작업한 모듈)
-cd product_search  # 또는 작업 중인 모듈
-docker build -t scraper-module:test .
+cd product_search
 
-# 2. Container Health Check
-docker-compose up -d
-docker ps  # STATUS 확인
-curl http://localhost:3987/health
+# 1. Docker Compose Build & Up
+docker-compose up --build -d
 
-# 3. Basic API Test
-curl -X POST http://localhost:3987/scrape \
+# 2. Container Status Check
+docker ps | grep product_search
+# STATUS 확인 (healthy)
+
+# 3. Health Check
+curl http://localhost:3000/health
+
+# 4. Basic API Test
+curl -X POST http://localhost:3000/search-products/oliveyoung \
   -H "Content-Type: application/json" \
-  -d '{"targetId":"example","query":"테스트"}'
+  -d '{"brand":"라운드랩","productName":"선크림"}'
 
-# 4. Cleanup
+# 5. Cleanup
+docker-compose down
+```
+
+### product_scanner 모듈
+
+```bash
+cd product_scanner
+
+# 1. Docker Compose Build & Up
+docker-compose up --build -d
+
+# 2. Container Status Check
+docker ps | grep product_scanner
+# STATUS가 "healthy"인지 확인
+
+# 3. Health Check
+curl http://localhost:3989/health
+
+# 4. Supabase Connection Test
+docker cp test-supabase.ts product_scanner:/app/
+docker exec product_scanner npx tsx test-supabase.ts
+# "✅ 연결 성공!" 확인
+# product_sets 테이블 조회 성공 확인
+
+# 5. Cleanup
 docker-compose down
 ```
 
@@ -83,7 +115,7 @@ Examples:
 
 ## 테스트 체크리스트
 
-- [x] Docker 빌드 성공
+- [x] Docker Compose 빌드 성공
 - [x] 컨테이너 헬스체크 통과
 - [x] API 기본 테스트 통과
 - [x] 컨테이너 로그 에러 없음
@@ -162,7 +194,7 @@ gh pr create \
 
 ## 테스트 체크리스트
 
-- [x] Docker 빌드 성공
+- [x] Docker Compose 빌드 성공
 - [x] 컨테이너 헬스체크 통과
 - [x] API 기본 테스트 통과 (POST /scrape)
 - [x] 컨테이너 로그 에러 없음
@@ -191,5 +223,5 @@ After PR creation:
 Before creating PR, consider running:
 
 - `/commit` - Complete pre-commit checks and create final commits
-- Docker build and health check validation
+- Docker Compose build and health check validation
 - Basic API testing with curl

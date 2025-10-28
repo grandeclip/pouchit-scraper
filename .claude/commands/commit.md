@@ -10,23 +10,54 @@ Complete pre-commit checks and create a commit.
 
 **MUST ALL PASS before committing:**
 
+**참고**: docker build 대신 docker-compose를 사용합니다.
+
+### product_search 모듈
+
 ```bash
-# 1. Docker Build (모듈별)
-cd product_search  # 또는 작업 중인 모듈
-docker build -t scraper-module:test .
+cd product_search
 
-# 2. Docker Compose Health Check
-docker-compose up -d
-docker ps  # STATUS 확인
-curl http://localhost:3987/health  # 헬스체크 확인
+# 1. Docker Compose Build & Up
+docker-compose up --build -d
 
-# 3. Basic API Test (선택적)
-# 예시: 상품 검색 테스트
-curl -X POST http://localhost:3987/scrape \
+# 2. Container Status Check
+docker ps | grep product_search
+# STATUS 확인 (healthy)
+
+# 3. Health Check
+curl http://localhost:3000/health
+
+# 4. Basic API Test (선택적)
+curl -X POST http://localhost:3000/search-products/oliveyoung \
   -H "Content-Type: application/json" \
-  -d '{"targetId":"example","query":"테스트"}'
+  -d '{"brand":"라운드랩","productName":"선크림"}'
 
-# 4. Cleanup
+# 5. Cleanup
+docker-compose down
+```
+
+### product_scanner 모듈
+
+```bash
+cd product_scanner
+
+# 1. Docker Compose Build & Up
+docker-compose up --build -d
+
+# 2. Container Status Check
+docker ps | grep product_scanner
+# STATUS가 "healthy"인지 확인
+
+# 3. Health Check
+curl http://localhost:3989/health
+
+# 4. Supabase Connection Test
+docker cp test-supabase.ts product_scanner:/app/
+docker exec product_scanner npx tsx test-supabase.ts
+# "✅ 연결 성공!" 메시지 확인
+# product_sets 테이블 레코드 수 확인
+
+# 5. Cleanup
 docker-compose down
 ```
 
@@ -100,7 +131,7 @@ git commit -m "docs: Claude Code 설정 및 워크플로우 명령어 추가"
 
 Before pushing:
 
-- [ ] Docker build succeeds
+- [ ] Docker Compose build succeeds
 - [ ] Container starts and health check passes
 - [ ] API responds correctly (basic test)
 - [ ] No console errors in container logs
