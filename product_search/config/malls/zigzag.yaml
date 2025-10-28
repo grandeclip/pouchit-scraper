@@ -1,0 +1,186 @@
+mall: zigzag
+name: "지그재그"
+baseUrl: "https://zigzag.kr"
+searchUrl: "${baseUrl}/search?keyword=${encodedQuery}"
+
+# 최대 결과 수 제한
+maxResults: 5
+
+# 브라우저 설정
+browser:
+  headless: true
+  args:
+    - "--no-sandbox"
+    - "--disable-setuid-sandbox"
+    - "--disable-dev-shm-usage"
+    - "--disable-accelerated-2d-canvas"
+    - "--no-first-run"
+    - "--no-zygote"
+    - "--disable-gpu"
+  viewport:
+    width: 1920
+    height: 1080
+  # userAgent는 config/userAgents/userAgents.yaml에서 랜덤 선택됨
+  # 할당된 User-Agents: chrome_mac_simple, chrome_mac_v120, chrome_mac_v131, chrome_win_v120, chrome_win_v131
+
+# 네비게이션 순서
+navigation:
+  steps:
+    # 1. 검색 URL로 이동
+    - action: goto
+      url: "${searchUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+
+    # 2. 페이지 로딩 대기
+    - action: wait
+      duration: 2000
+
+    # 🔥 3. 검색 결과 있음/없음 Race (빠른 감지)
+    - action: waitForEither
+      success:
+        - 'a[href^="/catalog/products/"]'
+        - 'img[alt*="상품"]'
+      failure:
+        - "text=/검색.*결과.*없/"
+        - "text=/상품.*없/"
+        - ".no-result"
+        - ".empty"
+      timeout: 5000
+      onFailure: returnEmpty
+
+    # 4. 네트워크 idle 대기 (optional) - 성공 시에만 실행
+    - action: waitForLoadState
+      state: networkidle
+      timeout: 15000
+      optional: true
+
+    # 5. 스크롤 (이미지 로드 트리거)
+    - action: scroll
+      x: 0
+      y: 500
+    - action: wait
+      duration: 2000
+
+    # 6. 스크롤 복귀
+    - action: scroll
+      x: 0
+      y: 0
+    - action: wait
+      duration: 1000
+
+# 데이터 추출 규칙
+extraction:
+  type: evaluate
+  script: |
+    (function(brand) {
+      const results = [];
+      const MAX_RESULTS = 5; // 최대 5개까지만
+      const productLinks = document.querySelectorAll('a[href^="/catalog/products/"]');
+      const processedIds = new Set();
+      const seenUrls = new Set(); // URL 중복 체크용
+
+      productLinks.forEach((link) => {
+        // 최대 개수 체크
+        if (results.length >= MAX_RESULTS) return;
+        try {
+          const href = link.getAttribute('href');
+          if (!href) return;
+
+          const productId = href.replace('/catalog/products/', '');
+          if (processedIds.has(productId)) return;
+          processedIds.add(productId);
+
+          // 상품 카드 찾기 (부모 요소 탐색)
+          let card = link;
+          let attempts = 0;
+          while (card && attempts < 5) {
+            if (card.querySelector('img') && (card.textContent || '').length > 20) {
+              break;
+            }
+            card = card.parentElement;
+            attempts++;
+          }
+
+          if (!card) return;
+
+          // 썸네일
+          const imgElement = card.querySelector('img[src*="cf.product-image.s.zigzag.kr"]');
+          const thumbnail = imgElement?.getAttribute('src') || null;
+
+          // 상품명
+          const nameElements = card.querySelectorAll('p');
+          let productName = '';
+          for (const el of Array.from(nameElements)) {
+            const text = el.textContent?.trim() || '';
+            if (text.length > 5 && !text.includes('₩') && !text.includes('%')) {
+              productName = text;
+              break;
+            }
+          }
+          if (!productName) return;
+
+          // 가격 정보
+          const textContent = card.textContent || '';
+          const priceMatch = textContent.match(/(\d{1,3}(?:,\d{3})*)\s*원/);
+          const salePrice = priceMatch ? parseInt(priceMatch[1].replace(/,/g, ''), 10) : 0;
+
+          // 할인율
+          const discountMatch = textContent.match(/(\d+)%/);
+          const discountRate = discountMatch ? parseInt(discountMatch[1], 10) : null;
+
+          // 원가 계산
+          let originalPrice = null;
+          if (discountRate && salePrice > 0) {
+            originalPrice = Math.round(salePrice / (1 - discountRate / 100));
+          }
+
+          // 평점과 리뷰 수
+          const ratingMatch = textContent.match(/(\d\.\d)/);
+          const rating = ratingMatch ? parseFloat(ratingMatch[1]) : null;
+
+          const reviewMatch = textContent.match(/\(([0-9,]+)\)/);
+          const reviewCount = reviewMatch ? parseInt(reviewMatch[1].replace(/,/g, ''), 10) : null;
+
+          // 쿠폰 여부
+          const hasCoupon = textContent.includes('쿠폰');
+
+          // URL 정규화: 절대 경로인 경우 그대로, 상대 경로인 경우 베이스 URL 추가
+          let productUrl = href;
+          if (href.startsWith('/')) {
+            productUrl = 'https://zigzag.kr' + href;
+          } else if (!href.startsWith('http')) {
+            productUrl = 'https://zigzag.kr/' + href;
+          }
+
+          // URL 중복 체크 (쿼리 파라미터 제거한 정규화된 URL로 비교)
+          const normalizedUrl = productUrl.split('?')[0];
+          if (seenUrls.has(normalizedUrl)) {
+            console.log('[Zigzag] 중복 URL 제거:', normalizedUrl);
+            return;
+          }
+          seenUrls.add(normalizedUrl);
+
+          results.push({
+            productId,
+            productName,
+            brand,
+            productUrl,
+            thumbnail,
+            salePrice,
+            originalPrice,
+            discountRate,
+            rating,
+            reviewCount,
+            hasCoupon,
+          });
+        } catch {}
+      });
+
+      return results;
+    })
+  scriptArgs:
+    - "${brand}"
+  fields:
+    productId:
+      selector: "dummy"

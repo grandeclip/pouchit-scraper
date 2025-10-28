@@ -1,0 +1,116 @@
+# User-Agent 중앙 관리
+# 
+# 각 쇼핑몰에서 사용할 User-Agent 목록
+# 실제 스크래핑 시 각 쇼핑몰에 할당된 User-Agent 중 랜덤하게 선택
+
+userAgents:
+  # Desktop - Chrome (macOS)
+  chrome_mac_simple:
+    value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    description: "macOS Chrome - Simple"
+    platform: "desktop"
+    browser: "chrome"
+    
+  chrome_mac_v120:
+    value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    description: "macOS Chrome 120"
+    platform: "desktop"
+    browser: "chrome"
+    
+  chrome_mac_v131:
+    value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    description: "macOS Chrome 131"
+    platform: "desktop"
+    browser: "chrome"
+
+  # Desktop - Chrome (Windows)
+  chrome_win_v120:
+    value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    description: "Windows Chrome 120"
+    platform: "desktop"
+    browser: "chrome"
+
+  chrome_win_v131:
+    value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    description: "Windows Chrome 131"
+    platform: "desktop"
+    browser: "chrome"
+
+  # Desktop - Chrome (Latest Version)
+  chrome_mac_v133:
+    value: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+    description: "macOS Chrome 133 (Latest)"
+    platform: "desktop"
+    browser: "chrome"
+
+  chrome_win_v133:
+    value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+    description: "Windows Chrome 133 (Latest)"
+    platform: "desktop"
+    browser: "chrome"
+    
+  # Mobile - Safari (iPhone)
+  safari_iphone_ios16:
+    value: "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1"
+    description: "iPhone Safari iOS 16"
+    platform: "mobile"
+    browser: "safari"
+
+  safari_iphone_ios17:
+    value: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    description: "iPhone Safari iOS 17"
+    platform: "mobile"
+    browser: "safari"
+
+# 쇼핑몰별 User-Agent 매핑
+# 각 쇼핑몰은 여러 User-Agent를 가질 수 있으며, 랜덤하게 선택됨
+mallUserAgents:
+  # 올리브영 - Desktop 위주
+  oliveyoung:
+    - chrome_mac_simple
+    - chrome_mac_v120
+    - chrome_mac_v131
+    - chrome_win_v120
+    - chrome_win_v131
+    
+  # 지그재그 - Desktop 위주  
+  zigzag:
+    - chrome_mac_simple
+    - chrome_mac_v120
+    - chrome_mac_v131
+    - chrome_win_v120
+    - chrome_win_v131
+    
+  # 무신사 - Desktop 위주
+  musinsa:
+    - chrome_mac_v120
+    - chrome_mac_v131
+    - chrome_win_v120
+    - chrome_win_v131
+    
+  # 에이블리 - Mobile 위주 (모바일 쇼핑몰)
+  ably:
+    - safari_iphone_ios16
+    - safari_iphone_ios17
+    
+  # 컬리 - Desktop 위주
+  kurly:
+    - chrome_mac_v120
+    - chrome_mac_v131
+    - chrome_win_v120
+    - chrome_win_v131
+    
+  # 화해 - Desktop과 Mobile 혼합
+  hwahae:
+    - chrome_mac_v131
+    - chrome_win_v131
+    - chrome_mac_v120
+    - chrome_win_v120
+    
+  # 쿠팡 - Desktop 최신 Chrome
+  coupang:
+    - chrome_mac_v133
+    - chrome_win_v133
+    - chrome_mac_v131
+    - chrome_win_v131
+

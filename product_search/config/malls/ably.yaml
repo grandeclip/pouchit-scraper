@@ -1,0 +1,221 @@
+mall: ably
+name: "에이블리"
+baseUrl: "https://m.a-bly.com"
+searchUrl: "${baseUrl}/search"
+
+# 최대 결과 수 제한
+maxResults: 5
+
+# 에이블리 전용 설정
+ably:
+  maxProductsToCheck: 5  # 상품 URL 추출을 위해 클릭할 최대 상품 수
+
+# 브라우저 설정 (모바일)
+browser:
+  headless: true
+  args:
+    - "--no-sandbox"
+    - "--disable-setuid-sandbox"
+    - "--disable-dev-shm-usage"
+    - "--disable-accelerated-2d-canvas"
+    - "--no-first-run"
+    - "--no-zygote"
+    - "--disable-gpu"
+  viewport:
+    width: 375
+    height: 812
+  # userAgent는 config/userAgents/userAgents.yaml에서 랜덤 선택됨
+  # 할당된 User-Agents: safari_iphone_ios16, safari_iphone_ios17
+
+# 네비게이션 순서
+navigation:
+  steps:
+    # 1. 검색 페이지 이동
+    - action: goto
+      url: "${searchUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+    - action: wait
+      duration: 1000
+
+    # 2. 검색어 입력 (첫 번째 textbox)
+    - action: fill
+      selector: 'input[type="text"]'
+      value: "${brand} ${productName}"
+      timeout: 10000
+
+    # 3. Enter 키 입력
+    - action: press
+      selector: 'input[type="text"]'
+      key: "Enter"
+      timeout: 10000
+
+    # 4. 검색 결과 로딩 대기 (optional: 타임아웃 시에도 계속 진행)
+    - action: waitForLoadState
+      state: domcontentloaded
+      timeout: 30000
+      optional: true
+
+    # 5. 상품 이미지 로딩 대기
+    - action: wait
+      duration: 2000
+
+    # 🆕 6. 상품 클릭하여 URL 추출 (SPA 특화 액션)
+    - action: clickAndExtractUrl
+      containerSelector: 'main picture img[src*="cloudfront"]'
+      maxProducts: 5  # 최대 5개 상품 처리
+      waitAfterClick: 1000
+      waitAfterBack: 500
+      storeIn: 'productUrls'
+
+# 데이터 추출 규칙
+extraction:
+  type: evaluate
+  script: |
+    (function(brand, productName, productUrls) {
+      // 디버깅: 인자 확인
+      if (!Array.isArray(productUrls) || productUrls.length === 0) {
+        // URL 없으면 빈 배열 반환
+        return [];
+      }
+
+      const results = [];
+      const MAX_RESULTS = 5; // 최대 5개까지만
+      const seenUrls = new Set(); // URL 중복 체크용
+
+      // 상품 컨테이너 찾기 (cloudfront CDN 이미지들)
+      const containers = document.querySelectorAll('main picture img[src*="cloudfront"]');
+
+      containers.forEach((img, index) => {
+        // 최대 개수 체크
+        if (results.length >= MAX_RESULTS) return;
+
+        try {
+          // URL이 추출되지 않은 상품은 스킵
+          if (index >= productUrls.length) {
+            return;
+          }
+
+          const productUrl = productUrls[index];
+
+          // 상품 ID 추출 (URL에서)
+          const productIdMatch = productUrl.match(/\/goods\/(\d+)/);
+          const productId = productIdMatch ? productIdMatch[1] : '';
+
+          if (!productId) {
+            return;
+          }
+
+          // 썸네일
+          const thumbnail = img.getAttribute('src') || '';
+
+          // 부모 요소에서 정보 추출
+          // img → picture → div × 4 (depth 6) = 상품 카드
+          let productCard = img;
+          for (let i = 0; i < 6; i++) {
+            productCard = productCard.parentElement;
+            if (!productCard) {
+              return;
+            }
+          }
+
+          // productCard 내의 모든 paragraph들에서 가격과 할인율 추출
+          const allParagraphs = productCard.querySelectorAll('p');
+          let salePrice = 0;
+          let originalPrice = null;
+          let discountRate = null;
+
+          // paragraph들에서 가격과 할인율 추출
+          for (const p of allParagraphs) {
+            const text = p.textContent?.trim() || '';
+
+            // 할인율 추출 (예: "13%", "19%")
+            if (text.match(/^\d{1,2}%$/)) {
+              discountRate = parseInt(text.replace('%', ''), 10);
+              continue;
+            }
+
+            // 가격 추출 (콤마 포함 숫자, 예: "15,600", "17,700")
+            const priceMatch = text.match(/^(\d{1,3}(?:,\d{3})*)$/);
+            if (priceMatch) {
+              const price = parseInt(priceMatch[1].replace(/,/g, ''), 10);
+              // 첫 번째로 발견된 가격을 판매가로 사용
+              if (!salePrice) {
+                salePrice = price;
+              }
+            }
+          }
+
+          // 할인율이 있으면 원가 계산
+          if (discountRate && salePrice > 0) {
+            originalPrice = Math.round(salePrice / (1 - discountRate / 100));
+          }
+
+          // 상품명 추출: productCard는 위에서 이미 찾았으므로 재사용
+          const paragraphs = Array.from(productCard.querySelectorAll('p'));
+          let brandName = brand || '';
+          let productNameText = '';
+
+          // 첫 번째로 발견되는 긴 텍스트를 상품명으로 간주
+          // (할인율, 가격, "첫구매 혜택" 등을 제외)
+          for (const p of paragraphs) {
+            const text = p.textContent?.trim() || '';
+
+            // 숫자로 시작하거나, %가 포함되거나, 콤마가 포함되거나, "첫구매", "구매중" 등이 포함된 텍스트는 스킵
+            if (text.match(/^\d/) || text.includes('%') || text.match(/^[0-9,]+$/) ||
+                text.includes('첫구매') || text.includes('구매중') || text.includes('개 구매')) {
+              continue;
+            }
+
+            // 짧은 텍스트는 브랜드명일 가능성이 높음
+            if (text.length <= 10) {
+              continue;
+            }
+
+            // 첫 번째로 발견된 긴 텍스트가 상품명
+            productNameText = text;
+            break;
+          }
+
+          // 필수 필드 검증 (productId와 productUrl은 필수)
+          if (!productId || !productUrl) {
+            return;
+          }
+
+          // URL 중복 체크 (쿼리 파라미터 제거한 정규화된 URL로 비교)
+          const normalizedUrl = productUrl.split('?')[0];
+          if (seenUrls.has(normalizedUrl)) {
+            console.log('[Ably] 중복 URL 제거:', normalizedUrl);
+            return;
+          }
+          seenUrls.add(normalizedUrl);
+
+          results.push({
+            productId: productId,
+            brand: brandName,
+            productName: productNameText || '상품명 없음',
+            thumbnail: thumbnail,
+            salePrice: salePrice,
+            originalPrice: originalPrice,
+            discountRate: discountRate,
+            productUrl: productUrl,
+          });
+        } catch (error) {
+          // 개별 상품 파싱 오류 무시
+          console.error('Ably 상품 파싱 오류:', error);
+        }
+      });
+
+      return results;
+    })
+
+  # evaluate 스크립트에 전달할 인자
+  scriptArgs:
+    - "${brand}"
+    - "${productName}"
+    - "${context.productUrls}"  # 🎯 clickAndExtractUrl 액션에서 저장한 URL 배열
+
+  # 필드 매핑 (더미, 실제로는 script에서 직접 반환)
+  fields:
+    productId:
+      selector: "dummy"

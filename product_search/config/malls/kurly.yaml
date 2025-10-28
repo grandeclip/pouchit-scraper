@@ -1,0 +1,243 @@
+mall: kurly
+name: "컬리"
+baseUrl: "https://www.kurly.com"
+searchUrl: "${baseUrl}/search?sword=${encodedQuery}&page=1"
+
+# 최대 결과 수 제한
+maxResults: 5
+
+# 브라우저 설정
+browser:
+  headless: true
+  args:
+    - "--no-sandbox"
+    - "--disable-setuid-sandbox"
+    - "--disable-dev-shm-usage"
+    - "--disable-accelerated-2d-canvas"
+    - "--no-first-run"
+    - "--no-zygote"
+    - "--disable-gpu"
+  viewport:
+    width: 1920
+    height: 1080
+  # userAgent는 config/userAgents/userAgents.yaml에서 랜덤 선택됨
+  # 할당된 User-Agents: chrome_mac_v120, chrome_mac_v131, chrome_win_v120, chrome_win_v131
+
+# 네비게이션 순서
+navigation:
+  steps:
+    # 1. 검색 페이지로 직접 이동
+    - action: goto
+      url: "${searchUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+
+    # 🔥 2. 검색 결과 있음/없음 Race (빠른 감지)
+    - action: waitForEither
+      success:
+        - 'a[href*="/goods/"]'
+        - 'img[alt*="상품"]'
+      failure:
+        - "text=/검색.*결과.*없/"
+        - "text=/상품.*없/"
+        - ".no-result"
+        - ".empty-state"
+      timeout: 5000
+      onFailure: returnEmpty
+
+    # 3. 이미지 lazy loading 트리거 - 성공 시에만 실행
+    - action: scroll
+      x: 0
+      y: 400
+    - action: wait
+      duration: 500
+
+    # 4. 스크롤 복귀
+    - action: scroll
+      x: 0
+      y: 0
+
+    # 5. 이미지 로딩 대기
+    - action: wait
+      duration: 2000
+
+# 데이터 추출 규칙
+extraction:
+  type: evaluate
+  script: |
+    (function(brandName) {
+      const results = [];
+      const MAX_RESULTS = 5; // 최대 5개까지만
+
+      // main 요소 내의 상품 링크 찾기
+      const mainElement = document.querySelector('main');
+      if (!mainElement) {
+        return results;
+      }
+
+      const productLinks = mainElement.querySelectorAll('a[href*="/goods/"]');
+      const processedIds = new Set();
+      const seenUrls = new Set(); // URL 중복 체크용
+
+      productLinks.forEach((link) => {
+        // 최대 개수 체크
+        if (results.length >= MAX_RESULTS) return;
+        try {
+          const href = link.getAttribute('href');
+          if (!href) return;
+
+          // 상품 ID 추출
+          const goodsNoMatch = href.match(/\/goods\/(\d+)/);
+          if (!goodsNoMatch) return;
+
+          const goodsNo = goodsNoMatch[1];
+          if (processedIds.has(goodsNo)) return;
+          processedIds.add(goodsNo);
+
+          // 링크의 자식 요소: [0] 이미지 DIV, [1] 담기 버튼, [2] 상품 정보 DIV
+          const children = Array.from(link.children);
+          if (children.length < 3) return;
+
+          // 1. 이미지 추출 (첫 번째 DIV의 img)
+          let thumbnail = null;
+          const imageDiv = children[0];
+          const imgElement = imageDiv.querySelector('img');
+          if (imgElement) {
+            thumbnail = imgElement.src || null;
+            if (thumbnail && thumbnail.includes('data:image/svg')) {
+              thumbnail = null;
+            }
+          }
+
+          // 2. 상품 정보 DIV (세 번째 자식)
+          const infoDiv = children[2];
+          const allText = infoDiv.textContent || '';
+
+          // 상품 정보 DIV의 직계 자식들
+          const infoChildren = Array.from(infoDiv.children);
+
+          let productName = '';
+          let deliveryType = '';
+          let description = '';
+          let originalPrice = null;
+          let salePrice = null;
+          let discountRate = null;
+          let reviewCount;
+          let isKurlyOnly = false;
+
+          // 정보 DIV 내부 요소 순회
+          for (const child of infoChildren) {
+            const text = child.textContent?.trim() || '';
+
+            // 배송 타입
+            if (text === '샛별배송' || text === '택배배송') {
+              deliveryType = text;
+            }
+            // 상품명 (대괄호로 시작하는 긴 텍스트)
+            else if (text.startsWith('[') && text.length > 15 && !productName && !text.includes('원')) {
+              productName = text;
+            }
+            // 설명 (paragraph 요소 포함)
+            else if (child.querySelector('p') && text.length > 5 && text.length < 100) {
+              const pElement = child.querySelector('p');
+              if (pElement) {
+                description = pElement.textContent?.trim() || '';
+              }
+            }
+            // Kurly Only
+            else if (text === 'Kurly Only') {
+              isKurlyOnly = true;
+            }
+          }
+
+          // 가격 및 할인율 정보는 전체 텍스트에서 추출
+          // 할인율 추출 (숫자%)
+          const discountMatch = allText.match(/(\d+)%/);
+          if (discountMatch) {
+            discountRate = parseInt(discountMatch[1]);
+          }
+
+          // 가격 추출 (숫자,숫자원 패턴)
+          const priceMatches = allText.match(/(\d{1,3}(?:,\d{3})+)원/g);
+          if (priceMatches && priceMatches.length > 0) {
+            const prices = priceMatches
+              .map((p) => {
+                const numStr = p.replace(/[^\d]/g, '');
+                return parseInt(numStr, 10);
+              })
+              .filter((p) => p > 0);
+
+            if (prices.length === 1) {
+              salePrice = prices[0];
+            } else if (prices.length >= 2) {
+              // 첫 번째가 원가, 두 번째가 할인가
+              originalPrice = prices[0];
+              salePrice = prices[1];
+            }
+          }
+
+          // 리뷰 수 추출 (작은 숫자만, 가격은 제외)
+          const reviewElement = infoDiv.querySelector('img[src*="icon"]');
+          if (reviewElement && reviewElement.parentElement) {
+            const reviewText = reviewElement.parentElement.textContent?.trim() || '';
+            const reviewMatch = reviewText.match(/(\d+)/);
+            if (reviewMatch) {
+              const num = parseInt(reviewMatch[1]);
+              if (num > 0 && num < 100000) {
+                reviewCount = num;
+              }
+            }
+          }
+
+          // 브랜드명 추출 (대괄호 안의 텍스트)
+          let extractedBrand = brandName;
+          if (productName) {
+            const brandMatch = productName.match(/^\[([^\]]+)\]/);
+            if (brandMatch) {
+              extractedBrand = brandMatch[1];
+            }
+          }
+
+          // 필수 필드 확인
+          if (!productName) return;
+
+          // URL 정규화: 절대 경로인 경우 그대로, 상대 경로인 경우 베이스 URL 추가
+          let productUrl = href;
+          if (href.startsWith('/')) {
+            productUrl = 'https://www.kurly.com' + href;
+          } else if (!href.startsWith('http')) {
+            productUrl = 'https://www.kurly.com/' + href;
+          }
+
+          // URL 중복 체크 (쿼리 파라미터 제거한 정규화된 URL로 비교)
+          const normalizedUrl = productUrl.split('?')[0];
+          if (seenUrls.has(normalizedUrl)) {
+            console.log('[Kurly] 중복 URL 제거:', normalizedUrl);
+            return;
+          }
+          seenUrls.add(normalizedUrl);
+
+          results.push({
+            productId: goodsNo,
+            brand: extractedBrand,
+            productName,
+            productUrl,
+            thumbnail,
+            originalPrice,
+            salePrice: salePrice || 0,
+            discountRate,
+            deliveryType,
+            description,
+            isKurlyOnly,
+            reviewCount,
+          });
+        } catch {}
+      });
+
+      return results;
+    })
+  scriptArgs:
+    - "${brand}"
+  fields:
+    productId:
+      selector: "dummy"

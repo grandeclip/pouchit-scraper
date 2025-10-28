@@ -1,0 +1,150 @@
+mall: oliveyoung
+name: "올리브영"
+baseUrl: "https://www.oliveyoung.co.kr"
+searchUrl: "${baseUrl}/store/search/getSearchMain.do?query=${encodedQuery}"
+
+# 최대 결과 수 제한
+maxResults: 5
+
+# 브라우저 설정
+browser:
+  headless: true
+  args:
+    - "--no-sandbox"
+    - "--disable-setuid-sandbox"
+    - "--disable-dev-shm-usage"
+    - "--disable-accelerated-2d-canvas"
+    - "--no-first-run"
+    - "--no-zygote"
+    - "--disable-gpu"
+  viewport:
+    width: 1920
+    height: 1080
+  # userAgent는 config/userAgents/userAgents.yaml에서 랜덤 선택됨
+  # 할당된 User-Agents: chrome_mac_simple, chrome_mac_v120, chrome_mac_v131, chrome_win_v120, chrome_win_v131
+
+# 네비게이션 순서
+navigation:
+  steps:
+    # 1. 홈페이지 접속 (세션 초기화)
+    - action: goto
+      url: "${baseUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+    - action: wait
+      duration: 2000
+
+    # 2. 검색 페이지 이동
+    - action: goto
+      url: "${searchUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+
+    # 🔥 3. 검색 결과 있음/없음 Race (빠른 감지)
+    - action: waitForEither
+      success:
+        - ".cate_prd_list"
+        - ".prd_info"
+      failure:
+        - ".no_result"
+        - ".search_no_result"
+        - "text=/검색.*결과.*없/"
+        - "text=/상품.*없/"
+      timeout: 5000
+      onFailure: returnEmpty
+
+    # 4. 추가 대기 (동적 콘텐츠 로딩) - 성공 시에만 실행
+    - action: wait
+      duration: 3000
+
+# 데이터 추출 규칙
+extraction:
+  type: evaluate
+  script: |
+    (function() {
+      const results = [];
+      const MAX_RESULTS = 5; // 최대 5개까지만
+      const seenUrls = new Set(); // URL 중복 체크용
+      const items = document.querySelectorAll('.prd_info');
+
+      items.forEach((item) => {
+        // 최대 개수 체크
+        if (results.length >= MAX_RESULTS) return;
+        try {
+          // 상품 링크 찾기
+          const link = item.querySelector('a.prd_thumb, a[href*="goodsNo"]');
+          if (!link) return;
+          
+          const href = link.getAttribute('href');
+          if (!href) return;
+          
+          // goodsNo 추출
+          const goodsNoMatch = href.match(/goodsNo=([A-Z0-9]+)/);
+          if (!goodsNoMatch) return;
+          
+          const goodsNo = goodsNoMatch[1];
+          
+          // 브랜드
+          const brandElement = item.querySelector('.tx_brand');
+          const brand = brandElement ? brandElement.textContent.trim() : '';
+          
+          // 상품명
+          const nameElement = item.querySelector('.tx_name');
+          const productName = nameElement ? nameElement.textContent.trim() : '';
+          if (!productName) return;
+          
+          // 썸네일
+          const imgElement = item.querySelector('.prd_thumb img');
+          const thumbnail = imgElement ? imgElement.getAttribute('src') : null;
+          
+          // 판매가
+          const salePriceElement = item.querySelector('.prd_price .tx_cur .tx_num');
+          let salePrice = 0;
+          if (salePriceElement) {
+            const salePriceText = salePriceElement.textContent.replace(/[^0-9]/g, '');
+            salePrice = parseInt(salePriceText, 10) || 0;
+          }
+          
+          // 원가
+          const originalPriceElement = item.querySelector('.prd_price .tx_org .tx_num');
+          let originalPrice = null;
+          if (originalPriceElement) {
+            const originalPriceText = originalPriceElement.textContent.replace(/[^0-9]/g, '');
+            const parsedOriginalPrice = parseInt(originalPriceText, 10);
+            if (parsedOriginalPrice && parsedOriginalPrice > 0) {
+              originalPrice = parsedOriginalPrice;
+            }
+          }
+          
+          // 상품 URL 생성
+          const productUrl = 'https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=' + goodsNo;
+
+          // URL 중복 체크 (쿼리 파라미터 제거한 정규화된 URL로 비교)
+          const normalizedUrl = productUrl.split('?')[0];
+          if (seenUrls.has(normalizedUrl)) {
+            console.log('[OliveYoung] 중복 URL 제거:', normalizedUrl);
+            return;
+          }
+          seenUrls.add(normalizedUrl);
+
+          results.push({
+            productId: goodsNo,
+            goodsNo: goodsNo,
+            brand: brand,
+            productName: productName,
+            thumbnail: thumbnail,
+            salePrice: salePrice,
+            originalPrice: originalPrice,
+            productUrl: productUrl,
+          });
+        } catch (error) {
+          // 개별 상품 파싱 오류 무시
+          console.error('올리브영 상품 파싱 오류:', error);
+        }
+      });
+      
+      return results;
+    })
+  fields:
+    productId:
+      selector: "dummy"

@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+.DS_Store
+*.old
+dist
+*.log
+.vscode
+.idea
+server.ts.old
+REFACTORING_SUMMARY.md
+

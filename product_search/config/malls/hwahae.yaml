@@ -1,0 +1,200 @@
+mall: hwahae
+name: "화해"
+baseUrl: "https://www.hwahae.co.kr"
+searchUrl: "${baseUrl}/search?q=${encodedQuery}"
+
+# 최대 결과 수 제한
+maxResults: 5
+
+# 브라우저 설정
+browser:
+  headless: true
+  args:
+    - --no-sandbox
+    - --disable-setuid-sandbox
+    - --disable-dev-shm-usage
+    - --disable-accelerated-2d-canvas
+    - --disable-gpu
+    - --disable-blink-features=AutomationControlled
+  viewport:
+    width: 1920
+    height: 1080
+  # userAgent는 config/userAgents/userAgents.yaml에서 랜덤 선택됨
+  # 할당된 User-Agents: chrome_mac_v131, chrome_win_v131, chrome_mac_v120, chrome_win_v120
+
+# 네비게이션 순서
+navigation:
+  steps:
+    # 1. 홈페이지 접속 (세션 초기화)
+    - action: goto
+      url: "${baseUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+    - action: wait
+      duration: 2000
+    
+    # 2. 검색 페이지로 이동
+    - action: goto
+      url: "${searchUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+    
+    # 🔥 3. 검색 결과 있음/없음 Race (빠른 감지)
+    - action: waitForEither
+      success:
+        - "h2"
+        - 'a[href*="products/"]'
+      failure:
+        - "text=/검색.*결과.*없/"
+        - "text=/상품.*없/"
+        - "text=/결과.*없/"
+        - ".no-result"
+        - ".empty"
+      timeout: 5000
+      onFailure: returnEmpty
+
+    # 4. 추가 로딩 대기 - 성공 시에만 실행
+    - action: wait
+      duration: 2000
+
+# 데이터 추출 규칙
+extraction:
+  type: evaluate
+  script: |
+    (function(searchBrand) {
+      const results = [];
+      const MAX_RESULTS = 5; // 최대 5개까지만
+      const seenUrls = new Set(); // URL 중복 체크용
+
+      // "제품" 헤딩 찾기
+      const headings = document.querySelectorAll('h2');
+      let productHeading = null;
+
+      for (const heading of headings) {
+        if (heading.textContent && heading.textContent.includes('제품')) {
+          productHeading = heading;
+          break;
+        }
+      }
+
+      if (!productHeading) {
+        return results;
+      }
+
+      // 제품 리스트 찾기
+      const listContainer = productHeading.nextElementSibling;
+      if (!listContainer) {
+        return results;
+      }
+
+      const list = listContainer.querySelector('ul');
+      if (!list) {
+        return results;
+      }
+
+      const items = list.querySelectorAll('li');
+
+      items.forEach((item) => {
+        // 최대 개수 체크
+        if (results.length >= MAX_RESULTS) return;
+        try {
+          const links = item.querySelectorAll('a');
+          
+          if (links.length >= 2) {
+            // 첫 번째 링크: 이미지
+            const imgLink = links[0];
+            const img = imgLink.querySelector('img');
+            let thumbnail = img?.getAttribute('src') || '';
+            
+            // 쿼리 파라미터 제거
+            if (thumbnail) {
+              thumbnail = thumbnail.split('?')[0];
+            }
+            
+            // 두 번째 링크: 상품 정보
+            const infoLink = links[1];
+            const href = infoLink.getAttribute('href') || '';
+            const productId = href.replace('products/', '');
+            
+            // 상품명과 단종 여부
+            const textDivs = infoLink.querySelectorAll('div');
+            let productName = '';
+            let isDiscontinued = false;
+            
+            if (textDivs.length > 0) {
+              const firstDiv = textDivs[0];
+              if (firstDiv.textContent?.trim() === '단종') {
+                isDiscontinued = true;
+                if (textDivs.length > 1) {
+                  productName = textDivs[1].textContent?.trim() || '';
+                }
+              } else {
+                productName = firstDiv.textContent?.trim() || '';
+              }
+            }
+            
+            // 브랜드는 검색 입력값 사용 (HTML에 없음)
+            const brand = searchBrand;
+            
+            // 평점과 리뷰 수
+            const allText = infoLink.textContent || '';
+            
+            // 평점 추출
+            const ratingMatch = allText.match(/(\d+\.\d+)/);
+            const rating = ratingMatch ? ratingMatch[1] : '';
+            
+            // 리뷰 수 추출
+            const reviewMatch = allText.match(/\(([0-9,]+)\)/);
+            let reviewCount = '';
+            if (reviewMatch) {
+              reviewCount = reviewMatch[1];
+            } else {
+              const afterRating = allText.split(rating)[1];
+              if (afterRating) {
+                const numberMatch = afterRating.match(/([0-9,]+)/);
+                if (numberMatch) {
+                  reviewCount = numberMatch[1];
+                }
+              }
+            }
+            
+            if (productName && productId) {
+              const productUrl = 'https://www.hwahae.co.kr/products/' + productId;
+
+              // URL 중복 체크 (쿼리 파라미터 제거한 정규화된 URL로 비교)
+              const normalizedUrl = productUrl.split('?')[0];
+              if (seenUrls.has(normalizedUrl)) {
+                console.log('[Hwahae] 중복 URL 제거:', normalizedUrl);
+                return;
+              }
+              seenUrls.add(normalizedUrl);
+
+              results.push({
+                productId,
+                brand,
+                productName,
+                isDiscontinued,
+                thumbnail: thumbnail || null,
+                rating,
+                reviewCount,
+                productUrl: productUrl,
+                originalPrice: null,
+                salePrice: 0,
+              });
+            }
+          }
+        } catch (error) {
+          // 개별 상품 파싱 오류 무시
+        }
+      });
+      
+      return results;
+    })
+  # evaluate 스크립트에 전달할 인자
+  scriptArgs:
+    - "${brand}"
+  
+  # 필드 매핑 (더미, 실제로는 script에서 직접 반환)
+  fields:
+    productId:
+      selector: "dummy"
