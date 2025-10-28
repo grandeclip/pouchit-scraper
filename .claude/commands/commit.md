@@ -34,22 +34,24 @@ docker-compose down
 
 1. **Run pre-commit checks** (see above)
 
-2. **Review changes**:
+1. **Review changes**:
 
 ```bash
 git status
 git diff --staged
 ```
 
-1. **Commit with conventional format**:
+1. **Commit with conventional format (한글 작성)**:
 
 ```bash
-git commit -m "type(scope): description
+git commit -m "type(scope): 한글로 작성된 설명
 
-- Detailed change 1
-- Detailed change 2
+- 상세 변경사항 1
+- 상세 변경사항 2
 "
 ```
+
+**중요**: 커밋 메시지는 **반드시 한글**로 작성합니다.
 
 ### Commit Types
 
@@ -75,20 +77,23 @@ git commit -m "type(scope): description
 - `docker`: Docker/배포 설정
 - `docs`: 문서화
 
-### Examples
+### Examples (한글 작성)
 
 ```bash
 # Feature
-git commit -m "feat(scraper): Add planning set registration scraper"
+git commit -m "feat(scraper): 기획 세트 등록 스크래퍼 추가"
 
 # Bug fix
-git commit -m "fix(extractor): Correct product price extraction logic"
+git commit -m "fix(extractor): 상품 가격 추출 로직 수정"
 
 # Refactor
-git commit -m "refactor(config): Migrate YAML schema to v2"
+git commit -m "refactor(config): YAML 스키마 v2로 마이그레이션"
 
 # Docker
-git commit -m "chore(docker): Update Playwright base image to v1.56.1"
+git commit -m "chore(docker): Playwright 베이스 이미지 v1.56.1로 업데이트"
+
+# Documentation
+git commit -m "docs: Claude Code 설정 및 워크플로우 명령어 추가"
 ```
 
 ## Verification
