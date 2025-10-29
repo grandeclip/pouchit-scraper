@@ -1,51 +1,69 @@
 # Product Scanner
 
-Supabase 데이터베이스의 상품 정보를 주기적으로 스캔하여 가격 및 재고 변동을 모니터링하는 서비스입니다.
+화해 상품 정보를 스캔하고 Supabase 데이터베이스의 상품을 검색하는 서비스입니다.
 
 ## 📌 용도
 
-Supabase에 저장된 상품 데이터의 `link_url` 또는 `product_url`을 기반으로 실시간 상품 정보를 수집하여:
+### 1. 화해 상품 스캔
 
-- 가격 변동 감지 및 DB 업데이트
-- 재고 상태(품절/판매중) 변경 감지
-- 상품 정보 변경사항 슬랙 알림 발송
+- 화해 API 및 Playwright를 활용한 상품 정보 스캔
+- 다중 전략 기반 스크래핑 (API 우선, Playwright 대체)
+- CSV 데이터와 API 데이터 검증
+
+### 2. Supabase 상품 검색
+
+- Supabase `product_sets` 테이블 검색
+- URL 패턴 기반 상품 조회
+- 상품 ID(UUID) 기반 상세 조회
 
 ## 🔄 작동 방식
 
+### 화해 상품 스캔
+
 ```mermaid
 graph LR
-    A[Supabase Query] --> B[상품 목록 조회]
-    B --> C{스크래핑 전략 선택}
-    C -->|Playwright| D[브라우저 렌더링]
-    C -->|cURL/Fetch| E[직접 HTTP 요청]
-    D --> F[데이터 추출]
-    E --> F
-    F --> G{변경사항 감지}
-    G -->|변경됨| H[DB 업데이트]
-    G -->|변경됨| I[슬랙 알림]
-    G -->|동일| J[다음 상품]
+    A[Scan Request] --> B{전략 선택}
+    B -->|Priority 1| C[화해 API]
+    B -->|Priority 2| D[Playwright]
+    C --> E[상품 정보 추출]
+    D --> E
+    E --> F[CSV 데이터 검증]
+    F --> G[결과 반환]
+```
+
+### Supabase 상품 검색
+
+```mermaid
+graph LR
+    A[Search Request] --> B[SupabaseProductRepository]
+    B --> C[Supabase Query]
+    C --> D[ProductSetEntity]
+    D --> E[ProductSearchService]
+    E --> F[JSON Response]
 ```
 
 ### 스크래핑 전략
 
-1. **Playwright 전략**: 동적 렌더링이 필요한 사이트 (SPA, JavaScript 렌더링)
-2. **HTTP 전략**: API 또는 정적 HTML로 데이터 제공하는 사이트
-3. **하이브리드 전략**: 사이트별 최적 방법 자동 선택
+1. **API 전략**: 화해 공식 API 호출 (우선순위 1)
+2. **Playwright 전략**: 브라우저 자동화로 데이터 추출 (우선순위 2)
+3. **자동 대체**: API 실패 시 Playwright로 자동 전환
 
 ## 🏗️ 아키텍처
 
 ### 디자인 패턴
 
-- **Strategy Pattern**: 사이트별 스크래핑 전략 (Playwright vs HTTP)
+- **Strategy Pattern**: 사이트별 스크래핑 전략 (API vs Playwright)
+- **Repository Pattern**: 데이터 접근 로직 캡슐화 (Supabase)
 - **Factory Pattern**: 스크래퍼 인스턴스 생성
-- **Observer Pattern**: 변경사항 감지 및 알림
+- **Facade Pattern**: 서비스 계층 단순화
+- **Singleton Pattern**: Supabase 클라이언트 재사용
 - **Template Method Pattern**: 공통 스캔 플로우 정의
 
 ### SOLID 원칙
 
-- **SRP**: 각 클래스는 단일 책임 (스캔, 추출, 비교, 알림)
+- **SRP**: 각 클래스는 단일 책임 (스캔, 검색, 데이터 접근, API 처리)
 - **OCP**: 새 사이트 추가 시 기존 코드 수정 없이 확장
-- **DIP**: 추상화된 인터페이스에 의존
+- **DIP**: 추상화된 인터페이스에 의존 (IProductRepository, IProductSearchService)
 
 ## 📁 디렉토리 구조
 
@@ -54,20 +72,24 @@ product_scanner/
 ├── src/                           # 소스 코드
 │   ├── server.ts                  # 엔트리포인트
 │   ├── config/                    # 설정 파일 & 로더
+│   │   ├── constants.ts           # 애플리케이션 상수
 │   │   ├── ConfigLoader.ts
 │   │   └── platforms/             # YAML 설정
 │   │       └── hwahae.yaml
 │   ├── core/                      # 도메인 모델 & 인터페이스
 │   │   ├── domain/
 │   │   │   ├── HwahaeProduct.ts
-│   │   │   └── HwahaeConfig.ts
+│   │   │   ├── HwahaeConfig.ts
+│   │   │   └── ProductSet.ts      # 상품 세트 도메인
 │   │   └── interfaces/
 │   │       ├── IScraper.ts
-│   │       └── INotifier.ts
+│   │       ├── IProductRepository.ts    # Repository 인터페이스
+│   │       └── IProductSearchService.ts # Service 인터페이스
 │   ├── services/                  # 비즈니스 로직
 │   │   ├── ScanService.ts
-│   │   ├── SupabaseService.ts
-│   │   └── NotificationService.ts
+│   │   └── ProductSearchService.ts      # 상품 검색 서비스 (Facade)
+│   ├── repositories/              # 데이터 접근 계층
+│   │   └── SupabaseProductRepository.ts # Supabase Repository
 │   ├── scrapers/                  # 스크래퍼
 │   │   ├── base/
 │   │   │   └── BaseScraper.ts
@@ -81,7 +103,8 @@ product_scanner/
 │   ├── validators/                # 검증기
 │   │   └── HwahaeValidator.ts
 │   ├── controllers/               # HTTP 컨트롤러
-│   │   └── ScanController.ts
+│   │   ├── ScanController.ts
+│   │   └── ProductSearchController.ts   # 상품 검색 컨트롤러
 │   └── middleware/                # 미들웨어
 │       ├── errorHandler.ts
 │       └── validation.ts
@@ -105,141 +128,137 @@ product_scanner/
 
 ### API 엔드포인트
 
-#### 헬스체크
+#### 1. 헬스체크
 
 ```bash
 GET /health
 ```
 
-#### 전체 상품 스캔 시작
+#### 2. 화해 상품 스캔
+
+**검증 (CSV vs API)**
 
 ```bash
-POST /scan/all
+POST /api/scan/validate
 Content-Type: application/json
 
 {
-  "filter": {
-    "platform": "hwahae",  # 선택적
-    "updatedBefore": "2024-01-01T00:00:00Z"  # 선택적
+  "goodsId": "61560",
+  "csvData": {
+    "goods_no": "61560",
+    "product_name": "블랙 쿠션 파운데이션",
+    "price": "59900"
   }
 }
 ```
 
-#### 특정 상품 스캔
+**상품 스캔**
 
 ```bash
-POST /scan/product
-Content-Type: application/json
-
-{
-  "productId": "uuid-here",
-  "forceUpdate": false  # true일 경우 변경사항 없어도 알림
-}
+POST /api/scan/:goodsId
 ```
 
-#### 스캔 상태 조회
+**사용 가능한 전략 목록**
 
 ```bash
-GET /scan/status/:scanId
+GET /api/scan/strategies
+```
+
+#### 3. Supabase 상품 검색
+
+**상품 검색 (쿼리 파라미터)**
+
+```bash
+GET /api/products/search?link_url=hwahae.co.kr&sale_status=on_sale&limit=10
+```
+
+**상품 ID 조회 (UUID)**
+
+```bash
+GET /api/products/:productSetId
+```
+
+**Supabase 연결 상태**
+
+```bash
+GET /api/products/health
 ```
 
 ### 환경 변수
 
 ```bash
+# 서버 설정
 PORT=3000
+NODE_ENV=production
+
+# Supabase 설정
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your-anon-key
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-SCAN_INTERVAL_MINUTES=60  # 자동 스캔 주기 (분)
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# 데이터베이스 설정 (선택)
+PRODUCT_TABLE_NAME=product_sets  # 기본값
+
+# API 설정 (선택)
+MAX_SEARCH_LIMIT=100      # 최대 검색 결과 개수
+DEFAULT_SEARCH_LIMIT=3    # 기본 검색 결과 개수
 ```
 
-## 📝 YAML 설정 예시
+## 💾 Supabase 통합
 
-```yaml
-# config/targets/hwahae.yaml
-site: hwahae
-name: "화해"
-baseUrl: "https://www.hwahae.co.kr"
+### Repository Pattern 구현
 
-# 스크래핑 전략 선택
-strategy: playwright # playwright | http
+**계층 구조**:
 
-# Playwright 설정 (strategy=playwright일 때)
-browser:
-  headless: true
-  viewport:
-    width: 1920
-    height: 1080
-
-# 네비게이션
-navigation:
-  steps:
-    - action: goto
-      url: "${productUrl}"
-      waitUntil: networkidle
-    - action: wait
-      duration: 2000
-
-# 데이터 추출 규칙
-extraction:
-  price:
-    selector: ".price-value"
-    type: text
-    transform: removeCommas
-    parse: int
-  stock:
-    selector: ".stock-status"
-    type: text
-    mapping:
-      "판매중": "on_sale"
-      "품절": "sold_out"
+```text
+ProductSearchController (HTTP)
+    ↓
+ProductSearchService (Facade)
+    ↓
+SupabaseProductRepository (Repository)
+    ↓
+Supabase Client (Singleton)
 ```
 
-## 🔔 슬랙 알림 형식
+### 주요 기능
 
-```
-🔍 상품 정보 변경 감지
+1. **상품 검색 (`search`)**
+   - URL 패턴 기반 검색 (ILIKE)
+   - 판매 상태 필터링
+   - 결과 개수 제한
 
-상품명: 블랙 쿠션 파운데이션 본품 15g+리필 15g [21N1 바닐라]
-플랫폼: 화해
-링크: https://www.hwahae.co.kr/goods/61560
+2. **상품 조회 (`findById`)**
+   - UUID 기반 단일 상품 조회
+   - 404 처리
 
-📊 변경사항:
-• 가격: 66,600원 → 59,900원 (10% 할인)
-• 재고: 판매중 → 품절
+3. **헬스체크 (`healthCheck`)**
+   - Supabase 연결 상태 확인
 
-🕐 스캔 시간: 2024-10-28 16:50:00 KST
-```
+### 데이터 모델
 
-## 🔧 스캔 로직
-
-### 변경사항 감지
+**ProductSet 도메인 엔티티**:
 
 ```typescript
-interface ComparisonResult {
-  changed: boolean;
-  changes: {
-    field: string;
-    oldValue: any;
-    newValue: any;
-  }[];
+{
+  product_set_id: string,    // UUID
+  product_id: string,         // UUID
+  product_name: string | null,
+  link_url: string | null,
+  thumbnail?: string | null,
+  sale_status?: string | null,
+  original_price?: number | null,
+  discounted_price?: number | null
 }
 ```
 
-감지 대상 필드:
+### 검증
 
-- `discounted_price`: 판매가
-- `original_price`: 정가
-- `sale_status`: 판매 상태
-- `available_stockcnt`: 재고 수량 (선택적)
+- **Zod 스키마 검증**: 모든 DB 레코드는 `ProductSetSchema`로 검증
+- **도메인 엔티티**: `ProductSetEntity`로 변환하여 비즈니스 로직 처리
+- **타입 안전성**: TypeScript strict mode로 완전한 타입 안전성 보장
 
-### 알림 조건
+## 📝 YAML 설정 예시
 
-다음 경우에 슬랙 알림이 발송됩니다:
-
-- 가격이 5% 이상 변동된 경우
-- 판매 상태가 변경된 경우 (on_sale ↔ sold_out)
-- `forceUpdate=true`로 요청된 경우
+화해 플랫폼 설정은 [config/platforms/hwahae.yaml](src/config/platforms/hwahae.yaml)을 참고하세요.
 
 ## 🐳 Docker 개발/배포 환경
 
@@ -321,34 +340,34 @@ make clean        # 전체 정리 (컨테이너 & 이미지 삭제)
 make help         # 도움말
 ```
 
-## 📊 모니터링
+## 📊 주요 특징
 
-### 로그
+### 다중 전략 스크래핑
 
-서버는 상세한 스캔 로그를 출력합니다:
+- **API 우선**: 화해 공식 API를 우선 사용 (빠르고 안정적)
+- **Playwright 대체**: API 실패 시 자동으로 브라우저 자동화로 전환
+- **검증 기능**: CSV 데이터와 API 데이터 비교 검증
 
-- 스캔 시작/종료 시간
-- 처리된 상품 수
-- 감지된 변경사항
-- 에러 및 재시도 로그
+### Repository Pattern
 
-### 메트릭스 (예정)
+- **추상화**: `IProductRepository` 인터페이스로 데이터 접근 계층 분리
+- **테스트 가능**: Dependency Injection으로 Mock Repository 주입 가능
+- **Singleton**: Supabase 클라이언트 재사용으로 연결 효율 최적화
 
-- 스캔 성공률
-- 평균 응답 시간
-- 변경사항 감지 빈도
-- 사이트별 에러율
+### 타입 안전성
 
-## 🔒 보안 고려사항
+- **TypeScript Strict Mode**: 100% 타입 안전성
+- **Zod 검증**: 런타임 데이터 검증으로 타입 불일치 방지
+- **도메인 엔티티**: 비즈니스 로직을 도메인 모델로 캡슐화
 
-- Supabase Row Level Security (RLS) 준수
-- API 키는 환경 변수로 관리
-- 슬랙 웹훅 URL 노출 방지
-- Rate limiting 적용하여 사이트 과부하 방지
+## 🔒 보안
 
-## ⚡ 성능 최적화
+- **환경 변수**: Supabase Service Role Key는 환경 변수로 관리
+- **입력 검증**: Middleware를 통한 요청 파라미터 검증
+- **에러 처리**: 민감한 정보 노출 방지
 
-- 병렬 스캔: 여러 상품 동시 처리 (concurrency 제한)
-- 캐싱: 최근 스캔 결과 캐시하여 중복 요청 방지
-- 배치 처리: DB 업데이트를 배치로 처리하여 성능 향상
-- 스마트 스캔: 변경 가능성이 높은 상품 우선 스캔
+## ⚡ 성능
+
+- **Singleton Pattern**: Supabase 클라이언트 재사용
+- **쿼리 최적화**: 필요한 필드만 SELECT
+- **다중 전략**: API 우선으로 응답 시간 단축

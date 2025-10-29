@@ -3,12 +3,16 @@
  * 리팩토링 완료: Strategy Pattern + SOLID 원칙
  */
 
+import "dotenv/config";
 import express from "express";
 import { ScanController } from "@/controllers/ScanController";
+import { ProductSearchController } from "@/controllers/ProductSearchController";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
 import {
   validateScanRequest,
   validateGoodsIdParam,
+  validateProductSearchQuery,
+  validateProductSetIdParam,
 } from "@/middleware/validation";
 
 const app = express();
@@ -19,6 +23,7 @@ app.use(express.json());
 
 // 컨트롤러 인스턴스
 const scanController = new ScanController();
+const productSearchController = new ProductSearchController();
 
 // 헬스체크 엔드포인트
 app.get("/health", (req, res) => {
@@ -43,6 +48,19 @@ app.get("/api/scan/strategies", (req, res) =>
   scanController.getStrategies(req, res),
 );
 
+// Product Search API 라우트
+app.get("/api/products/search", validateProductSearchQuery, (req, res) =>
+  productSearchController.search(req, res),
+);
+
+app.get("/api/products/health", (req, res) =>
+  productSearchController.health(req, res),
+);
+
+app.get("/api/products/:productSetId", validateProductSetIdParam, (req, res) =>
+  productSearchController.getById(req, res),
+);
+
 // 404 핸들러
 app.use(notFoundHandler);
 
@@ -54,10 +72,14 @@ const server = app.listen(PORT, () => {
   console.log("✅ Product Scanner 서버 시작");
   console.log(`📍 포트: ${PORT}`);
   console.log(`🔗 헬스체크: http://localhost:${PORT}/health`);
-  console.log(`\n📚 API 엔드포인트:`);
+  console.log(`\n📚 Scan API 엔드포인트:`);
   console.log(`  POST /api/scan/validate - 상품 검증 (CSV vs API)`);
   console.log(`  POST /api/scan/:goodsId - 상품 스캔`);
   console.log(`  GET  /api/scan/strategies - 사용 가능한 전략 목록`);
+  console.log(`\n🔍 Product Search API 엔드포인트:`);
+  console.log(`  GET  /api/products/search - 상품 검색 (Supabase)`);
+  console.log(`  GET  /api/products/:productSetId - 상품 ID 조회`);
+  console.log(`  GET  /api/products/health - Supabase 연결 상태`);
   console.log(`\n🎯 지원 전략: API (priority 1), Playwright (priority 2)`);
 });
 

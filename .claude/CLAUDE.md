@@ -1,13 +1,13 @@
 # Scoob Scraper Project
 
-Docker 기반 웹 스크래퍼 모듈 개발 프로젝트 - YAML 설정 기반으로 코드 수정 없이 새로운 스크래퍼를 추가할 수 있는 확장 가능한 시스템.
+Docker-based web scraper module development project - An extensible system that allows adding new scrapers without code modification through YAML configuration.
 
 ## 🎯 Project Overview
 
-- **Type**: TypeScript + Docker + Playwright 기반 웹 스크래핑 서버
-- **Architecture**: Multi-module monorepo (각 스크래퍼는 독립적인 Docker 서비스)
-- **Reference**: `product_search/` - 상품 검색 스크래퍼 (완성)
-- **Goal**: 새로운 스크래퍼 모듈을 추가 개발
+- **Type**: TypeScript + Docker + Playwright-based web scraping server
+- **Architecture**: Multi-module monorepo (each scraper is an independent Docker service)
+- **Reference**: `product_scanner/` - Product scanner module (completed)
+- **Goal**: Add new scraper modules
 
 ## 📚 Technology Stack
 
@@ -32,33 +32,35 @@ Docker 기반 웹 스크래퍼 모듈 개발 프로젝트 - YAML 설정 기반�
 
 ### Design Patterns (Mandatory)
 
-모든 코드는 다음 디자인 패턴을 엄격히 준수해야 합니다:
+All code must strictly adhere to the following design patterns:
 
-- **Strategy Pattern**: 스크래퍼별 스크래핑 전략 (YAML 설정 기반)
-- **Template Method Pattern**: 공통 스크래핑 흐름 정의
-- **Factory Pattern**: 스크래퍼 인스턴스 생성
-- **Registry Pattern**: 스크래퍼 캐싱 및 관리
-- **Singleton Pattern**: 설정 로더 및 레지스트리
-- **Command Pattern**: 브라우저 액션 실행
-- **Facade Pattern**: 서비스 계층 단순화
+- **Strategy Pattern**: Scraping strategy per scraper (YAML configuration-based)
+- **Template Method Pattern**: Define common scraping flow
+- **Factory Pattern**: Scraper instance creation
+- **Registry Pattern**: Scraper caching and management
+- **Repository Pattern**: Data access logic encapsulation (Supabase integration)
+- **Singleton Pattern**: Configuration loader, registry, Supabase client
+- **Command Pattern**: Browser action execution
+- **Facade Pattern**: Service layer simplification
 
 ### SOLID Principles (Non-Negotiable)
 
-- **SRP**: 각 클래스는 단일 책임만 가짐
-- **OCP**: 확장에 열려있고 수정에 닫혀있음 (YAML로 확장)
-- **LSP**: 모든 하위 클래스는 상위 클래스로 대체 가능
-- **ISP**: 클라이언트별 인터페이스 분리
-- **DIP**: 추상화에 의존, 구체 클래스에 의존하지 않음
+- **SRP**: Each class has a single responsibility
+- **OCP**: Open for extension, closed for modification (extend via YAML)
+- **LSP**: All subclasses must be substitutable for their base classes
+- **ISP**: Client-specific interface segregation
+- **DIP**: Depend on abstractions, not concrete classes
 
 ## 📁 Directory Structure (Standard)
 
-각 스크래퍼 모듈은 다음 구조를 따라야 합니다:
+Each scraper module must follow this structure:
 
 ```text
 scraper_module/
 ├── src/                           # Source code (NEW)
 │   ├── server.ts                  # Entry point (~100줄 이하)
 │   ├── config/
+│   │   ├── constants.ts           # Application constants
 │   │   ├── targets/               # YAML 설정 파일들
 │   │   │   ├── target1.yaml
 │   │   │   └── target2.yaml
@@ -69,10 +71,13 @@ scraper_module/
 │   │   │   └── Config.ts
 │   │   └── interfaces/            # Interface definitions
 │   │       ├── IScraper.ts
-│   │       └── IExtractor.ts
+│   │       ├── IExtractor.ts
+│   │       └── IRepository.ts     # Repository interface
 │   ├── services/
 │   │   ├── ScraperService.ts      # Business logic (Facade)
 │   │   └── ScraperRegistry.ts     # Registry (Singleton)
+│   ├── repositories/              # Data access layer (NEW)
+│   │   └── SupabaseRepository.ts  # Supabase implementation
 │   ├── scrapers/
 │   │   ├── base/
 │   │   │   ├── BaseScraper.ts     # Abstract base class
@@ -125,40 +130,40 @@ scraper_module/
 
 ### Code Organization
 
-- **One Class Per File**: 각 파일은 하나의 클래스만 export
-- **Interface Separation**: 인터페이스는 별도 파일로 분리
-- **Barrel Exports**: index.ts로 모듈 exports 정리
-- **Dependency Injection**: 생성자에서 의존성 주입
+- **One Class Per File**: Each file exports only one class
+- **Interface Separation**: Interfaces separated into dedicated files
+- **Barrel Exports**: Organize module exports via index.ts
+- **Dependency Injection**: Inject dependencies via constructor
 
 ### Import Path Rules (MANDATORY)
 
-**절대경로 사용 원칙**:
+**Absolute Path Usage Principle**:
 
 ```typescript
-// ✅ GOOD - 절대경로 (@/ 별칭 사용)
+// ✅ GOOD - Absolute path (using @/ alias)
 import { ConfigLoader } from "@/config/ConfigLoader";
 import { HwahaeProduct } from "@/core/domain/HwahaeProduct";
 import { HwahaeApiFetcher } from "@/fetchers/HwahaeApiFetcher";
 
-// ✅ GOOD - 외부 라이브러리
+// ✅ GOOD - External libraries
 import express from "express";
 import { createClient } from "@supabase/supabase-js";
 
-// ✅ ACCEPTABLE - 같은 디렉토리 내
+// ✅ ACCEPTABLE - Same directory
 import { SupabaseService } from "./SupabaseService";
 
-// ❌ BAD - 상대경로 (다른 디렉토리)
+// ❌ BAD - Relative path (different directory)
 import { ConfigLoader } from "../config/ConfigLoader";
 import { HwahaeProduct } from "../../core/domain/HwahaeProduct";
 ```
 
-**Import 순서**:
+**Import Order**:
 
-1. 외부 라이브러리 (Node.js built-in, npm packages)
-2. 절대경로 import (`@/` 별칭)
-3. 상대경로 import (같은 디렉토리)
+1. External libraries (Node.js built-in, npm packages)
+2. Absolute path imports (`@/` alias)
+3. Relative path imports (same directory)
 
-**tsconfig.json 설정** (이미 적용됨):
+**tsconfig.json Configuration** (already applied):
 
 ```json
 {
@@ -178,43 +183,43 @@ import { HwahaeProduct } from "../../core/domain/HwahaeProduct";
 **Approach**: Volume Mount + Hot Reload (Hybrid Method)
 
 - **Tools**: docker-compose.dev.yml + tsx watch
-- **Benefits**: 개발 속도 + 환경 일치 + 타입 안전
+- **Benefits**: Development speed + environment consistency + type safety
 
 ### Quick Start
 
 ```bash
-# 개발 환경 시작
+# Start development environment
 cd product_scanner
 make dev
 
-# 타입 체크 (컨테이너 내)
+# Type check (inside container)
 make type-check
 
-# 테스트 실행
+# Run tests
 make test
 
-# 로그 확인
+# View logs
 make logs
 
-# 종료
+# Stop
 make dev-down
 ```
 
 ### Development vs Production
 
-| 항목           | 개발 환경              | 배포 환경                |
-| -------------- | ---------------------- | ------------------------ |
-| **Dockerfile** | Dockerfile.dev         | Dockerfile (Multi-stage) |
-| **Compose**    | docker-compose.dev.yml | docker-compose.yml       |
-| **Volume**     | ✅ Yes (./:/app)       | ❌ No                    |
-| **Hot Reload** | ✅ tsx watch           | ❌ tsx                   |
-| **용도**       | 로컬 개발              | 배포, 운영               |
+| Item           | Development Environment | Production Environment   |
+| -------------- | ----------------------- | ------------------------ |
+| **Dockerfile** | Dockerfile.dev          | Dockerfile (Multi-stage) |
+| **Compose**    | docker-compose.dev.yml  | docker-compose.yml       |
+| **Volume**     | ✅ Yes (./:/app)        | ❌ No                    |
+| **Hot Reload** | ✅ tsx watch            | ❌ tsx                   |
+| **Purpose**    | Local development       | Deployment, production   |
 
 ### Available Commands
 
-- `/dev` - 개발 환경 관리 (start, stop, logs)
-- `/docker` - Docker 전체 관리 (dev/prod 환경)
-- `/test` - 모듈별 테스트 (개발/배포 환경)
+- `/dev` - Development environment management (start, stop, logs)
+- `/docker` - Overall Docker management (dev/prod environments)
+- `/test` - Module-specific testing (dev/prod environments)
 
 ## 🔧 Development Workflow
 
@@ -267,10 +272,10 @@ docker-compose -f docker/docker-compose.yml up -d
 
 ### YAML Configuration Philosophy
 
-- **Zero Code Changes**: 새로운 타겟 추가 시 YAML 파일만 추가
-- **Declarative**: 무엇을 할지만 정의 (how는 프레임워크가 처리)
-- **Validated**: Zod로 스키마 검증
-- **Template Variables**: `${variable}` 지원
+- **Zero Code Changes**: Add new targets by only adding YAML files
+- **Declarative**: Define what to do (framework handles how)
+- **Validated**: Schema validation with Zod
+- **Template Variables**: Support for `${variable}` syntax
 
 ### Template Variables (Standard)
 
@@ -286,15 +291,15 @@ ${encodedQuery}    # URL-encoded query
 
 ### Error Handling Requirements
 
-- **Never Suppress Errors**: 모든 에러는 로깅하고 상위로 전파
-- **Context Preservation**: 에러 발생 시 컨텍스트 정보 포함
-- **Graceful Degradation**: 부분 실패 시에도 가능한 결과 반환
-- **HTTP Error Codes**: 적절한 상태 코드 사용 (400, 404, 500 등)
+- **Never Suppress Errors**: Log all errors and propagate to upper layers
+- **Context Preservation**: Include context information when errors occur
+- **Graceful Degradation**: Return possible results even on partial failure
+- **HTTP Error Codes**: Use appropriate status codes (400, 404, 500, etc.)
 
 ### Error Middleware
 
 ```typescript
-// middleware/errorHandler.ts 패턴 따르기
+// Follow middleware/errorHandler.ts pattern
 app.use(errorHandler);
 ```
 
@@ -358,7 +363,7 @@ Each module must have:
 
 ### When Writing Code
 
-1. **Always check `product_search/` for reference patterns**
+1. **Always check `product_scanner/` for reference patterns**
 2. **Type safety is non-negotiable** - no `any`, explicit types everywhere
 3. **Follow existing architecture** - don't reinvent patterns
 4. **YAML-first approach** - maximize configurability
@@ -376,18 +381,20 @@ Each module must have:
 
 ### Internal Reference
 
-- `product_search/README.md` - Architecture documentation
-- `product_search/config/malls/*.yaml` - YAML examples
-- `product_search/core/` - Domain model reference
-- `product_search/scrapers/base/` - Base class patterns
+- `product_scanner/README.md` - Architecture documentation
+- `product_scanner/config/platforms/*.yaml` - YAML examples
+- `product_scanner/core/` - Domain model reference
+- `product_scanner/scrapers/base/` - Base class patterns
 
 ### Pattern Examples
 
 - Strategy Pattern → `ConfigDrivenScraper.ts`
 - Factory Pattern → `ScraperFactory.ts`
 - Registry Pattern → `ScraperRegistry.ts`
+- Repository Pattern → `SupabaseProductRepository.ts`
 - Command Pattern → `ActionExecutor.ts`
 - Template Method → `BaseScraper.ts`
+- Facade Pattern → `ProductSearchService.ts`
 
 ---
 
