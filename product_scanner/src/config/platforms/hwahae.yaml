@@ -21,11 +21,21 @@ strategies:
     http:
       method: GET
       headers:
+        # 브라우저 식별 헤더 (Chrome 131)
         User-Agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-        Accept: "application/json, text/plain, */*"
+        sec-ch-ua: '"Chromium";v="131", "Google Chrome";v="131", "Not_A Brand";v="99"'
+        sec-ch-ua-mobile: "?0"
+        sec-ch-ua-platform: '"macOS"'
+        # 요청 타입 헤더
+        Accept: "*/*"
         Accept-Language: "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
-        Referer: "https://www.hwahae.co.kr/goods/${goodsId}"
-        Origin: "https://www.hwahae.co.kr"
+        Accept-Encoding: "gzip, deflate, br, zstd"
+        # CORS 보안 헤더
+        Sec-Fetch-Site: "same-site"
+        Sec-Fetch-Mode: "cors"
+        Sec-Fetch-Dest: "empty"
+        # Referer: 메인 페이지 (실제 브라우저 동작과 일치)
+        Referer: "https://www.hwahae.co.kr/"
       timeout: 10000
       retryCount: 3
       retryDelay: 1000
