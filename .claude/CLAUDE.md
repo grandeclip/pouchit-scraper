@@ -119,6 +119,51 @@ scraper_module/
 - **Barrel Exports**: index.ts로 모듈 exports 정리
 - **Dependency Injection**: 생성자에서 의존성 주입
 
+## 🐳 Docker Development Workflow (2025 Best Practice)
+
+### Development Environment Strategy
+
+**Approach**: Volume Mount + Hot Reload (Hybrid Method)
+
+- **Tools**: docker-compose.dev.yml + tsx watch
+- **Benefits**: 개발 속도 + 환경 일치 + 타입 안전
+
+### Quick Start
+
+```bash
+# 개발 환경 시작
+cd product_scanner
+make dev
+
+# 타입 체크 (컨테이너 내)
+make type-check
+
+# 테스트 실행
+make test
+
+# 로그 확인
+make logs
+
+# 종료
+make dev-down
+```
+
+### Development vs Production
+
+| 항목           | 개발 환경              | 배포 환경                |
+| -------------- | ---------------------- | ------------------------ |
+| **Dockerfile** | Dockerfile.dev         | Dockerfile (Multi-stage) |
+| **Compose**    | docker-compose.dev.yml | docker-compose.yml       |
+| **Volume**     | ✅ Yes (./:/app)       | ❌ No                    |
+| **Hot Reload** | ✅ tsx watch           | ❌ tsx                   |
+| **용도**       | 로컬 개발              | 배포, 운영               |
+
+### Available Commands
+
+- `/dev` - 개발 환경 관리 (start, stop, logs)
+- `/docker` - Docker 전체 관리 (dev/prod 환경)
+- `/test` - 모듈별 테스트 (개발/배포 환경)
+
 ## 🔧 Development Workflow
 
 ### Common Commands

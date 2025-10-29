@@ -1,12 +1,4 @@
 {
-  "name": "product_scanner",
-  "version": "1.0.0",
-  "description": "화해(Hwahae) 상품 가격 정보 스크래퍼 서버",
-  "main": "server.ts",
-  "scripts": {
-    "dev": "tsx watch server.ts",
-    "start": "tsx server.ts"
-  },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
     "dotenv": "^16.3.0",
@@ -17,12 +9,21 @@
     "tsx": "^4.7.0",
     "zod": "^3.22.0"
   },
+  "description": "화해(Hwahae) 상품 가격 정보 스크래퍼 서버",
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/js-yaml": "^4.0.9",
-    "@types/node": "^20.0.0"
+    "@types/js-yaml": "^4.0.9"
   },
+  "main": "server.ts",
+  "name": "product_scanner",
   "peerDependencies": {
     "playwright": "*"
-  }
+  },
+  "scripts": {
+    "dev": "tsx watch server.ts",
+    "start": "tsx server.ts",
+    "test": "tsx test-validator.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "version": "1.0.0"
 }

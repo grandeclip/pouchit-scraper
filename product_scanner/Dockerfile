@@ -1,28 +1,43 @@
-# 상품 정보 스크래퍼 서버
-# Playwright 최신 버전 기반 Docker 이미지
-FROM mcr.microsoft.com/playwright:v1.56.1-noble
+# ============================================================================
+# Stage 1: Builder
+# ============================================================================
+FROM mcr.microsoft.com/playwright:v1.56.1-noble AS builder
 
-# 작업 디렉토리 설정
 WORKDIR /app
 
 # Node.js 버전 확인
 RUN node --version && npm --version
 
 # package.json과 tsconfig.json 복사
-COPY package.json tsconfig.json ./
+COPY package.json package-lock.json tsconfig.json ./
 
-# 의존성 설치 (npm 사용)
-RUN npm install
+# 의존성 설치 (production only)
+RUN npm ci --only=production
 
-# 모든 소스 코드 복사
+# 소스 코드 복사
+COPY . .
+
+# ============================================================================
+# Stage 2: Production
+# ============================================================================
+FROM mcr.microsoft.com/playwright:v1.56.1-noble AS production
+
+WORKDIR /app
+
+# Builder stage에서 node_modules 복사
+COPY --from=builder /app/node_modules ./node_modules
+
+# 필수 파일 복사
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
+
+# 소스 코드 복사
 COPY server.ts ./
 COPY config ./config
 COPY core ./core
-COPY services ./services
-COPY scrapers ./scrapers
-COPY extractors ./extractors
-COPY controllers ./controllers
-COPY middleware ./middleware
+COPY fetchers ./fetchers
+COPY validators ./validators
+COPY test-validator.ts ./
 
 # 환경 변수 설정
 ENV NODE_ENV=production

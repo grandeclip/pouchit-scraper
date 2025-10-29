@@ -221,23 +221,84 @@ interface ComparisonResult {
 - 판매 상태가 변경된 경우 (on_sale ↔ sold_out)
 - `forceUpdate=true`로 요청된 경우
 
-## 🐳 Docker 실행
+## 🐳 Docker 개발/배포 환경
+
+### 🚀 개발 환경 (Volume Mount + Hot Reload)
+
+로컬에서 파일을 수정하면 자동으로 컨테이너에 반영되고 재시작됩니다.
 
 ```bash
-# 빌드
-docker build -t product-scanner .
+# 1. 개발 환경 시작
+make dev
+# 또는: docker-compose -f docker-compose.dev.yml up
 
-# 실행
-docker run -d \
-  -p 3100:3100 \
-  -e SUPABASE_URL=your-url \
-  -e SUPABASE_KEY=your-key \
-  -e SLACK_WEBHOOK_URL=your-webhook \
-  --name product-scanner \
-  product-scanner
+# 2. 로컬에서 파일 수정
+#    → 자동으로 tsx watch가 감지하여 재시작
 
-# docker-compose 사용
-docker-compose up -d
+# 3. 타입 체크 (컨테이너 내)
+make type-check
+
+# 4. 테스트 실행
+make test
+
+# 5. 작업 완료 후 종료
+make dev-down
+```
+
+**개발 환경 특징:**
+
+- ✅ 로컬 파일 수정 → 즉시 Docker 컨테이너에 반영
+- ✅ tsx watch로 hot reload (재빌드 불필요)
+- ✅ node_modules 격리 (로컬/컨테이너 충돌 방지)
+- ✅ 타입 체크 컨테이너 내 실행 (환경 100% 일치)
+
+### 📦 배포 환경 (Multi-stage Build)
+
+최적화된 production 이미지를 빌드하고 실행합니다.
+
+```bash
+# 배포용 이미지 빌드 & 실행
+make prod
+
+# 상태 확인
+make status
+
+# 로그 확인
+make logs
+
+# 종료
+make down
+```
+
+### 🔍 주요 차이점
+
+| 항목         | 개발 환경              | 배포 환경                   |
+| ------------ | ---------------------- | --------------------------- |
+| Dockerfile   | Dockerfile.dev         | Dockerfile (Multi-stage)    |
+| Compose      | docker-compose.dev.yml | docker-compose.yml          |
+| Volume Mount | ✅ Yes (./:/app)       | ❌ No                       |
+| Hot Reload   | ✅ tsx watch           | ❌ tsx (일반)               |
+| Image Size   | ~800MB                 | ~600MB (최적화)             |
+| node_modules | 컨테이너 격리          | 이미지 내장                 |
+| 빌드 시간    | 최초 1회               | 매번 빌드 (production only) |
+| 용도         | 로컬 개발, 디버깅      | 배포, 운영 환경             |
+
+### 📖 상세 가이드
+
+자세한 Docker 설정 및 사용법은 [DOCKER-SETUP.md](./DOCKER-SETUP.md)를 참고하세요.
+
+### ⚡ Makefile 명령어
+
+```bash
+make dev          # 개발 환경 시작
+make dev-down     # 개발 환경 종료
+make prod         # 배포 환경 시작
+make down         # 배포 환경 종료
+make type-check   # 타입 체크 (컨테이너 내)
+make test         # 테스트 실행
+make logs         # 로그 확인
+make clean        # 전체 정리 (컨테이너 & 이미지 삭제)
+make help         # 도움말
 ```
 
 ## 📊 모니터링

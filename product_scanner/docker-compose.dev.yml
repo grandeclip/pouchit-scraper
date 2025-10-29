@@ -1,19 +1,24 @@
 services:
-  product_scanner:
+  product_scanner_dev:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: product_scanner
+      dockerfile: Dockerfile.dev
+    container_name: product_scanner_dev
     ports:
       - "3100:3100"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3100
     env_file:
       - ../.env.local
     volumes:
+      # 소스 코드 volume mount (실시간 반영)
+      - ./:/app
+      # node_modules 격리 (중요! 로컬/컨테이너 충돌 방지)
+      - /app/node_modules
+      # 로그 디렉토리
       - ./logs:/app/logs
+    command: npm run dev
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3100/health"]

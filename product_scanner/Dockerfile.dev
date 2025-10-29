@@ -1,0 +1,28 @@
+# 개발 환경용 Dockerfile
+# Volume mount + Hot reload 지원
+FROM mcr.microsoft.com/playwright:v1.56.1-noble
+
+WORKDIR /app
+
+# Node.js 버전 확인
+RUN node --version && npm --version
+
+# package.json만 먼저 복사 (캐시 최적화)
+COPY package.json package-lock.json tsconfig.json ./
+
+# 의존성 설치 (dev dependencies 포함)
+RUN npm install
+
+# 소스 코드는 volume mount로 연결됨
+# (docker-compose.dev.yml에서 ./:/app으로 마운트)
+
+# 환경 변수 설정
+ENV NODE_ENV=development
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PORT=3100
+
+# 포트 노출
+EXPOSE 3100
+
+# Hot reload with tsx watch
+CMD ["npm", "run", "dev"]

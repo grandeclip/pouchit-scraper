@@ -34,17 +34,20 @@ docker-compose down
 
 ## product_scanner 테스트
 
+### 배포 환경 테스트
+
 ```bash
 cd product_scanner
 
-# 1. Build & Run
-docker-compose up --build -d
+# 1. Build & Run (배포 환경)
+make prod
+# 또는: docker-compose up --build -d
 
 # 2. Container Status
 docker ps | grep product_scanner
 
 # 3. Health Check
-curl http://localhost:3989/health
+curl http://localhost:3100/health
 
 # 4. Custom Test Script (있는 경우)
 # 예: Supabase 연결 테스트
@@ -55,7 +58,40 @@ docker exec product_scanner npx tsx test-supabase.ts
 docker logs product_scanner --tail 50
 
 # 6. Cleanup
-docker-compose down
+make down
+# 또는: docker-compose down
+```
+
+### 개발 환경 테스트
+
+```bash
+cd product_scanner
+
+# 1. Build & Run (개발 환경)
+make dev
+# 또는: docker-compose -f docker-compose.dev.yml up --build
+
+# 2. Container Status
+docker ps | grep product_scanner_dev
+
+# 3. Health Check
+curl http://localhost:3100/health
+
+# 4. TypeScript Type Check (컨테이너 내)
+make type-check
+
+# 5. Test Execution (컨테이너 내)
+make test
+
+# 6. Logs Check
+make logs
+
+# 7. Hot Reload 테스트
+# 로컬에서 파일 수정 후 자동 재시작 확인
+make logs-f
+
+# 8. Cleanup
+make dev-down
 ```
 
 ## 공통 테스트 절차
