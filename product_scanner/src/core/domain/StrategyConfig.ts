@@ -33,6 +33,7 @@ export interface HttpStrategyConfig extends BaseStrategyConfig {
     timeout: number;
     retryCount: number;
     retryDelay: number;
+    requestDelay?: number; // Rate limiting 방지: 각 요청 사이 대기 시간 (ms)
   };
 }
 

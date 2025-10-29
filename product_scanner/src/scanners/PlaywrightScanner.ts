@@ -55,6 +55,7 @@ export class PlaywrightScanner extends BaseScanner {
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
+        "--disable-blink-features=AutomationControlled",
       ],
     });
 
@@ -62,7 +63,17 @@ export class PlaywrightScanner extends BaseScanner {
     this.context = await this.browser.newContext({
       viewport: { width: 1920, height: 1080 },
       userAgent:
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      locale: "ko-KR",
+      timezoneId: "Asia/Seoul",
+    });
+
+    // 추가 anti-detection 설정
+    await this.context.addInitScript(() => {
+      // webdriver 속성 제거
+      Object.defineProperty(navigator, "webdriver", {
+        get: () => false,
+      });
     });
 
     // 페이지 생성
@@ -144,7 +155,10 @@ export class PlaywrightScanner extends BaseScanner {
         case "navigate":
           if (url) {
             console.log(`[${this.strategy.id}] Navigate to: ${url}`);
-            await this.page.goto(url, { waitUntil: "domcontentloaded" });
+            await this.page.goto(url, {
+              waitUntil: "networkidle",
+              timeout: 30000,
+            });
           }
           break;
 
@@ -199,7 +213,16 @@ export class PlaywrightScanner extends BaseScanner {
       const evalFunction = new Function(
         `return (${extractionConfig.script})`,
       )();
-      return await this.page.evaluate(evalFunction);
+      // Debug: Check page title before extraction
+      const pageTitle = await this.page.title();
+      console.log(`[${this.strategy.id}] Page title:`, pageTitle);
+
+      const result = await this.page.evaluate(evalFunction);
+      console.log(
+        `[${this.strategy.id}] Extracted data:`,
+        JSON.stringify(result),
+      );
+      return result;
     }
 
     if (extractionConfig.method === "selector" && extractionConfig.selectors) {

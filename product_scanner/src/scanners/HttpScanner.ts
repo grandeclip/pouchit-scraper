@@ -42,6 +42,11 @@ export class HttpScanner extends BaseScanner {
    * 데이터 추출 (HTTP API 호출)
    */
   protected async extractData(goodsId: string): Promise<HwahaeApiResponse> {
+    // Rate limiting 방지: requestDelay 설정이 있으면 대기
+    if (this.httpStrategy.http.requestDelay) {
+      await this.sleep(this.httpStrategy.http.requestDelay);
+    }
+
     const url = this.buildUrl(goodsId);
     return await this.fetchWithRetry(url);
   }
