@@ -31,10 +31,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/tsconfig.json ./tsconfig.json
 
-# 소스 코드 복사
+# 소스 코드 복사 (production에 필요한 것만)
 COPY src ./src
-COPY tests ./tests
-COPY scripts ./scripts
 
 # 환경 변수 설정
 ENV NODE_ENV=production

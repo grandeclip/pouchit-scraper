@@ -75,10 +75,8 @@ temp/
 *.temp
 
 # Data & Output
-data/
 output/
 results/
-*.csv
 *.json.bak
 *.yaml.bak
 

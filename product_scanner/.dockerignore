@@ -47,7 +47,9 @@ README*.md
 docker
 
 # Development files
-scripts
+assets/
+scripts/
+results/
 .dockerignore
 
 # Claude configuration

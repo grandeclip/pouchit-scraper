@@ -1,0 +1,114 @@
+# 화해(Hwahae) 플랫폼 설정
+# 다중 전략 지원: API + Playwright
+
+platform: hwahae
+name: "화해"
+baseUrl: "https://gateway.hwahae.co.kr"
+apiVersion: "v14"
+
+# API 엔드포인트
+endpoints:
+  goodsDetail: "${baseUrl}/${apiVersion}/commerce/goods/${goodsId}"
+
+# 스캔 전략 (Strategy Pattern)
+# priority 낮을수록 우선순위 높음 (1 > 2)
+strategies:
+  # 전략 1: HTTP API (빠르고 효율적)
+  - id: "api"
+    type: "http"
+    priority: 1
+    description: "API 기반 데이터 페칭 (권장)"
+    http:
+      method: GET
+      headers:
+        User-Agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+        Accept: "application/json"
+      timeout: 10000
+      retryCount: 3
+      retryDelay: 1000
+
+  # 전략 2: Playwright 브라우저 (API 실패 시 대체)
+  - id: "browser"
+    type: "playwright"
+    priority: 2
+    description: "브라우저 기반 스크래핑 (Fallback)"
+    playwright:
+      headless: true
+      timeout: 30000
+      navigationSteps:
+        - action: "navigate"
+          url: "https://www.hwahae.co.kr/products/${goodsId}"
+        - action: "waitForSelector"
+          selector: ".product-detail"
+          timeout: 5000
+      extraction:
+        method: "evaluate"
+        script: |
+          return {
+            name: document.querySelector('.product-name')?.textContent || '',
+            title_images: [document.querySelector('.product-image img')?.src || ''],
+            consumer_price: parseInt(document.querySelector('.original-price')?.textContent.replace(/[^0-9]/g, '') || '0'),
+            price: parseInt(document.querySelector('.sale-price')?.textContent.replace(/[^0-9]/g, '') || '0'),
+            sale_status: document.querySelector('.sale-status')?.dataset?.status || 'SELNG'
+          };
+
+# 필드 매핑 규칙
+fieldMapping:
+  # 상품명
+  productName:
+    source: "name"
+    type: "string"
+    required: true
+
+  # 썸네일 (첫 번째 타이틀 이미지)
+  thumbnail:
+    source: "title_images[0]"
+    type: "string"
+    required: true
+    # URL 정규화: 쿼리 파라미터 제거
+    normalize: true
+
+  # 정가 (consumer_price)
+  originalPrice:
+    source: "consumer_price"
+    type: "number"
+    required: true
+
+  # 판매가 (price)
+  discountedPrice:
+    source: "price"
+    type: "number"
+    required: true
+
+  # 판매 상태
+  saleStatus:
+    source: "sale_status"
+    type: "enum"
+    required: true
+    # API → CSV 매핑
+    mapping:
+      SELNG: "on_sale"      # 판매중
+      SLDOT: "sold_out"     # 솔드아웃
+      STSEL: "off_sale"     # 판매중지
+
+# 검증 규칙
+validation:
+  # 가격 변동 임계값 (10% 이상 차이나면 warning)
+  priceThreshold: 0.10
+
+  # URL 정규화 (쿼리 파라미터 제거)
+  normalizeUrls: true
+
+  # 엄격한 매칭 모드
+  strictMode: false
+
+# 에러 처리
+errorHandling:
+  # 404 Not Found → 상품 삭제됨
+  notFound: "product_deleted"
+
+  # 429 Too Many Requests → Rate Limiting
+  rateLimitDelay: 2000
+
+  # 500 Internal Server Error → 재시도
+  serverErrorRetry: true
