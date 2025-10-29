@@ -15,15 +15,17 @@
     "@types/js-yaml": "^4.0.9",
     "typescript": "^5.0.0"
   },
-  "main": "server.ts",
+  "main": "src/server.ts",
   "name": "product_scanner",
   "peerDependencies": {
     "playwright": "*"
   },
   "scripts": {
-    "dev": "tsx watch server.ts",
-    "start": "tsx server.ts",
-    "test": "tsx test-validator.ts",
+    "dev": "tsx watch src/server.ts",
+    "script:hwahae": "tsx scripts/hwahae-validator.ts",
+    "start": "tsx src/server.ts",
+    "test": "tsx tests/hwahae-validator.test.ts",
+    "test:supabase": "tsx tests/supabase.test.ts",
     "type-check": "tsc --noEmit"
   },
   "version": "1.0.0"

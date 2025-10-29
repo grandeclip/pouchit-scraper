@@ -11,11 +11,11 @@ build
 # Environment files
 .env
 .env.*
-!.env.example
 
 # Git
 .git
 .gitignore
+.gitattributes
 
 # IDE
 .vscode
@@ -35,10 +35,20 @@ logs
 # Testing
 coverage
 .nyc_output
+tests
 
-# Docker
-docker-compose*.yml
-Dockerfile*
-
-# Misc
+# Documentation
+docs
 README*.md
+*.md
+!docker/README.md
+
+# Docker (exclude docker directory itself from context)
+docker
+
+# Development files
+scripts
+.dockerignore
+
+# Claude configuration
+.claude

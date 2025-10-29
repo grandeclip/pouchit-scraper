@@ -51,39 +51,54 @@ graph LR
 
 ```text
 product_scanner/
-├── server.ts                      # 엔트리포인트
-├── docker/                        # Docker 설정 파일
-│   ├── Dockerfile                 # 배포용 (Multi-stage)
-│   ├── Dockerfile.dev             # 개발용 (Volume mount)
+├── src/                           # 소스 코드
+│   ├── server.ts                  # 엔트리포인트
+│   ├── config/                    # 설정 파일 & 로더
+│   │   ├── ConfigLoader.ts
+│   │   └── platforms/             # YAML 설정
+│   │       └── hwahae.yaml
+│   ├── core/                      # 도메인 모델 & 인터페이스
+│   │   ├── domain/
+│   │   │   ├── HwahaeProduct.ts
+│   │   │   └── HwahaeConfig.ts
+│   │   └── interfaces/
+│   │       ├── IScraper.ts
+│   │       └── INotifier.ts
+│   ├── services/                  # 비즈니스 로직
+│   │   ├── ScanService.ts
+│   │   ├── SupabaseService.ts
+│   │   └── NotificationService.ts
+│   ├── scrapers/                  # 스크래퍼
+│   │   ├── base/
+│   │   │   └── BaseScraper.ts
+│   │   ├── PlaywrightScraper.ts
+│   │   └── HttpScraper.ts
+│   ├── extractors/                # 데이터 추출기
+│   │   ├── PriceExtractor.ts
+│   │   └── StockExtractor.ts
+│   ├── fetchers/                  # API Fetcher
+│   │   └── HwahaeApiFetcher.ts
+│   ├── validators/                # 검증기
+│   │   └── HwahaeValidator.ts
+│   ├── controllers/               # HTTP 컨트롤러
+│   │   └── ScanController.ts
+│   └── middleware/                # 미들웨어
+│       ├── errorHandler.ts
+│       └── validation.ts
+├── tests/                         # 테스트 파일
+│   ├── hwahae-validator.test.ts
+│   └── supabase.test.ts
+├── scripts/                       # 독립 실행 스크립트
+│   └── hwahae-validator.ts
+├── docs/                          # 문서
+│   └── hwahae-validator.md
+├── docker/                        # Docker 설정
+│   ├── README.md                  # Docker 상세 가이드
+│   ├── Dockerfile                 # 배포용
+│   ├── Dockerfile.dev             # 개발용
 │   ├── docker-compose.yml         # 배포 환경
 │   └── docker-compose.dev.yml     # 개발 환경
-├── config/
-│   └── targets/                   # 사이트별 스크래핑 설정
-│       └── hwahae.yaml
-├── core/
-│   ├── domain/                    # 도메인 모델
-│   │   ├── Product.ts
-│   │   └── ScanResult.ts
-│   └── interfaces/                # 인터페이스 정의
-│       ├── IScraper.ts
-│       └── INotifier.ts
-├── services/
-│   ├── ScanService.ts             # 스캔 오케스트레이션
-│   ├── SupabaseService.ts         # DB 연동
-│   └── NotificationService.ts     # 슬랙 알림
-├── scrapers/
-│   ├── base/
-│   │   └── BaseScraper.ts         # 베이스 클래스
-│   ├── PlaywrightScraper.ts       # Playwright 전략
-│   └── HttpScraper.ts             # HTTP 전략
-├── extractors/
-│   ├── PriceExtractor.ts          # 가격 정보 추출
-│   └── StockExtractor.ts          # 재고 정보 추출
-├── controllers/
-│   └── ScanController.ts          # HTTP 컨트롤러
-└── middleware/
-    ├── errorHandler.ts            # 에러 핸들러
-    └── validation.ts              # 요청 검증
+└── logs/                          # 로그 (runtime)
 ```
 
 ## 🚀 사용법

@@ -56,42 +56,53 @@ Docker 기반 웹 스크래퍼 모듈 개발 프로젝트 - YAML 설정 기반�
 
 ```text
 scraper_module/
-├── server.ts                      # Entry point (~100줄 이하)
+├── src/                           # Source code (NEW)
+│   ├── server.ts                  # Entry point (~100줄 이하)
+│   ├── config/
+│   │   ├── targets/               # YAML 설정 파일들
+│   │   │   ├── target1.yaml
+│   │   │   └── target2.yaml
+│   │   └── ConfigLoader.ts        # YAML 로더 (Singleton)
+│   ├── core/
+│   │   ├── domain/                # Domain models
+│   │   │   ├── Entity.ts
+│   │   │   └── Config.ts
+│   │   └── interfaces/            # Interface definitions
+│   │       ├── IScraper.ts
+│   │       └── IExtractor.ts
+│   ├── services/
+│   │   ├── ScraperService.ts      # Business logic (Facade)
+│   │   └── ScraperRegistry.ts     # Registry (Singleton)
+│   ├── scrapers/
+│   │   ├── base/
+│   │   │   ├── BaseScraper.ts     # Abstract base class
+│   │   │   └── ScraperFactory.ts  # Factory
+│   │   └── ConfigDrivenScraper.ts # YAML-based scraper
+│   ├── navigators/
+│   │   ├── PageNavigator.ts       # Navigation orchestrator
+│   │   └── ActionExecutor.ts      # Action executor (Command)
+│   ├── extractors/
+│   │   ├── EvaluateExtractor.ts   # page.evaluate extraction
+│   │   └── SelectorExtractor.ts   # Playwright API extraction
+│   ├── controllers/
+│   │   └── ScrapeController.ts    # HTTP controller
+│   └── middleware/
+│       ├── errorHandler.ts        # Global error handler
+│       └── validation.ts          # Request validation
+├── tests/                         # Test files (NEW)
+│   └── *.test.ts
+├── scripts/                       # Standalone scripts (NEW)
+│   └── *.ts
+├── docs/                          # Documentation (NEW)
+│   └── *.md
+├── docker/                        # Docker configuration (NEW)
+│   ├── README.md
+│   ├── Dockerfile
+│   ├── Dockerfile.dev
+│   ├── docker-compose.yml
+│   └── docker-compose.dev.yml
 ├── package.json                   # Dependencies
-├── tsconfig.json                  # TypeScript config
-├── Dockerfile                     # Container definition
-├── docker-compose.yml             # Service orchestration
-├── config/
-│   ├── targets/                   # YAML 설정 파일들
-│   │   ├── target1.yaml
-│   │   └── target2.yaml
-│   └── ConfigLoader.ts            # YAML 로더 (Singleton)
-├── core/
-│   ├── domain/                    # Domain models
-│   │   ├── Entity.ts
-│   │   └── Config.ts
-│   └── interfaces/                # Interface definitions
-│       ├── IScraper.ts
-│       └── IExtractor.ts
-├── services/
-│   ├── ScraperService.ts          # Business logic (Facade)
-│   └── ScraperRegistry.ts         # Registry (Singleton)
-├── scrapers/
-│   ├── base/
-│   │   ├── BaseScraper.ts         # Abstract base class
-│   │   └── ScraperFactory.ts      # Factory
-│   └── ConfigDrivenScraper.ts     # YAML-based scraper
-├── navigators/
-│   ├── PageNavigator.ts           # Navigation orchestrator
-│   └── ActionExecutor.ts          # Action executor (Command)
-├── extractors/
-│   ├── EvaluateExtractor.ts       # page.evaluate extraction
-│   └── SelectorExtractor.ts       # Playwright API extraction
-├── controllers/
-│   └── ScrapeController.ts        # HTTP controller
-└── middleware/
-    ├── errorHandler.ts            # Global error handler
-    └── validation.ts              # Request validation
+└── tsconfig.json                  # TypeScript config
 ```
 
 ## 💻 Code Style Guidelines
@@ -118,6 +129,47 @@ scraper_module/
 - **Interface Separation**: 인터페이스는 별도 파일로 분리
 - **Barrel Exports**: index.ts로 모듈 exports 정리
 - **Dependency Injection**: 생성자에서 의존성 주입
+
+### Import Path Rules (MANDATORY)
+
+**절대경로 사용 원칙**:
+
+```typescript
+// ✅ GOOD - 절대경로 (@/ 별칭 사용)
+import { ConfigLoader } from "@/config/ConfigLoader";
+import { HwahaeProduct } from "@/core/domain/HwahaeProduct";
+import { HwahaeApiFetcher } from "@/fetchers/HwahaeApiFetcher";
+
+// ✅ GOOD - 외부 라이브러리
+import express from "express";
+import { createClient } from "@supabase/supabase-js";
+
+// ✅ ACCEPTABLE - 같은 디렉토리 내
+import { SupabaseService } from "./SupabaseService";
+
+// ❌ BAD - 상대경로 (다른 디렉토리)
+import { ConfigLoader } from "../config/ConfigLoader";
+import { HwahaeProduct } from "../../core/domain/HwahaeProduct";
+```
+
+**Import 순서**:
+
+1. 외부 라이브러리 (Node.js built-in, npm packages)
+2. 절대경로 import (`@/` 별칭)
+3. 상대경로 import (같은 디렉토리)
+
+**tsconfig.json 설정** (이미 적용됨):
+
+```json
+{
+  "compilerOptions": {
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["src/*"]
+    }
+  }
+}
+```
 
 ## 🐳 Docker Development Workflow (2025 Best Practice)
 
@@ -172,12 +224,22 @@ make dev-down
 # Development (with auto-reload)
 npm run dev
 # or
-tsx watch server.ts
+tsx watch src/server.ts
 
 # Production
 npm start
 # or
-tsx server.ts
+tsx src/server.ts
+
+# Test execution
+npm test
+# or
+tsx tests/*.test.ts
+
+# Standalone scripts
+npm run script:name
+# or
+tsx scripts/script-name.ts
 
 # Type checking (MANDATORY before commit)
 npx tsc --noEmit
@@ -186,10 +248,10 @@ npx tsc --noEmit
 npm run lint
 
 # Docker build
-docker build -t scraper-name .
+docker build -t scraper-name -f docker/Dockerfile .
 
 # Docker compose
-docker-compose up -d
+docker-compose -f docker/docker-compose.yml up -d
 ```
 
 ### Pre-Commit Checklist
