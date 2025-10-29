@@ -7,6 +7,7 @@ import "dotenv/config";
 import express from "express";
 import { ScanController } from "@/controllers/ScanController";
 import { ProductSearchController } from "@/controllers/ProductSearchController";
+import { WorkflowController } from "@/controllers/WorkflowController";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
 import {
   validateScanRequest,
@@ -24,6 +25,7 @@ app.use(express.json());
 // 컨트롤러 인스턴스
 const scanController = new ScanController();
 const productSearchController = new ProductSearchController();
+const workflowController = new WorkflowController();
 
 // 헬스체크 엔드포인트
 app.get("/health", (req, res) => {
@@ -61,6 +63,23 @@ app.get("/api/products/:productSetId", validateProductSetIdParam, (req, res) =>
   productSearchController.getById(req, res),
 );
 
+// Workflow API 라우트
+app.post("/api/workflows/execute", (req, res) =>
+  workflowController.execute(req, res),
+);
+
+app.get("/api/workflows/jobs/:jobId", (req, res) =>
+  workflowController.getJobStatus(req, res),
+);
+
+app.get("/api/workflows", (req, res) =>
+  workflowController.listWorkflows(req, res),
+);
+
+app.get("/api/workflows/health", (req, res) =>
+  workflowController.healthCheck(req, res),
+);
+
 // 404 핸들러
 app.use(notFoundHandler);
 
@@ -80,6 +99,11 @@ const server = app.listen(PORT, () => {
   console.log(`  GET  /api/products/search - 상품 검색 (Supabase)`);
   console.log(`  GET  /api/products/:productSetId - 상품 ID 조회`);
   console.log(`  GET  /api/products/health - Supabase 연결 상태`);
+  console.log(`\n⚙️  Workflow API 엔드포인트:`);
+  console.log(`  POST /api/workflows/execute - 워크플로우 실행`);
+  console.log(`  GET  /api/workflows/jobs/:jobId - Job 상태 조회`);
+  console.log(`  GET  /api/workflows - 사용 가능한 워크플로우 목록`);
+  console.log(`  GET  /api/workflows/health - Redis 연결 상태`);
   console.log(`\n🎯 지원 전략: API (priority 1), Playwright (priority 2)`);
 });
 

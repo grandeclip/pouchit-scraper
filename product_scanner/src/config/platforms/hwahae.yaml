@@ -40,7 +40,7 @@ strategies:
       retryCount: 3
       retryDelay: 1000
       # Rate limiting 방지 설정
-      requestDelay: 500  # 각 요청 사이 500ms 대기 (AWS WAF 우회)
+      requestDelay: 1000  # 각 요청 사이 1초 대기 (Gentle wait, AWS WAF 우회)
 
   # TODO: Playwright 전략 재활성화 필요
   # 📄 상세 문서: docs/hwahae-playwright-issue.md

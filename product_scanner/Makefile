@@ -6,7 +6,7 @@
 # 개발 환경 (Volume Mount + Hot Reload)
 dev: ## 개발 환경 시작 (Volume mount, hot reload)
 	@echo "🚀 개발 환경 시작 중..."
-	docker-compose -f docker/docker-compose.dev.yml up --build
+	docker-compose -f docker/docker-compose.dev.yml up --build -d
 
 dev-down: ## 개발 환경 종료
 	@echo "🛑 개발 환경 종료 중..."

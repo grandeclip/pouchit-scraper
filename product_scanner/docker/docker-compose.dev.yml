@@ -9,6 +9,8 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3000
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     env_file:
       - ../.env.local
     volumes:
@@ -18,6 +20,10 @@ services:
       - /app/node_modules
       # 로그 디렉토리
       - ../logs:/app/logs
+      # 결과 디렉토리
+      - ../results:/app/results
+    depends_on:
+      - redis
     command: npm run dev
     restart: unless-stopped
     healthcheck:
@@ -26,3 +32,40 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  workflow_worker_dev:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: workflow_worker_dev
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - WORKER_POLL_INTERVAL=5000
+    env_file:
+      - ../.env.local
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - ../logs:/app/logs
+      - ../results:/app/results
+    depends_on:
+      - redis
+    command: npm run worker
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2-alpine
+    container_name: product_scanner_redis_dev
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis_dev_data:
