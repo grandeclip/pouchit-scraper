@@ -12,7 +12,8 @@
   "description": "화해(Hwahae) 상품 가격 정보 스크래퍼 서버",
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/js-yaml": "^4.0.9"
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.0.0"
   },
   "main": "server.ts",
   "name": "product_scanner",

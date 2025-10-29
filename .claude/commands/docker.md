@@ -70,10 +70,10 @@ docker-compose logs -f product_scanner
 
 ```bash
 # 개발 환경
-curl http://localhost:3100/health
+curl http://localhost:3989/health
 
 # 배포 환경
-curl http://localhost:3100/health
+curl http://localhost:3989/health
 ```
 
 **응답 예시:**
@@ -139,7 +139,7 @@ docker-compose exec product_scanner npm test
 | **Volume Mount** | ✅ Yes (`./:/app`)           | ❌ No                       |
 | **Hot Reload**   | ✅ tsx watch                 | ❌ tsx (일반)               |
 | **node_modules** | 컨테이너 격리                | 이미지 내장                 |
-| **포트**         | 3100                         | 3100                        |
+| **포트**         | 3989 (외부) / 3000 (내부)    | 3989 (외부) / 3000 (내부)   |
 | **Image Size**   | ~800MB                       | ~600MB (최적화)             |
 | **시작 명령어**  | `make dev`                   | `make prod`                 |
 | **빌드 시간**    | 최초 1회 (이후 volume mount) | 매번 빌드 (production only) |
@@ -151,7 +151,7 @@ docker-compose exec product_scanner npm test
 
 ```bash
 # 포트 사용 프로세스 확인
-lsof -i :3100
+lsof -i :3989
 
 # 컨테이너 종료
 make dev-down
@@ -186,7 +186,7 @@ docker-compose ps
 
 ## 📖 추가 참고 자료
 
-- 상세 가이드: `product_scanner/DOCKER-SETUP.md`
+- 상세 가이드: `product_scanner/docker/README.md`
 - 개발 환경: `/dev` 명령어
 - 테스트: `/test` 명령어
 - 프로젝트 가이드: `.claude/CLAUDE.md`

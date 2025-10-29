@@ -52,6 +52,11 @@ graph LR
 ```text
 product_scanner/
 ├── server.ts                      # 엔트리포인트
+├── docker/                        # Docker 설정 파일
+│   ├── Dockerfile                 # 배포용 (Multi-stage)
+│   ├── Dockerfile.dev             # 개발용 (Volume mount)
+│   ├── docker-compose.yml         # 배포 환경
+│   └── docker-compose.dev.yml     # 개발 환경
 ├── config/
 │   └── targets/                   # 사이트별 스크래핑 설정
 │       └── hwahae.yaml
@@ -126,7 +131,7 @@ GET /scan/status/:scanId
 ### 환경 변수
 
 ```bash
-PORT=3100
+PORT=3000
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your-anon-key
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
@@ -285,7 +290,7 @@ make down
 
 ### 📖 상세 가이드
 
-자세한 Docker 설정 및 사용법은 [DOCKER-SETUP.md](./DOCKER-SETUP.md)를 참고하세요.
+자세한 Docker 설정 및 사용법은 [docker/README.md](./docker/README.md)를 참고하세요.
 
 ### ⚡ Makefile 명령어
 

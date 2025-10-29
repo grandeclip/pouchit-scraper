@@ -90,7 +90,7 @@ make dev-down
 
 - **node_modules 격리**: `docker-compose.dev.yml`에서 `/app/node_modules` 볼륨으로 격리됨
 - **환경 변수**: `../.env.local` 파일 필요 (Supabase 설정)
-- **포트**: 3100번 포트 사용 (http://localhost:3100)
+- **포트**: 3989번 포트 사용 (http://localhost:3989)
 - **Hot Reload**: TypeScript 파일 수정 시 자동 재시작 (1-2초 소요)
 
 ## 🐛 문제 해결
@@ -99,7 +99,7 @@ make dev-down
 
 ```bash
 # 사용 중인 포트 확인
-lsof -i :3100
+lsof -i :3989
 
 # 기존 컨테이너 종료
 docker-compose -f docker-compose.dev.yml down

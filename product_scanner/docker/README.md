@@ -50,10 +50,11 @@ volumes:
 
 ```text
 product_scanner/
-├── Dockerfile                    # 배포용 (Multi-stage build)
-├── Dockerfile.dev                # 개발용 (Volume mount)
-├── docker-compose.yml            # 배포 환경 설정
-├── docker-compose.dev.yml        # 개발 환경 설정
+├── docker/                       # Docker 설정 파일 디렉토리
+│   ├── Dockerfile                # 배포용 (Multi-stage build)
+│   ├── Dockerfile.dev            # 개발용 (Volume mount)
+│   ├── docker-compose.yml        # 배포 환경 설정
+│   └── docker-compose.dev.yml    # 개발 환경 설정
 ├── .dockerignore                 # 불필요한 파일 제외
 ├── Makefile                      # Docker 명령어 단축키
 └── package.json                  # npm 스크립트
@@ -72,7 +73,7 @@ product_scanner/
 | **Image Size**   | ~800MB                          | ~600MB (최적화)             |
 | **빌드 시간**    | 최초 1회 (이후 volume mount)    | 매번 빌드 (production only) |
 | **시작 명령어**  | `npm run dev` (tsx watch)       | `npm start` (tsx)           |
-| **포트**         | 3100                            | 3100                        |
+| **포트**         | 3989 (외부) / 3000 (내부)       | 3989 (외부) / 3000 (내부)   |
 | **환경 변수**    | `NODE_ENV=development`          | `NODE_ENV=production`       |
 | **용도**         | 로컬 개발, 디버깅, 실험         | 배포, 운영 환경, CI/CD      |
 | **타입 체크**    | 컨테이너 내 (`make type-check`) | 이미지 빌드 전              |
@@ -114,7 +115,7 @@ docker-compose -f docker-compose.dev.yml up --build
 docker ps | grep product_scanner_dev
 
 # 헬스 체크
-curl http://localhost:3100/health
+curl http://localhost:3989/health
 ```
 
 ### 개발 워크플로우
@@ -229,7 +230,7 @@ make status
 # 또는: docker-compose ps
 
 # 헬스 체크
-curl http://localhost:3100/health
+curl http://localhost:3989/health
 
 # 로그 확인
 docker-compose logs -f product_scanner
@@ -241,13 +242,13 @@ docker-compose logs -f product_scanner
 
 ### 1. 포트 이미 사용 중
 
-**증상**: `Error: Port 3100 is already in use`
+**증상**: `Error: Port 3989 is already in use`
 
 **해결**:
 
 ```bash
 # 포트 사용 프로세스 확인
-lsof -i :3100
+lsof -i :3989
 
 # 해당 프로세스 종료
 kill -9 <PID>
@@ -385,10 +386,10 @@ user: "${UID}:${GID}"
 
 ## 추가 참고 자료
 
-- [README.md](./README.md) - 프로젝트 개요 및 사용법
-- [.claude/CLAUDE.md](../.claude/CLAUDE.md) - 프로젝트 가이드라인
-- [.claude/commands/dev.md](../.claude/commands/dev.md) - 개발 환경 명령어
-- [.claude/commands/docker.md](../.claude/commands/docker.md) - Docker 관리 명령어
+- [../README.md](../README.md) - 프로젝트 개요 및 사용법
+- [../../.claude/CLAUDE.md](../../.claude/CLAUDE.md) - 프로젝트 가이드라인
+- [../../.claude/commands/dev.md](../../.claude/commands/dev.md) - 개발 환경 명령어
+- [../../.claude/commands/docker.md](../../.claude/commands/docker.md) - Docker 관리 명령어
 
 ---
 

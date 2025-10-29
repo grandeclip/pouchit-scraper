@@ -42,14 +42,14 @@ COPY test-validator.ts ./
 # 환경 변수 설정
 ENV NODE_ENV=production
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-ENV PORT=3100
+ENV PORT=3000
 
 # 포트 노출
-EXPOSE 3100
+EXPOSE 3000
 
 # 헬스체크
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3100/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"
 
 # 서버 시작
 CMD ["npm", "start"]

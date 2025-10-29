@@ -19,10 +19,10 @@ RUN npm install
 # 환경 변수 설정
 ENV NODE_ENV=development
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-ENV PORT=3100
+ENV PORT=3000
 
 # 포트 노출
-EXPOSE 3100
+EXPOSE 3000
 
 # Hot reload with tsx watch
 CMD ["npm", "run", "dev"]

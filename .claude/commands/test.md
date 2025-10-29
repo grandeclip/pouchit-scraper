@@ -47,7 +47,7 @@ make prod
 docker ps | grep product_scanner
 
 # 3. Health Check
-curl http://localhost:3100/health
+curl http://localhost:3989/health
 
 # 4. Custom Test Script (있는 경우)
 # 예: Supabase 연결 테스트
@@ -75,7 +75,7 @@ make dev
 docker ps | grep product_scanner_dev
 
 # 3. Health Check
-curl http://localhost:3100/health
+curl http://localhost:3989/health
 
 # 4. TypeScript Type Check (컨테이너 내)
 make type-check
