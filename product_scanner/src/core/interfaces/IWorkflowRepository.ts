@@ -45,21 +45,44 @@ export interface IWorkflowRepository {
   deleteJob(jobId: string): Promise<void>;
 
   /**
-   * 큐 길이 조회
+   * Platform별 큐 길이 조회
+   * @param platform Platform 식별자 (optional, deprecated without platform)
    * @returns 대기 중인 Job 개수
    */
-  getQueueLength(): Promise<number>;
+  getQueueLength(platform?: string): Promise<number>;
 
   /**
-   * 대기 중인 Job 목록 조회
+   * Platform별 대기 중인 Job 목록 조회
+   * @param platform Platform 식별자 (optional, deprecated without platform)
    * @param limit 조회 개수 제한
    * @returns Job 배열
    */
-  getQueuedJobs(limit?: number): Promise<Job[]>;
+  getQueuedJobs(platform?: string, limit?: number): Promise<Job[]>;
 
   /**
    * 연결 상태 확인
    * @returns 연결 여부
    */
   healthCheck(): Promise<boolean>;
+
+  /**
+   * Platform별 큐에서 Job 가져오기 (Multi-Queue Architecture)
+   * @param platform Platform 식별자
+   * @returns Job 객체 또는 null
+   */
+  dequeueJobByPlatform(platform: string): Promise<Job | null>;
+
+  /**
+   * Platform Rate Limit Tracker 조회
+   * @param platform Platform 식별자
+   * @returns 마지막 실행 시간 (Unix timestamp in ms)
+   */
+  getRateLimitTracker(platform: string): Promise<number>;
+
+  /**
+   * Platform Rate Limit Tracker 업데이트
+   * @param platform Platform 식별자
+   * @param timestamp Unix timestamp in ms
+   */
+  setRateLimitTracker(platform: string, timestamp: number): Promise<void>;
 }

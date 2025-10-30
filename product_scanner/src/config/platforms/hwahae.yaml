@@ -218,3 +218,10 @@ errorHandling:
 
   # 500 Internal Server Error → 재시도
   serverErrorRetry: true
+
+# Workflow Rate Limiting (Multi-Queue Architecture)
+workflow:
+  rate_limit:
+    enabled: true
+    wait_time_ms: 1000
+    description: "Platform-level rate limiting for workflow jobs"

@@ -43,6 +43,9 @@ export interface Job {
   /** 우선순위 */
   priority: JobPriority;
 
+  /** Platform 식별자 (REQUIRED for multi-queue architecture) */
+  platform: string;
+
   /** 실행 파라미터 */
   params: Record<string, unknown>;
 

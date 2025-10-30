@@ -69,15 +69,26 @@ export class WorkflowExecutionService implements IWorkflowService {
     });
 
     try {
-      // 1. Workflow 정의 로드
+      // 1. Platform 검증 (Multi-Queue Architecture)
+      if (
+        !request.params.platform ||
+        typeof request.params.platform !== "string"
+      ) {
+        throw new Error("params.platform is required and must be a string");
+      }
+
+      const platform = request.params.platform as string;
+
+      // 2. Workflow 정의 로드
       await this.loader.loadWorkflow(request.workflow_id);
 
-      // 2. Job 생성
+      // 3. Job 생성
       const job: Job = {
         job_id: uuidv7(),
         workflow_id: request.workflow_id,
         status: JobStatus.PENDING,
         priority: request.priority || JobPriority.NORMAL,
+        platform: platform, // Multi-Queue Architecture
         params: request.params,
         current_node: null,
         progress: 0,
@@ -89,7 +100,7 @@ export class WorkflowExecutionService implements IWorkflowService {
         metadata: request.metadata || {},
       };
 
-      // 3. Repository에 Job 추가
+      // 4. Repository에 Job 추가 (Platform별 큐)
       await this.repository.enqueueJob(job);
 
       logImportant(logger, "Job created", {
