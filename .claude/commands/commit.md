@@ -4,6 +4,10 @@ description: Prepare and create a commit with documentation
 
 # Commit Workflow
 
+**CRITICAL**: Be extremely concise. Sacrifice grammar for concision. Output must be scannable, not verbose.
+
+**OUTPUT LANGUAGE**: 한글 (Korean) - All results must be written in Korean.
+
 Complete pre-commit checks and create a commit.
 
 ## Pre-Commit Checklist

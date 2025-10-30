@@ -2,6 +2,19 @@
 
 Docker-based web scraper module development project - An extensible system that allows adding new scrapers without code modification through YAML configuration.
 
+## 📢 Output Guidelines
+
+**CRITICAL OUTPUT RULES** (Apply to ALL interactions):
+
+1. **Language**: 한글 (Korean) - All outputs, explanations, and responses must be in Korean
+2. **Conciseness**: Be extremely concise. Sacrifice grammar for brevity. Output must be scannable, not verbose
+3. **Format**: Use symbols, abbreviations, bullet points. Avoid full sentences when possible
+4. **Examples**:
+   - ❌ BAD: "TypeScript 타입 체크를 실행한 결과 3개의 에러가 발견되었습니다. 각 에러에 대한 상세한 분석은 다음과 같습니다..."
+   - ✅ GOOD: "tsc 결과: 3 errors\n- file.ts:42 - Type 'string' → 'number'\n- ..."
+
+**Apply to**: Code reviews, commit messages, PR descriptions, error analysis, all responses
+
 ## 🎯 Project Overview
 
 - **Type**: TypeScript + Docker + Playwright-based web scraping server
