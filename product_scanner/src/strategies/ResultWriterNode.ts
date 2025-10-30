@@ -78,7 +78,7 @@ export class ResultWriterNode implements INodeStrategy {
       await fs.mkdir(outputDir, { recursive: true });
 
       // 파일명 생성
-      const filename = writerConfig.filename || `${job_id}.json`;
+      const filename = writerConfig.filename || `job_${job_id}.json`;
       const filePath = path.join(outputDir, filename);
 
       // 출력 데이터 준비
