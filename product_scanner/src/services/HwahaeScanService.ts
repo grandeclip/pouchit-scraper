@@ -27,10 +27,11 @@ import { ConfigLoader } from "@/config/ConfigLoader";
  * 화해 스캔 서비스 (Facade)
  */
 export class HwahaeScanService {
-  private readonly platform = "hwahae";
+  private readonly platform: string;
   private validator: IValidator;
 
-  constructor() {
+  constructor(platform: string = "hwahae") {
+    this.platform = platform;
     // Validator 초기화
     const config = ConfigLoader.getInstance().loadConfig(this.platform);
     this.validator = new HwahaeValidator(config);

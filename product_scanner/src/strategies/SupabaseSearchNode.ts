@@ -14,6 +14,7 @@ import {
 } from "@/core/interfaces/INodeStrategy";
 import { IProductSearchService } from "@/core/interfaces/IProductSearchService";
 import { ProductSearchService } from "@/services/ProductSearchService";
+import { WORKFLOW_DEFAULT_CONFIG } from "@/config/constants";
 
 /**
  * Supabase Search Node Config
@@ -52,7 +53,8 @@ export class SupabaseSearchNode implements INodeStrategy {
       const products = await this.service.searchProducts({
         link_url_pattern: searchConfig.link_url_pattern,
         sale_status: searchConfig.sale_status,
-        limit: searchConfig.limit || 100,
+        limit:
+          searchConfig.limit || WORKFLOW_DEFAULT_CONFIG.SUPABASE_SEARCH_LIMIT,
       });
 
       console.log(`[${this.type}] Found ${products.length} products`);
@@ -86,19 +88,21 @@ export class SupabaseSearchNode implements INodeStrategy {
    */
   validateConfig(config: Record<string, unknown>): void {
     if (config.limit !== undefined) {
+      const maxLimit = WORKFLOW_DEFAULT_CONFIG.MAX_SEARCH_LIMIT;
+
       // 템플릿 변수는 검증 스킵 (런타임에 치환됨)
       if (typeof config.limit === "string") {
         // 템플릿 변수 패턴 (${variable}) 확인
         if (!/^\$\{.+\}$/.test(config.limit)) {
           // 일반 문자열은 숫자로 파싱
           const limit = parseInt(config.limit, 10);
-          if (isNaN(limit) || limit <= 0 || limit > 1000) {
-            throw new Error("limit must be a positive number <= 1000");
+          if (isNaN(limit) || limit <= 0 || limit > maxLimit) {
+            throw new Error(`limit must be a positive number <= ${maxLimit}`);
           }
         }
       } else if (typeof config.limit === "number") {
-        if (config.limit <= 0 || config.limit > 1000) {
-          throw new Error("limit must be a positive number <= 1000");
+        if (config.limit <= 0 || config.limit > maxLimit) {
+          throw new Error(`limit must be a positive number <= ${maxLimit}`);
         }
       } else {
         throw new Error("limit must be a number or template variable");

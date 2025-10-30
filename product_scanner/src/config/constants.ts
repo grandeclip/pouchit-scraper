@@ -7,6 +7,37 @@
  */
 
 /**
+ * 애플리케이션 메타데이터
+ *
+ * ⚠️ VERSION 동기화 전략:
+ * - package.json의 version 필드와 수동 동기화 필요
+ * - 배포 전 반드시 확인: package.json v1.0.0 === constants.ts v1.0.0
+ * - CI/CD 파이프라인에서 자동 검증 권장
+ *
+ * 이유:
+ * - package.json은 src/ 밖에 있어 @/ 절대경로로 import 불가
+ * - tsconfig의 resolveJsonModule은 상대경로 필요 (일관성 위반)
+ * - 상수화로 타입 안전성 및 런타임 성능 향상
+ */
+export const APP_METADATA = {
+  /**
+   * 애플리케이션 버전
+   * ⚠️ package.json의 "version": "1.0.0"과 동기화 필수
+   */
+  VERSION: "1.0.0",
+
+  /**
+   * 애플리케이션 이름
+   */
+  NAME: "Product Scanner",
+
+  /**
+   * 아키텍처 버전
+   */
+  ARCHITECTURE: "API v1 with Platform Routing",
+} as const;
+
+/**
  * 데이터베이스 설정
  */
 export const DATABASE_CONFIG = {
@@ -23,18 +54,43 @@ export const DATABASE_CONFIG = {
  */
 export const API_CONFIG = {
   /**
-   * 검색 결과 최대 개수
+   * 검색 결과 최대 개수 (API 엔드포인트용)
    * 환경변수: MAX_SEARCH_LIMIT
    * 기본값: 100
    */
   MAX_SEARCH_LIMIT: Number(process.env.MAX_SEARCH_LIMIT) || 100,
 
   /**
-   * 검색 결과 기본 개수
+   * 검색 결과 기본 개수 (API 엔드포인트용)
    * 환경변수: DEFAULT_SEARCH_LIMIT
    * 기본값: 3
    */
   DEFAULT_SEARCH_LIMIT: Number(process.env.DEFAULT_SEARCH_LIMIT) || 3,
+} as const;
+
+/**
+ * Workflow 기본 설정
+ */
+export const WORKFLOW_DEFAULT_CONFIG = {
+  /**
+   * Supabase 검색 기본 limit
+   * 환경변수: WORKFLOW_DEFAULT_LIMIT
+   * 기본값: 1000
+   *
+   * 주의:
+   * - Supabase PostgREST는 기본적으로 row 수 제한 없음
+   * - 실제 제약은 Supabase 프로젝트 설정에 따라 다름 (일반적으로 1000~5000)
+   * - 메모리: 1000개 ≈ 1-2MB (상품 데이터 기준)
+   * - 더 큰 값 필요 시 환경변수로 오버라이드 가능
+   */
+  SUPABASE_SEARCH_LIMIT: Number(process.env.WORKFLOW_DEFAULT_LIMIT) || 1000,
+
+  /**
+   * Validation 최대 limit (검증 로직용)
+   * 환경변수: WORKFLOW_MAX_LIMIT
+   * 기본값: 10000
+   */
+  MAX_SEARCH_LIMIT: Number(process.env.WORKFLOW_MAX_LIMIT) || 10000,
 } as const;
 
 /**
@@ -78,6 +134,17 @@ export const SERVICE_NAMES = {
    * 로그 파일: logs/worker-YYYYMMDD.log (worker와 통합)
    */
   REDIS_REPOSITORY: "redis-repository",
+} as const;
+
+/**
+ * 파일 경로 설정
+ */
+export const PATH_CONFIG = {
+  /**
+   * 플랫폼 설정 디렉토리
+   * ConfigLoader가 YAML 파일을 읽는 기준 경로
+   */
+  PLATFORMS_DIR: "platforms",
 } as const;
 
 /**

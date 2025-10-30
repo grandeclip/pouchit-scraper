@@ -11,6 +11,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as yaml from "js-yaml";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
+import { PATH_CONFIG } from "./constants";
 
 /**
  * Config Loader Singleton
@@ -41,7 +42,11 @@ export class ConfigLoader {
     }
 
     // YAML 파일 경로
-    const configPath = path.join(__dirname, "platforms", `${platform}.yaml`);
+    const configPath = path.join(
+      __dirname,
+      PATH_CONFIG.PLATFORMS_DIR,
+      `${platform}.yaml`,
+    );
 
     // 파일 존재 확인
     if (!fs.existsSync(configPath)) {
@@ -115,6 +120,39 @@ export class ConfigLoader {
     if (config.http) {
       console.warn(
         "[ConfigLoader] DEPRECATED: 'http' field is deprecated. Use 'strategies' instead.",
+      );
+    }
+  }
+
+  /**
+   * 사용 가능한 플랫폼 목록 반환
+   * @returns 플랫폼 ID 배열
+   */
+  getAvailablePlatforms(): string[] {
+    const platformsDir = path.join(__dirname, PATH_CONFIG.PLATFORMS_DIR);
+
+    if (!fs.existsSync(platformsDir)) {
+      // 디렉토리 없음은 설정 오류이므로 throw
+      throw new Error(`Platforms directory not found: ${platformsDir}`);
+    }
+
+    try {
+      const files = fs.readdirSync(platformsDir);
+      const platforms = files
+        .filter((file) => file.endsWith(".yaml"))
+        .map((file) => file.replace(".yaml", ""));
+
+      if (platforms.length === 0) {
+        throw new Error(`No platform YAML files found in: ${platformsDir}`);
+      }
+
+      return platforms;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error; // 이미 처리된 에러는 재전파
+      }
+      throw new Error(
+        `Failed to read platforms directory: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
   }

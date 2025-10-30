@@ -131,7 +131,9 @@ product_scanner/
 
 ## 🚀 사용법
 
-### API 엔드포인트
+### API 엔드포인트 (v2.1.0)
+
+⚠️ **API v1 적용**: 모든 엔드포인트에 `/api/v1` 접두사 추가 및 플랫폼별 라우팅 도입
 
 #### 1. 헬스체크
 
@@ -139,12 +141,24 @@ product_scanner/
 GET /health
 ```
 
-#### 2. 화해 상품 스캔
+#### 2. 플랫폼 목록 조회
+
+```bash
+GET /api/v1/platforms
+
+# Response
+{
+  "platforms": ["hwahae"],
+  "count": 1
+}
+```
+
+#### 3. 화해 상품 스캔
 
 **검증 (CSV vs API)**
 
 ```bash
-POST /api/scan/validate
+POST /api/v1/platforms/hwahae/scan/validate
 Content-Type: application/json
 
 {
@@ -160,33 +174,36 @@ Content-Type: application/json
 **상품 스캔**
 
 ```bash
-POST /api/scan/:goodsId
+POST /api/v1/platforms/hwahae/scan/:goodsId
+
+# 전략 지정 (옵션)
+POST /api/v1/platforms/hwahae/scan/:goodsId?strategyId=http-api
 ```
 
 **사용 가능한 전략 목록**
 
 ```bash
-GET /api/scan/strategies
+GET /api/v1/platforms/hwahae/scan/strategies
 ```
 
-#### 3. Supabase 상품 검색
+#### 4. Supabase 상품 검색
 
 **상품 검색 (쿼리 파라미터)**
 
 ```bash
-GET /api/products/search?link_url=hwahae.co.kr&sale_status=on_sale&limit=10
+GET /api/v1/products/search?query=hwahae&limit=10
 ```
 
 **상품 ID 조회 (UUID)**
 
 ```bash
-GET /api/products/:productSetId
+GET /api/v1/products/:productSetId
 ```
 
 **Supabase 연결 상태**
 
 ```bash
-GET /api/products/health
+GET /api/v1/products/health
 ```
 
 ### 환경 변수
@@ -457,19 +474,23 @@ make help         # 도움말
 
 ```bash
 # Job 등록 (Platform 지정)
-curl -X POST http://localhost:3989/api/workflows/execute \
+curl -X POST http://localhost:3000/api/v1/workflows/execute \
   -H "Content-Type: application/json" \
   -d '{
     "workflow_id": "bulk-validation-v1",
     "params": {
       "platform": "hwahae",
       "link_url_pattern": "%hwahae.co.kr%",
-      "limit": 5
-    }
+      "limit": 2
+    },
+    "priority": 5
   }'
 
+# Response
+{"success":true,"job_id":"019a33de-da41-777a-be17-0b16bb38e3eb","message":"Workflow execution started"}
+
 # 상태 확인
-curl http://localhost:3989/api/workflows/jobs/{job_id}
+curl http://localhost:3000/api/v1/workflows/jobs/{job_id}
 ```
 
 ### Platform별 Job 실행

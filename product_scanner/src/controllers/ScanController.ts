@@ -5,6 +5,7 @@
  * SOLID 원칙:
  * - SRP: HTTP 요청/응답 변환만 담당
  * - DIP: Service 인터페이스에 의존
+ * - OCP: 플랫폼 파라미터로 확장 가능
  */
 
 import { Request, Response } from "express";
@@ -12,13 +13,15 @@ import { HwahaeScanService } from "@/services/HwahaeScanService";
 import { ValidationRequest } from "@/core/domain/HwahaeConfig";
 
 /**
- * 스캔 컨트롤러
+ * 스캔 컨트롤러 (플랫폼별)
  */
 export class ScanController {
   private service: HwahaeScanService;
+  private platform: string;
 
-  constructor() {
-    this.service = new HwahaeScanService();
+  constructor(platform: string = "hwahae") {
+    this.platform = platform;
+    this.service = new HwahaeScanService(platform);
   }
 
   /**

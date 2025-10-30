@@ -1,6 +1,6 @@
 {
   "defaults": {
-    "limit": 10,
+    "limit": 1000,
     "link_url_pattern": "%hwahae.co.kr%"
   },
   "description": "Supabase 상품을 Hwahae API로 검증하고 비교 결과를 저장합니다",

@@ -31,14 +31,16 @@ docker-compose -f docker/docker-compose.dev.yml up -d
 
 ```bash
 # Job 등록
-curl -X POST http://localhost:3989/api/workflows/execute \
+curl -X POST http://localhost:3000/api/v1/workflows/execute \
   -H "Content-Type: application/json" \
   -d '{
     "workflow_id": "bulk-validation-v1",
     "params": {
+      "platform": "hwahae",
       "link_url_pattern": "%hwahae%",
       "limit": 5
-    }
+    },
+    "priority": 5
   }'
 
 # 응답: {"success":true,"job_id":"xxx-xxx-xxx","message":"Workflow execution started"}
@@ -50,7 +52,7 @@ Worker가 자동으로 처리합니다 (5초 간격 폴링).
 
 ```bash
 # Job 상태 조회
-curl http://localhost:3989/api/workflows/jobs/{job_id} | jq
+curl http://localhost:3000/api/v1/workflows/jobs/{job_id} | jq
 
 # 결과 파일 확인
 ls -lh results/*.json
@@ -81,7 +83,7 @@ sequenceDiagram
     participant N3 as Node 3: Writer
     participant FS as File System
 
-    User->>API: POST /api/workflows/execute
+    User->>API: POST /api/v1/workflows/execute
     API->>Redis: Create Job (pending)
     Redis-->>API: Job ID
     API-->>User: 202 Accepted
@@ -109,7 +111,7 @@ sequenceDiagram
 
     Worker->>Redis: Update Job (completed)
 
-    User->>API: GET /api/workflows/jobs/{id}
+    User->>API: GET /api/v1/workflows/jobs/{id}
     API->>Redis: Get status
     Redis-->>API: Job details
     API-->>User: Status: completed
@@ -365,7 +367,7 @@ flowchart LR
 ### 1. 워크플로우 목록 조회
 
 ```bash
-GET /api/workflows
+GET /api/v1/workflows
 
 # 응답
 {
@@ -384,7 +386,7 @@ GET /api/workflows
 ### 2. 워크플로우 실행
 
 ```bash
-POST /api/workflows/execute
+POST /api/v1/workflows/execute
 Content-Type: application/json
 
 {
@@ -406,7 +408,7 @@ Content-Type: application/json
 ### 3. Job 상태 조회
 
 ```bash
-GET /api/workflows/jobs/{job_id}
+GET /api/v1/workflows/jobs/{job_id}
 
 # 응답
 {
@@ -432,7 +434,7 @@ GET /api/workflows/jobs/{job_id}
 GET /health
 
 # Workflow 시스템 헬스체크 (Redis 연결)
-GET /api/workflows/health
+GET /api/v1/workflows/health
 ```
 
 ---
@@ -669,7 +671,7 @@ docker exec product_scanner_dev npm run script:process-job
 
 ```bash
 # Redis 헬스체크
-curl http://localhost:3989/api/workflows/health
+curl http://localhost:3000/api/v1/workflows/health
 
 # Redis 재시작
 docker restart product_scanner_redis_dev
@@ -699,7 +701,7 @@ docker logs workflow_worker_dev | grep "Rate limiting"
 
 ```bash
 # Job 상태 확인
-curl http://localhost:3989/api/workflows/jobs/{job_id}
+curl http://localhost:3000/api/v1/workflows/jobs/{job_id}
 
 # 결과 파일 경로 확인
 ls -lh /Users/gzu/project/cosmetic/scoob-scraper/product_scanner/results/
