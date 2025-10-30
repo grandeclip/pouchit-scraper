@@ -79,3 +79,29 @@ export const SERVICE_NAMES = {
    */
   REDIS_REPOSITORY: "redis-repository",
 } as const;
+
+/**
+ * Workflow 설정
+ * Multi-Platform Worker용 설정
+ */
+export const WORKFLOW_CONFIG = {
+  /**
+   * 지원 Platform 목록
+   * 환경변수: WORKFLOW_PLATFORMS (쉼표로 구분)
+   * 기본값: 8개 쇼핑몰 플랫폼
+   */
+  PLATFORMS: (
+    process.env.WORKFLOW_PLATFORMS ||
+    "hwahae,oliveyoung,coupang,zigzag,musinsa,ably,kurly,naver"
+  )
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0),
+
+  /**
+   * Worker 폴링 간격 (ms)
+   * 환경변수: WORKER_POLL_INTERVAL
+   * 기본값: 5000ms (5초)
+   */
+  POLL_INTERVAL_MS: parseInt(process.env.WORKER_POLL_INTERVAL || "5000", 10),
+} as const;

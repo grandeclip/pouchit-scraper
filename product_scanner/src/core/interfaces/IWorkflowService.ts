@@ -44,6 +44,13 @@ export interface IWorkflowService {
   processNextJob(): Promise<Job | null>;
 
   /**
+   * Job 실행 (Multi-Platform Worker용)
+   * @param job 실행할 Job
+   * @throws Error Job 실행 실패 시
+   */
+  executeJob(job: Job): Promise<void>;
+
+  /**
    * 사용 가능한 워크플로우 목록 조회
    * @returns 워크플로우 ID 배열
    */

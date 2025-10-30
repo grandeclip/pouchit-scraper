@@ -197,9 +197,9 @@ export class WorkflowExecutionService implements IWorkflowService {
   }
 
   /**
-   * Job 실행 (내부 메서드)
+   * Job 실행 (Multi-Platform Worker에서 사용)
    */
-  private async executeJob(job: Job): Promise<void> {
+  async executeJob(job: Job): Promise<void> {
     try {
       // 1. Workflow 정의 로드
       const workflow = await this.loader.loadWorkflow(job.workflow_id);
