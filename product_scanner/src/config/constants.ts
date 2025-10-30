@@ -88,11 +88,11 @@ export const WORKFLOW_CONFIG = {
   /**
    * 지원 Platform 목록
    * 환경변수: WORKFLOW_PLATFORMS (쉼표로 구분)
-   * 기본값: 8개 쇼핑몰 플랫폼
+   * 기본값: default(하위 호환) + 8개 쇼핑몰 플랫폼
    */
   PLATFORMS: (
     process.env.WORKFLOW_PLATFORMS ||
-    "hwahae,oliveyoung,coupang,zigzag,musinsa,ably,kurly,naver"
+    "default,hwahae,oliveyoung,coupang,zigzag,musinsa,ably,kurly,naver"
   )
     .split(",")
     .map((p) => p.trim())

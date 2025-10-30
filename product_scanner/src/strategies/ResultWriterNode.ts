@@ -35,13 +35,17 @@ export class ResultWriterNode implements INodeStrategy {
    * 노드 실행
    */
   async execute(context: NodeContext): Promise<NodeResult> {
-    const { config, params, input, job_id } = context;
+    const { config, params, input, job_id, workflow_id } = context;
 
     // 현재 시각 기록 (Job 완료 시각)
     const completedAt = getTimestampWithTimezone();
 
     // Config와 params 병합
     const writerConfig = this.mergeConfig(config, params);
+
+    // Platform 정보 추출 (Multi-Queue Architecture)
+    // 하위 호환성: platform이 없으면 "default" 사용
+    const platform = (params.platform as string) || "default";
 
     // 이전 노드의 검증 결과 가져오기
     const validationResult = input.hwahae_validation as
@@ -73,12 +77,15 @@ export class ResultWriterNode implements INodeStrategy {
     );
 
     try {
-      // 출력 디렉토리 생성
-      const outputDir = path.resolve(writerConfig.output_dir);
+      // 날짜 기반 출력 디렉토리 생성 (YYYY-MM-DD)
+      const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+      const baseOutputDir = path.resolve(writerConfig.output_dir);
+      const outputDir = path.join(baseOutputDir, date);
       await fs.mkdir(outputDir, { recursive: true });
 
-      // 파일명 생성
-      const filename = writerConfig.filename || `job_${job_id}.json`;
+      // 파일명 생성: job_{platform}_{job_id}.json
+      const filename =
+        writerConfig.filename || `job_${platform}_${job_id}.json`;
       const filePath = path.join(outputDir, filename);
 
       // 출력 데이터 준비
@@ -90,6 +97,8 @@ export class ResultWriterNode implements INodeStrategy {
 
       const outputData = {
         job_id,
+        platform,
+        workflow_id, // context에서 직접 가져옴
         started_at: startedAt,
         completed_at: completedAt,
         summary: validationResult.summary,

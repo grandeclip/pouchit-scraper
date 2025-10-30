@@ -207,6 +207,10 @@ PRODUCT_TABLE_NAME=product_sets  # 기본값
 MAX_SEARCH_LIMIT=100      # 최대 검색 결과 개수
 DEFAULT_SEARCH_LIMIT=3    # 기본 검색 결과 개수
 
+# Workflow 설정 (선택)
+WORKFLOW_PLATFORMS=default,hwahae,oliveyoung,coupang,zigzag,musinsa,ably,kurly,naver  # 지원 Platform 목록
+WORKER_POLL_INTERVAL=5000 # Worker 폴링 간격 (ms)
+
 # 로깅 설정 (선택)
 LOG_LEVEL=info            # 로그 레벨: debug, info, warn, error
 LOG_DIR=./logs            # 로그 파일 저장 디렉토리
@@ -446,21 +450,35 @@ make help         # 도움말
 - ✅ **JSON 기반 설정**: 코드 수정 없이 워크플로우 추가
 - ✅ **비동기 처리**: Redis Job Queue + Background Worker
 - ✅ **자동 검증**: 워크플로우 로드 시 구조 검증
+- ✅ **Multi-Platform 지원**: Platform별 병렬 처리 (8개 쇼핑몰 + default)
+- ✅ **Job 메타데이터**: 시작/완료 시각 자동 기록 및 결과 파일 저장
 
 ### 간단한 예제
 
 ```bash
-# Job 등록
+# Job 등록 (Platform 지정)
 curl -X POST http://localhost:3989/api/workflows/execute \
   -H "Content-Type: application/json" \
   -d '{
     "workflow_id": "bulk-validation-v1",
-    "params": { "limit": 5 }
+    "params": {
+      "platform": "hwahae",
+      "link_url_pattern": "%hwahae.co.kr%",
+      "limit": 5
+    }
   }'
 
 # 상태 확인
 curl http://localhost:3989/api/workflows/jobs/{job_id}
 ```
+
+### Platform별 Job 실행
+
+지원 Platform: `default`, `hwahae`, `oliveyoung`, `coupang`, `zigzag`, `musinsa`, `ably`, `kurly`, `naver`
+
+- **Platform 지정**: `params.platform`으로 큐 선택 (미지정 시 `default`)
+- **결과 파일명**: `job_{platform}_{job_id}.json` 형식으로 자동 생성
+- **병렬 처리**: Platform별 독립 큐로 동시 실행 가능
 
 ### 문서
 

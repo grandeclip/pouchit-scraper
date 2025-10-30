@@ -75,6 +75,8 @@ The product_scanner module includes a **DAG-based workflow system** for automati
 - **JSON Configuration**: Define workflows in JSON without code changes
 - **Auto-Validation**: Workflow structure validation (node references, cycles, unreachable nodes)
 - **Redis Job Queue**: Asynchronous processing with background workers
+- **Multi-Platform Support**: Platform-specific parallel processing (8 shopping malls + default)
+- **Job Metadata**: Auto-recording of start/completion timestamps and result file storage
 
 ### Workflow Node Structure
 

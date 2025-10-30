@@ -14,6 +14,9 @@ export interface NodeContext {
   /** 현재 Job ID */
   job_id: string;
 
+  /** Workflow ID */
+  workflow_id: string;
+
   /** 현재 Node ID */
   node_id: string;
 

@@ -69,15 +69,23 @@ export class WorkflowExecutionService implements IWorkflowService {
     });
 
     try {
-      // 1. Platform 검증 (Multi-Queue Architecture)
-      if (
-        !request.params.platform ||
-        typeof request.params.platform !== "string"
-      ) {
-        throw new Error("params.platform is required and must be a string");
-      }
+      // 1. Platform 설정 (Multi-Queue Architecture)
+      // 하위 호환성: platform이 없으면 "default" 사용
+      let platform: string;
 
-      const platform = request.params.platform as string;
+      if (request.params.platform) {
+        if (typeof request.params.platform !== "string") {
+          throw new Error("params.platform must be a string");
+        }
+        platform = request.params.platform;
+      } else {
+        // 기존 워크플로우 호환성을 위해 기본값 사용
+        platform = "default";
+        logger.warn(
+          { workflow_id: request.workflow_id },
+          "No platform specified, using default queue",
+        );
+      }
 
       // 2. Workflow 정의 로드
       await this.loader.loadWorkflow(request.workflow_id);
@@ -360,6 +368,7 @@ export class WorkflowExecutionService implements IWorkflowService {
     // 실행 컨텍스트 생성
     const context: NodeContext = {
       job_id: job.job_id,
+      workflow_id: job.workflow_id,
       node_id: nodeId,
       config: node.config,
       input: accumulatedData,
