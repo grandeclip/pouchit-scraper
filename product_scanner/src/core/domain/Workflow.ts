@@ -88,8 +88,8 @@ export interface WorkflowNode {
   /** 노드 설정 */
   config: Record<string, unknown>;
 
-  /** 다음 노드 ID (null이면 종료) */
-  next_node: string | null;
+  /** 다음 노드 ID 목록 (DAG 구조 지원, 빈 배열이면 종료) */
+  next_nodes: string[];
 
   /** 재시도 설정 */
   retry?: {

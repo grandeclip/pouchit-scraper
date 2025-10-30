@@ -435,3 +435,34 @@ make help         # 도움말
 - **Singleton Pattern**: Supabase 클라이언트 재사용
 - **쿼리 최적화**: 필요한 필드만 SELECT
 - **다중 전략**: API 우선으로 응답 시간 단축
+
+## 🔄 Workflow 시스템
+
+대량 상품 검증을 자동화하는 워크플로우 시스템을 지원합니다.
+
+### 주요 특징
+
+- ✅ **DAG 구조 지원**: 분기(Fork), 합류(Join), 조건부 분기 가능
+- ✅ **JSON 기반 설정**: 코드 수정 없이 워크플로우 추가
+- ✅ **비동기 처리**: Redis Job Queue + Background Worker
+- ✅ **자동 검증**: 워크플로우 로드 시 구조 검증
+
+### 간단한 예제
+
+```bash
+# Job 등록
+curl -X POST http://localhost:3989/api/workflows/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "bulk-validation-v1",
+    "params": { "limit": 5 }
+  }'
+
+# 상태 확인
+curl http://localhost:3989/api/workflows/jobs/{job_id}
+```
+
+### 문서
+
+- **[WORKFLOW.md](docs/WORKFLOW.md)** - 워크플로우 시스템 전체 가이드
+- **[WORKFLOW_DAG.md](docs/WORKFLOW_DAG.md)** - DAG 구조 상세 가이드

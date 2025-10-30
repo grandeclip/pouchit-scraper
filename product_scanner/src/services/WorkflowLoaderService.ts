@@ -30,7 +30,10 @@ const workflowSchema = {
           type: { type: "string" },
           name: { type: "string" },
           config: { type: "object" },
-          next_node: { type: ["string", "null"] },
+          next_nodes: {
+            type: "array",
+            items: { type: "string" },
+          },
           retry: {
             type: "object",
             properties: {
@@ -41,7 +44,7 @@ const workflowSchema = {
           },
           timeout_ms: { type: "number" },
         },
-        required: ["type", "name", "config", "next_node"],
+        required: ["type", "name", "config", "next_nodes"],
       },
     },
     defaults: { type: "object" },
@@ -174,12 +177,14 @@ export class WorkflowLoaderService {
       throw new Error(`Start node '${start_node}' not found in workflow`);
     }
 
-    // next_node 참조 검증
+    // next_nodes 참조 검증
     for (const [nodeId, node] of Object.entries(nodes)) {
-      if (node.next_node !== null && !nodes[node.next_node]) {
-        throw new Error(
-          `Node '${nodeId}' references non-existent next node '${node.next_node}'`,
-        );
+      for (const nextNodeId of node.next_nodes) {
+        if (!nodes[nextNodeId]) {
+          throw new Error(
+            `Node '${nodeId}' references non-existent next node '${nextNodeId}'`,
+          );
+        }
       }
     }
 
@@ -207,7 +212,7 @@ export class WorkflowLoaderService {
   }
 
   /**
-   * 도달 가능한 노드 수집
+   * 도달 가능한 노드 수집 (DAG 구조)
    */
   private collectReachableNodes(
     nodeId: string,
@@ -221,13 +226,15 @@ export class WorkflowLoaderService {
     reachable.add(nodeId);
 
     const node = nodes[nodeId];
-    if (node && node.next_node) {
-      this.collectReachableNodes(node.next_node, nodes, reachable);
+    if (node && node.next_nodes) {
+      for (const nextNodeId of node.next_nodes) {
+        this.collectReachableNodes(nextNodeId, nodes, reachable);
+      }
     }
   }
 
   /**
-   * 순환 참조 탐지
+   * 순환 참조 탐지 (DAG 구조)
    */
   private detectCycle(
     startNode: string,
@@ -241,13 +248,15 @@ export class WorkflowLoaderService {
       recursionStack.add(nodeId);
 
       const node = nodes[nodeId];
-      if (node && node.next_node) {
-        if (!visited.has(node.next_node)) {
-          if (dfs(node.next_node)) {
-            return true;
+      if (node && node.next_nodes) {
+        for (const nextNodeId of node.next_nodes) {
+          if (!visited.has(nextNodeId)) {
+            if (dfs(nextNodeId)) {
+              return true;
+            }
+          } else if (recursionStack.has(nextNodeId)) {
+            return true; // 순환 탐지
           }
-        } else if (recursionStack.has(node.next_node)) {
-          return true; // 순환 탐지
         }
       }
 

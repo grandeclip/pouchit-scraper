@@ -199,17 +199,29 @@ export class WorkflowExecutionService implements IWorkflowService {
       job.current_node = workflow.start_node;
       await this.repository.updateJob(job);
 
-      // 3. 노드 순차 실행
-      let currentNodeId: string | null = workflow.start_node;
+      // 3. 노드 DAG 실행
       let accumulatedData: Record<string, unknown> = {
         // Job 메타데이터 추가 (시작 시간을 ResultWriterNode에서 사용)
         job_metadata: {
           started_at: job.started_at,
         },
       };
-      let executedNodeCount = 0; // 실행된 노드 수 추적
+      const executedNodes = new Set<string>(); // 실행 완료된 노드 추적
+      const inProgressNodes = new Set<string>(); // 실행 중인 노드 추적
+      let nodesToExecute: string[] = [workflow.start_node]; // 실행 대기 큐
 
-      while (currentNodeId !== null) {
+      const jobLogger = createJobLogger(job.job_id, job.workflow_id);
+
+      // DAG 실행: 큐가 빌 때까지 노드 실행
+      while (nodesToExecute.length > 0) {
+        // 현재 실행할 노드 ID
+        const currentNodeId = nodesToExecute.shift()!;
+
+        // 이미 실행된 노드는 스킵
+        if (executedNodes.has(currentNodeId)) {
+          continue;
+        }
+
         const node: WorkflowDefinition["nodes"][string] | undefined =
           workflow.nodes[currentNodeId];
 
@@ -217,11 +229,13 @@ export class WorkflowExecutionService implements IWorkflowService {
           throw new Error(`Node not found: ${currentNodeId}`);
         }
 
-        const jobLogger = createJobLogger(job.job_id, job.workflow_id);
         jobLogger.info(
           { node_id: currentNodeId, node_type: node.type },
           "Executing node",
         );
+
+        // 노드 실행 중으로 표시
+        inProgressNodes.add(currentNodeId);
 
         // 노드 실행
         const result = await this.executeNode(
@@ -240,18 +254,40 @@ export class WorkflowExecutionService implements IWorkflowService {
         // 결과 누적
         accumulatedData = { ...accumulatedData, ...result.data };
 
-        // 실행된 노드 카운트 증가
-        executedNodeCount++;
+        // 실행 완료 표시
+        executedNodes.add(currentNodeId);
+        inProgressNodes.delete(currentNodeId);
 
-        // 다음 노드로 이동
-        currentNodeId =
-          result.next_node !== undefined ? result.next_node : node.next_node;
+        // 다음 노드 결정 (런타임 오버라이드 우선)
+        const nextNodes =
+          result.next_nodes !== undefined ? result.next_nodes : node.next_nodes;
+
+        // 다음 노드들을 큐에 추가
+        for (const nextNodeId of nextNodes) {
+          if (
+            !executedNodes.has(nextNodeId) &&
+            !nodesToExecute.includes(nextNodeId)
+          ) {
+            nodesToExecute.push(nextNodeId);
+          }
+        }
 
         // 진행률 업데이트 (실행된 노드 수 기반)
         const totalNodes = Object.keys(workflow.nodes).length;
-        job.progress = Math.min(executedNodeCount / totalNodes, 1.0);
-        job.current_node = currentNodeId;
+        job.progress = Math.min(executedNodes.size / totalNodes, 1.0);
+        job.current_node = nodesToExecute.length > 0 ? nodesToExecute[0] : null;
         await this.repository.updateJob(job);
+
+        jobLogger.info(
+          {
+            node_id: currentNodeId,
+            next_nodes: nextNodes,
+            executed_count: executedNodes.size,
+            total_nodes: totalNodes,
+            progress: job.progress,
+          },
+          "Node completed",
+        );
       }
 
       // 4. Job 완료

@@ -1,0 +1,87 @@
+{
+  "defaults": {
+    "limit": 10,
+    "link_url_pattern": "%hwahae.co.kr%"
+  },
+  "description": "DAG 구조 예제: 하나의 노드에서 여러 노드로 분기 가능",
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-10-30",
+    "tags": [
+      "validation",
+      "dag",
+      "parallel",
+      "hwahae"
+    ]
+  },
+  "name": "DAG Structure Example",
+  "nodes": {
+    "merge_results": {
+      "config": {
+        "format": "json",
+        "output_dir": "/app/results",
+        "pretty": true
+      },
+      "name": "Merge and Save Results",
+      "next_nodes": [],
+      "retry": {
+        "backoff_ms": 500,
+        "max_attempts": 3
+      },
+      "timeout_ms": 10000,
+      "type": "result_writer"
+    },
+    "search": {
+      "config": {
+        "limit": "${limit}",
+        "link_url_pattern": "${link_url_pattern}"
+      },
+      "name": "Search Products from Supabase",
+      "next_nodes": [
+        "validate_api",
+        "validate_scraper"
+      ],
+      "retry": {
+        "backoff_ms": 1000,
+        "max_attempts": 3
+      },
+      "timeout_ms": 30000,
+      "type": "supabase_search"
+    },
+    "validate_api": {
+      "config": {
+        "concurrency": 1,
+        "strategy_id": "hwahae_api_v2"
+      },
+      "name": "Validate with Hwahae API",
+      "next_nodes": [
+        "merge_results"
+      ],
+      "retry": {
+        "backoff_ms": 2000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 60000,
+      "type": "hwahae_validation"
+    },
+    "validate_scraper": {
+      "config": {
+        "concurrency": 1,
+        "strategy_id": "hwahae_scraper_v1"
+      },
+      "name": "Validate with Hwahae Scraper",
+      "next_nodes": [
+        "merge_results"
+      ],
+      "retry": {
+        "backoff_ms": 2000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 60000,
+      "type": "hwahae_validation"
+    }
+  },
+  "start_node": "search",
+  "version": "1.0.0",
+  "workflow_id": "dag-example-v1"
+}

@@ -128,6 +128,15 @@ sequenceDiagram
 
 ## 📝 워크플로우 정의
 
+### 워크플로우 아키텍처
+
+**DAG (Directed Acyclic Graph)** 구조를 지원하여 복잡한 워크플로우 구성이 가능합니다.
+
+- ✅ **분기 (Fork)**: 하나의 노드에서 여러 노드로 분기
+- ✅ **합류 (Join)**: 여러 노드가 하나의 노드로 합류
+- ✅ **조건부 분기**: 런타임에 동적으로 다음 노드 결정
+- ⚠️ **순차 실행**: 현재는 큐 기반 순차 실행 (병렬 실행 향후 지원)
+
 ### 워크플로우 노드 구조
 
 ```mermaid
@@ -146,7 +155,7 @@ flowchart LR
 
 ### 현재 지원 워크플로우
 
-#### `bulk-validation-v1` - 대량 상품 검증
+#### `bulk-validation-v1` - 대량 상품 검증 (선형 체인)
 
 ```json
 {
@@ -162,7 +171,7 @@ flowchart LR
         "link_url_pattern": "${link_url_pattern}",
         "limit": "${limit}"
       },
-      "next_node": "2"
+      "next_nodes": ["2"]
     },
     "2": {
       "type": "hwahae_validation",
@@ -171,7 +180,7 @@ flowchart LR
         "strategy_id": "hwahae_api_v2",
         "concurrency": 1
       },
-      "next_node": "3"
+      "next_nodes": ["3"]
     },
     "3": {
       "type": "result_writer",
@@ -181,13 +190,63 @@ flowchart LR
         "format": "json",
         "pretty": true
       },
-      "next_node": null
+      "next_nodes": []
     }
   }
 }
 ```
 
-### 노드 타입
+#### `dag-example-v1` - DAG 구조 예제 (다이아몬드 패턴)
+
+```json
+{
+  "workflow_id": "dag-example-v1",
+  "name": "DAG Structure Example",
+  "description": "DAG 구조 예제: 분기와 합류",
+  "start_node": "search",
+  "nodes": {
+    "search": {
+      "type": "supabase_search",
+      "next_nodes": ["validate_api", "validate_scraper"]
+    },
+    "validate_api": {
+      "type": "hwahae_validation",
+      "config": { "strategy_id": "hwahae_api_v2" },
+      "next_nodes": ["merge_results"]
+    },
+    "validate_scraper": {
+      "type": "hwahae_validation",
+      "config": { "strategy_id": "hwahae_scraper_v1" },
+      "next_nodes": ["merge_results"]
+    },
+    "merge_results": {
+      "type": "result_writer",
+      "next_nodes": []
+    }
+  }
+}
+```
+
+### 노드 타입 및 연결 규칙
+
+#### 노드 정의 구조
+
+```json
+{
+  "type": "node_type", // 노드 타입 (Strategy 식별자)
+  "name": "Node Name", // 노드 이름 (로깅용)
+  "config": {}, // 노드별 설정
+  "next_nodes": ["id1", "id2"], // 다음 노드 ID 배열 (빈 배열이면 종료)
+  "retry": {
+    // 재시도 설정 (선택)
+    "max_attempts": 3,
+    "backoff_ms": 1000
+  },
+  "timeout_ms": 30000 // 타임아웃 (선택)
+}
+```
+
+**중요**: `next_nodes`는 배열이므로 여러 노드로 분기 가능합니다.
 
 #### 1. `supabase_search` - Supabase 검색
 
@@ -237,6 +296,15 @@ flowchart LR
 ```
 
 **Output**: `{ file_path: string, file_size: number, record_count: number }`
+
+### 새로운 워크플로우 추가하기
+
+1. **JSON 파일 작성** (`workflows/my-workflow.json`)
+2. **노드 조합**: 미리 정의된 노드 타입 사용
+3. **DAG 구성**: `next_nodes` 배열로 자유롭게 연결
+4. **자동 검증**: 시스템이 구조 검증 및 실행
+
+**상세 가이드**: [WORKFLOW_DAG.md](./WORKFLOW_DAG.md) 참조
 
 ### 결과 파일 형식
 
@@ -668,13 +736,33 @@ docker exec product_scanner_dev ls -lh /app/results/
 
 ## 📚 참고 자료
 
+### 워크플로우 관련
+
+- **[WORKFLOW_DAG.md](./WORKFLOW_DAG.md)** - DAG 구조 상세 가이드
+- [Workflow.ts](../src/core/domain/Workflow.ts) - 도메인 모델
+- [WorkflowExecutionService.ts](../src/services/WorkflowExecutionService.ts) - 실행 엔진
+- [WorkflowLoaderService.ts](../src/services/WorkflowLoaderService.ts) - 로더 및 검증
+
+### 노드 구현
+
+- [INodeStrategy.ts](../src/core/interfaces/INodeStrategy.ts) - 노드 인터페이스
+- [SupabaseSearchNode.ts](../src/strategies/SupabaseSearchNode.ts) - Node 1
+- [HwahaeValidationNode.ts](../src/strategies/HwahaeValidationNode.ts) - Node 2
+- [ResultWriterNode.ts](../src/strategies/ResultWriterNode.ts) - Node 3
+
+### 워크플로우 예제
+
+- [bulk-validation-v1.json](../workflows/bulk-validation-v1.json) - 선형 체인
+- [dag-example-v1.json](../workflows/dag-example-v1.json) - DAG 구조
+
+### 기타
+
 - [Product Scanner README](../README.md)
 - [Supabase Repository](../src/repositories/SupabaseProductRepository.ts)
-- [Hwahae Scan Service](../src/services/HwahaeScanService.ts)
 - [Redis Workflow Repository](../src/repositories/RedisWorkflowRepository.ts)
 
 ---
 
-**작성일**: 2025-10-29
-**버전**: 1.0.0
+**작성일**: 2025-01-30
+**버전**: 2.0.0 (DAG 구조 지원)
 **Status**: Production Ready ✅

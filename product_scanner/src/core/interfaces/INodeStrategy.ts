@@ -44,8 +44,8 @@ export interface NodeResult {
     details?: unknown;
   };
 
-  /** 다음 Node ID 오버라이드 (선택적) */
-  next_node?: string | null;
+  /** 다음 Node ID 목록 오버라이드 (선택적, DAG 구조 지원) */
+  next_nodes?: string[];
 }
 
 /**

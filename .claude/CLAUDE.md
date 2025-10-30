@@ -52,6 +52,36 @@ All code must strictly adhere to the following design patterns:
 - **ISP**: Client-specific interface segregation
 - **DIP**: Depend on abstractions, not concrete classes
 
+## 🔄 Workflow System (product_scanner)
+
+The product_scanner module includes a **DAG-based workflow system** for automating bulk product validation.
+
+### Key Features
+
+- **DAG Structure**: Supports Fork, Join, and conditional branching with `next_nodes: string[]`
+- **JSON Configuration**: Define workflows in JSON without code changes
+- **Auto-Validation**: Workflow structure validation (node references, cycles, unreachable nodes)
+- **Redis Job Queue**: Asynchronous processing with background workers
+
+### Workflow Node Structure
+
+```json
+{
+  "type": "node_type",
+  "name": "Node Name",
+  "config": {},
+  "next_nodes": ["node_id_1", "node_id_2"], // Array for DAG support
+  "retry": { "max_attempts": 3, "backoff_ms": 1000 },
+  "timeout_ms": 30000
+}
+```
+
+### Important
+
+- **`next_nodes`** is an **array** (not single string) - supports multiple branches
+- Empty array `[]` means workflow termination
+- See `product_scanner/docs/WORKFLOW_DAG.md` for detailed DAG patterns
+
 ## 📁 Directory Structure (Standard)
 
 Each scraper module must follow this structure:
@@ -104,8 +134,13 @@ scraper_module/
 │   └── *.test.ts
 ├── scripts/                       # Standalone scripts (NEW)
 │   └── *.ts
+├── workflows/                     # Workflow definitions (JSON) - product_scanner only
+│   ├── bulk-validation-v1.json    # Example: Linear chain
+│   └── dag-example-v1.json        # Example: DAG structure
 ├── docs/                          # Documentation (NEW)
-│   └── *.md
+│   ├── *.md
+│   ├── WORKFLOW.md                # Workflow system guide - product_scanner
+│   └── WORKFLOW_DAG.md            # DAG structure guide - product_scanner
 ├── docker/                        # Docker configuration (NEW)
 │   ├── README.md
 │   ├── Dockerfile
