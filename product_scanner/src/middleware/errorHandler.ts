@@ -7,6 +7,7 @@
  */
 
 import { Request, Response, NextFunction } from "express";
+import { logger } from "@/config/logger";
 
 /**
  * 전역 에러 핸들러
@@ -17,10 +18,22 @@ export function errorHandler(
   res: Response,
   next: NextFunction,
 ): void {
-  console.error("[ErrorHandler] Unhandled error:", err);
-
   // 에러 로깅
-  console.error("Stack trace:", err.stack);
+  logger.error(
+    {
+      error: {
+        message: err.message,
+        stack: err.stack,
+        name: err.name,
+      },
+      request_id: req.id,
+      method: req.method,
+      path: req.path,
+      query: req.query,
+      body: req.body,
+    },
+    "처리되지 않은 오류",
+  );
 
   // 에러 응답
   res.status(500).json({
@@ -40,6 +53,15 @@ export function notFoundHandler(
   res: Response,
   next: NextFunction,
 ): void {
+  logger.warn(
+    {
+      request_id: req.id,
+      method: req.method,
+      path: req.path,
+    },
+    "경로를 찾을 수 없음",
+  );
+
   res.status(404).json({
     error: "Not found",
     path: req.path,

@@ -14,6 +14,7 @@ import {
 } from "@/core/interfaces/INodeStrategy";
 import { HwahaeScanService } from "@/services/HwahaeScanService";
 import { ProductSetSearchResult } from "@/core/domain/ProductSet";
+import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
  * Hwahae Validation Node Config
@@ -29,14 +30,15 @@ interface HwahaeValidationConfig {
  */
 interface ProductValidationResult {
   product_set_id: string;
-  supabase_data: {
+  product_id: string;
+  db: {
     product_name: string | null;
     thumbnail?: string | null;
     original_price?: number | null;
     discounted_price?: number | null;
     sale_status?: string | null;
   };
-  hwahae_data: {
+  fetch: {
     product_name: string;
     thumbnail: string;
     original_price: number;
@@ -44,32 +46,13 @@ interface ProductValidationResult {
     sale_status: string;
   } | null;
   comparison: {
-    product_name: {
-      match: boolean;
-      supabase: string | null;
-      hwahae: string | null;
-    };
-    thumbnail: {
-      match: boolean;
-      supabase?: string | null;
-      hwahae: string | null;
-    };
-    original_price: {
-      match: boolean;
-      supabase?: number | null;
-      hwahae: number | null;
-    };
-    discounted_price: {
-      match: boolean;
-      supabase?: number | null;
-      hwahae: number | null;
-    };
-    sale_status: {
-      match: boolean;
-      supabase?: string | null;
-      hwahae: string | null;
-    };
+    product_name: boolean;
+    thumbnail: boolean;
+    original_price: boolean;
+    discounted_price: boolean;
+    sale_status: boolean;
   };
+  match: boolean;
   status: "success" | "failed" | "not_found";
   error?: string;
   validated_at: string;
@@ -234,51 +217,38 @@ export class HwahaeValidationNode implements INodeStrategy {
       saleStatus: string;
     },
   ): ProductValidationResult {
+    const comparison = {
+      product_name: supabase.product_name === hwahae.productName,
+      thumbnail: supabase.thumbnail === hwahae.thumbnail,
+      original_price: supabase.original_price === hwahae.originalPrice,
+      discounted_price: supabase.discounted_price === hwahae.discountedPrice,
+      sale_status: supabase.sale_status === hwahae.saleStatus,
+    };
+
+    // 모든 필드가 true인지 확인
+    const match = Object.values(comparison).every((value) => value === true);
+
     return {
       product_set_id: supabase.product_set_id,
-      supabase_data: {
+      product_id: supabase.product_id,
+      db: {
         product_name: supabase.product_name,
         thumbnail: supabase.thumbnail,
         original_price: supabase.original_price,
         discounted_price: supabase.discounted_price,
         sale_status: supabase.sale_status,
       },
-      hwahae_data: {
+      fetch: {
         product_name: hwahae.productName,
         thumbnail: hwahae.thumbnail,
         original_price: hwahae.originalPrice,
         discounted_price: hwahae.discountedPrice,
         sale_status: hwahae.saleStatus,
       },
-      comparison: {
-        product_name: {
-          match: supabase.product_name === hwahae.productName,
-          supabase: supabase.product_name,
-          hwahae: hwahae.productName,
-        },
-        thumbnail: {
-          match: supabase.thumbnail === hwahae.thumbnail,
-          supabase: supabase.thumbnail,
-          hwahae: hwahae.thumbnail,
-        },
-        original_price: {
-          match: supabase.original_price === hwahae.originalPrice,
-          supabase: supabase.original_price,
-          hwahae: hwahae.originalPrice,
-        },
-        discounted_price: {
-          match: supabase.discounted_price === hwahae.discountedPrice,
-          supabase: supabase.discounted_price,
-          hwahae: hwahae.discountedPrice,
-        },
-        sale_status: {
-          match: supabase.sale_status === hwahae.saleStatus,
-          supabase: supabase.sale_status,
-          hwahae: hwahae.saleStatus,
-        },
-      },
+      comparison,
+      match,
       status: "success",
-      validated_at: new Date().toISOString(),
+      validated_at: getTimestampWithTimezone(),
     };
   }
 
@@ -291,40 +261,26 @@ export class HwahaeValidationNode implements INodeStrategy {
   ): ProductValidationResult {
     return {
       product_set_id: product.product_set_id,
-      supabase_data: {
+      product_id: product.product_id,
+      db: {
         product_name: product.product_name,
         thumbnail: product.thumbnail,
         original_price: product.original_price,
         discounted_price: product.discounted_price,
         sale_status: product.sale_status,
       },
-      hwahae_data: null,
+      fetch: null,
       comparison: {
-        product_name: {
-          match: false,
-          supabase: product.product_name,
-          hwahae: null,
-        },
-        thumbnail: { match: false, supabase: product.thumbnail, hwahae: null },
-        original_price: {
-          match: false,
-          supabase: product.original_price,
-          hwahae: null,
-        },
-        discounted_price: {
-          match: false,
-          supabase: product.discounted_price,
-          hwahae: null,
-        },
-        sale_status: {
-          match: false,
-          supabase: product.sale_status,
-          hwahae: null,
-        },
+        product_name: false,
+        thumbnail: false,
+        original_price: false,
+        discounted_price: false,
+        sale_status: false,
       },
+      match: false,
       status: "failed",
       error: errorMessage,
-      validated_at: new Date().toISOString(),
+      validated_at: getTimestampWithTimezone(),
     };
   }
 
@@ -349,22 +305,18 @@ export class HwahaeValidationNode implements INodeStrategy {
     const failed = validations.filter((v) => v.status === "failed").length;
     const notFound = validations.filter((v) => v.status === "not_found").length;
 
-    // 매칭률 계산
-    const successfulValidations = validations.filter(
-      (v) => v.status === "success",
-    );
-    const totalFields = successfulValidations.length * 5;
-    const matchedFields = successfulValidations.reduce((count, v) => {
-      return count + Object.values(v.comparison).filter((f) => f.match).length;
-    }, 0);
+    // 매칭된 상품 수 계산 (모든 필드가 true인 상품)
+    const totalMatched = validations.filter((v) => v.match === true).length;
 
-    const matchRate = totalFields > 0 ? (matchedFields / totalFields) * 100 : 0;
+    // 매칭률 계산 (전체 상품 중 완전히 일치하는 상품 비율)
+    const matchRate = total > 0 ? (totalMatched / total) * 100 : 0;
 
     return {
       total,
       success,
       failed,
       not_found: notFound,
+      total_matched: totalMatched,
       match_rate: Math.round(matchRate * 100) / 100,
     };
   }

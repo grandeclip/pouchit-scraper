@@ -13,6 +13,7 @@ import {
   NodeContext,
   NodeResult,
 } from "@/core/interfaces/INodeStrategy";
+import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
  * Result Writer Node Config
@@ -35,6 +36,9 @@ export class ResultWriterNode implements INodeStrategy {
    */
   async execute(context: NodeContext): Promise<NodeResult> {
     const { config, params, input, job_id } = context;
+
+    // 현재 시각 기록 (Job 완료 시각)
+    const completedAt = getTimestampWithTimezone();
 
     // Config와 params 병합
     const writerConfig = this.mergeConfig(config, params);
@@ -78,9 +82,16 @@ export class ResultWriterNode implements INodeStrategy {
       const filePath = path.join(outputDir, filename);
 
       // 출력 데이터 준비
+      // Job 메타데이터에서 시작 시간 가져오기 (없으면 현재 시각 사용)
+      const jobMetadata = input.job_metadata as
+        | { started_at?: string }
+        | undefined;
+      const startedAt = jobMetadata?.started_at || completedAt;
+
       const outputData = {
         job_id,
-        executed_at: new Date().toISOString(),
+        started_at: startedAt,
+        completed_at: completedAt,
         summary: validationResult.summary,
         validations: validationResult.validations,
       };
@@ -172,22 +183,26 @@ export class ResultWriterNode implements INodeStrategy {
   ): Promise<void> {
     const headers = [
       "product_set_id",
+      "product_id",
       "status",
       "validated_at",
-      "supabase_product_name",
-      "hwahae_product_name",
+      "db_product_name",
+      "fetch_product_name",
       "product_name_match",
+      "overall_match",
       "error",
     ];
 
     const rows = validations.map((v: any) => {
       return [
         v.product_set_id || "",
+        v.product_id || "",
         v.status || "",
         v.validated_at || "",
-        this.escapeCsv(v.supabase_data?.product_name || ""),
-        this.escapeCsv(v.hwahae_data?.product_name || ""),
-        v.comparison?.product_name?.match || false,
+        this.escapeCsv(v.db?.product_name || ""),
+        this.escapeCsv(v.fetch?.product_name || ""),
+        v.comparison?.product_name || false,
+        v.match || false,
         this.escapeCsv(v.error || ""),
       ].join(",");
     });

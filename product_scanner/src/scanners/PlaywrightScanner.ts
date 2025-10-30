@@ -71,6 +71,7 @@ export class PlaywrightScanner extends BaseScanner {
     // 추가 anti-detection 설정
     await this.context.addInitScript(() => {
       // webdriver 속성 제거
+      // @ts-expect-error - Browser context에서 실행되는 코드 (navigator는 브라우저 전역 객체)
       Object.defineProperty(navigator, "webdriver", {
         get: () => false,
       });

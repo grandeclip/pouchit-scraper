@@ -12,8 +12,19 @@ services:
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      # Timezone configuration
+      - TZ=Asia/Seoul
+      # Logging configuration
+      - LOG_LEVEL=info
+      - LOG_PRETTY=false
+      - LOG_DIR=/app/logs
     env_file:
       - ../.env.local
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
     volumes:
       - ../logs:/app/logs
       - ../results:/app/results
@@ -26,6 +37,38 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  workflow_worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: production
+    container_name: workflow_worker
+    environment:
+      - NODE_ENV=production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - WORKER_POLL_INTERVAL=5000
+      # Timezone configuration
+      - TZ=Asia/Seoul
+      # Logging configuration
+      - LOG_LEVEL=info
+      - LOG_PRETTY=false
+      - LOG_DIR=/app/logs
+    env_file:
+      - ../.env.local
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "10"
+    volumes:
+      - ../logs:/app/logs
+      - ../results:/app/results
+    depends_on:
+      - redis
+    command: ["npx", "tsx", "src/worker.ts"]
+    restart: unless-stopped
 
   redis:
     image: redis:8.2-alpine

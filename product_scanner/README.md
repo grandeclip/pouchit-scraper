@@ -73,6 +73,7 @@ product_scanner/
 │   ├── server.ts                  # 엔트리포인트
 │   ├── config/                    # 설정 파일 & 로더
 │   │   ├── constants.ts           # 애플리케이션 상수
+│   │   ├── logger.ts              # Pino 로거 설정
 │   │   ├── ConfigLoader.ts
 │   │   └── platforms/             # YAML 설정
 │   │       └── hwahae.yaml
@@ -105,9 +106,13 @@ product_scanner/
 │   ├── controllers/               # HTTP 컨트롤러
 │   │   ├── ScanController.ts
 │   │   └── ProductSearchController.ts   # 상품 검색 컨트롤러
-│   └── middleware/                # 미들웨어
-│       ├── errorHandler.ts
-│       └── validation.ts
+│   ├── middleware/                # 미들웨어
+│   │   ├── errorHandler.ts
+│   │   ├── requestLogger.ts       # HTTP 요청 로거
+│   │   └── validation.ts
+│   └── utils/                     # 유틸리티
+│       ├── logger-context.ts      # 로거 컨텍스트 헬퍼
+│       └── timestamp.ts           # 타임스탬프 유틸
 ├── tests/                         # 테스트 파일
 │   ├── hwahae-validator.test.ts
 │   └── supabase.test.ts
@@ -201,6 +206,65 @@ PRODUCT_TABLE_NAME=product_sets  # 기본값
 # API 설정 (선택)
 MAX_SEARCH_LIMIT=100      # 최대 검색 결과 개수
 DEFAULT_SEARCH_LIMIT=3    # 기본 검색 결과 개수
+
+# 로깅 설정 (선택)
+LOG_LEVEL=info            # 로그 레벨: debug, info, warn, error
+LOG_DIR=./logs            # 로그 파일 저장 디렉토리
+LOG_PRETTY=true           # 개발 환경에서 예쁜 출력 (true/false)
+TZ=Asia/Seoul             # 타임존 설정
+```
+
+## 📊 로깅 시스템
+
+### Pino 기반 구조화 로깅
+
+**주요 특징**:
+
+- 구조화된 JSON 로깅 (파싱 및 분석 용이)
+- 서비스별 로그 파일 분리 (server, worker)
+- 일일 자동 로테이션 (YYYYMMDD 형식)
+- Health check 요청 파일 로그 제외 (콘솔만)
+- 타임존 지원 (Asia/Seoul)
+
+### 로그 출력 전략
+
+**콘솔 출력**:
+
+- WARNING/ERROR: 항상 출력
+- INFO: `important: true` 플래그 있는 로그만 출력
+- Health check: 콘솔에만 출력
+
+**파일 출력**:
+
+- `server-YYYYMMDD.log`: API 서버 로그
+- `worker-YYYYMMDD.log`: Worker 및 Repository 로그
+- `error-YYYYMMDD.log`: 전체 에러 통합 로그
+- 일일 로테이션, 30일 보관, 100MB 초과 시 자동 분할
+- 1일 후 자동 gzip 압축
+
+### 컨텍스트 추적
+
+**Request 컨텍스트**:
+
+```typescript
+import { createRequestLogger } from "@/utils/logger-context";
+const logger = createRequestLogger(requestId, method, path);
+logger.info({ query, body }, "요청 수신");
+```
+
+**Job 컨텍스트** (Workflow):
+
+```typescript
+import { createJobLogger } from "@/utils/logger-context";
+const logger = createJobLogger(jobId, workflowId);
+logger.info({ status }, "Job 시작");
+```
+
+**중요 정보 로깅** (콘솔 출력):
+
+```typescript
+import { logImportant } from "@/utils/logger-context";
+logImportant(logger, "워크플로우 완료", { workflowId, duration });
 ```
 
 ## 💾 Supabase 통합

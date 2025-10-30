@@ -20,6 +20,7 @@ Docker-based web scraper module development project - An extensible system that 
 - **Web Framework**: Express.js
 - **Configuration**: YAML (js-yaml)
 - **Validation**: Zod
+- **Logging**: Pino (structured JSON logging with rotation)
 
 ### Development
 
@@ -58,10 +59,11 @@ Each scraper module must follow this structure:
 ```text
 scraper_module/
 ├── src/                           # Source code (NEW)
-│   ├── server.ts                  # Entry point (~100줄 이하)
+│   ├── server.ts                  # Entry point (under 100 lines)
 │   ├── config/
 │   │   ├── constants.ts           # Application constants
-│   │   ├── targets/               # YAML 설정 파일들
+│   │   ├── logger.ts              # Pino Logger (Singleton)
+│   │   ├── targets/               # YAML configuration files
 │   │   │   ├── target1.yaml
 │   │   │   └── target2.yaml
 │   │   └── ConfigLoader.ts        # YAML 로더 (Singleton)
@@ -91,9 +93,13 @@ scraper_module/
 │   │   └── SelectorExtractor.ts   # Playwright API extraction
 │   ├── controllers/
 │   │   └── ScrapeController.ts    # HTTP controller
-│   └── middleware/
-│       ├── errorHandler.ts        # Global error handler
-│       └── validation.ts          # Request validation
+│   ├── middleware/
+│   │   ├── errorHandler.ts        # Global error handler
+│   │   ├── requestLogger.ts       # HTTP request logger
+│   │   └── validation.ts          # Request validation
+│   └── utils/                     # Utility functions
+│       ├── logger-context.ts      # Logger context helper
+│       └── timestamp.ts           # Timestamp utility
 ├── tests/                         # Test files (NEW)
 │   └── *.test.ts
 ├── scripts/                       # Standalone scripts (NEW)
@@ -303,6 +309,57 @@ ${encodedQuery}    # URL-encoded query
 app.use(errorHandler);
 ```
 
+## 📊 Logging Standards
+
+### Pino-Based Structured Logging
+
+**Core Requirements**:
+
+- **Structured JSON**: All logs in machine-readable JSON format
+- **Service Separation**: Separate log files per service (server, worker)
+- **Daily Rotation**: Automatic rotation with YYYYMMDD format
+- **Context Tracking**: Request ID, Job ID, Workflow ID tracking
+- **Timezone Support**: ISO 8601 format with timezone info
+
+### Logging Strategy
+
+**Console Output**:
+
+- WARNING/ERROR always visible
+- INFO only with `important: true` flag
+- Health checks console-only (skip file logging)
+
+**File Output**:
+
+- Service-specific files: `server-YYYYMMDD.log`, `worker-YYYYMMDD.log`
+- Error aggregation: `error-YYYYMMDD.log`
+- 30-day retention, 100MB rotation, gzip after 1 day
+
+### Context Helpers
+
+```typescript
+// Request context
+import { createRequestLogger } from "@/utils/logger-context";
+const logger = createRequestLogger(requestId, method, path);
+
+// Job context (Workflow)
+import { createJobLogger } from "@/utils/logger-context";
+const logger = createJobLogger(jobId, workflowId);
+
+// Important logs (console output)
+import { logImportant } from "@/utils/logger-context";
+logImportant(logger, "중요 메시지", { data });
+```
+
+### Environment Variables
+
+```bash
+LOG_LEVEL=info        # debug, info, warn, error
+LOG_DIR=./logs        # Log file directory
+LOG_PRETTY=true       # Pretty console output (dev only)
+TZ=Asia/Seoul         # Timezone
+```
+
 ## 🧪 Quality Standards
 
 ### Code Quality Metrics
@@ -395,9 +452,3 @@ Each module must have:
 - Command Pattern → `ActionExecutor.ts`
 - Template Method → `BaseScraper.ts`
 - Facade Pattern → `ProductSearchService.ts`
-
----
-
-**Last Updated**: 2025-10-28
-
-**Status**: Active Development

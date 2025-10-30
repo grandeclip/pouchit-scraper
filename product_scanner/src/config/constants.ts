@@ -55,3 +55,27 @@ export const REPOSITORY_CONFIG = {
     "discounted_price",
   ] as const,
 } as const;
+
+/**
+ * 로깅 서비스 이름
+ * 서비스별 로그 파일 라우팅에 사용
+ */
+export const SERVICE_NAMES = {
+  /**
+   * Express 서버
+   * 로그 파일: logs/server-YYYYMMDD.log
+   */
+  SERVER: "server",
+
+  /**
+   * Workflow Worker
+   * 로그 파일: logs/worker-YYYYMMDD.log
+   */
+  WORKER: "worker",
+
+  /**
+   * Redis Repository
+   * 로그 파일: logs/worker-YYYYMMDD.log (worker와 통합)
+   */
+  REDIS_REPOSITORY: "redis-repository",
+} as const;

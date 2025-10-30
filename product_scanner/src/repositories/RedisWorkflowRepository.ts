@@ -11,6 +11,10 @@
 import Redis from "ioredis";
 import { IWorkflowRepository } from "@/core/interfaces/IWorkflowRepository";
 import { Job, JobStatus } from "@/core/domain/Workflow";
+import { createServiceLogger } from "@/utils/logger-context";
+import { SERVICE_NAMES } from "@/config/constants";
+
+const logger = createServiceLogger(SERVICE_NAMES.REDIS_REPOSITORY);
 
 /**
  * Redis 키 패턴
@@ -55,8 +59,24 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
         lazyConnect: false,
       });
 
+      this.client.on("connect", () => {
+        logger.info({ host, port }, "Redis 연결 성공");
+      });
+
+      this.client.on("ready", () => {
+        logger.info({ host, port }, "Redis 사용 준비 완료");
+      });
+
       this.client.on("error", (err: Error) => {
-        console.error("[Redis] Connection error:", err);
+        logger.error({ error: err.message, host, port }, "Redis 연결 오류");
+      });
+
+      this.client.on("close", () => {
+        logger.warn({ host, port }, "Redis 연결 종료");
+      });
+
+      this.client.on("reconnecting", () => {
+        logger.warn({ host, port }, "Redis 재연결 시도 중");
       });
     }
   }
@@ -103,7 +123,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     const jobData = await this.client.hget(REDIS_KEYS.JOB_DATA(jobId), "data");
 
     if (!jobData) {
-      console.warn(`[Redis] Job ${jobId} not found`);
+      logger.warn({ job_id: jobId }, "Redis에서 Job을 찾을 수 없음");
       return null;
     }
 
@@ -210,7 +230,12 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
       const result = await this.client.ping();
       return result === "PONG";
     } catch (error) {
-      console.error("[Redis] Health check failed:", error);
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Redis 상태 확인 실패",
+      );
       return false;
     }
   }

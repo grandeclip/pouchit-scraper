@@ -11,8 +11,8 @@ RUN node --version && npm --version
 # package.json과 tsconfig.json 복사
 COPY package.json package-lock.json tsconfig.json ./
 
-# 의존성 설치 (production only)
-RUN npm ci --only=production
+# 의존성 설치 (production dependencies)
+RUN npm ci --omit=dev
 
 # 소스 코드 복사
 COPY . .
@@ -47,4 +47,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1); })"
 
 # 서버 시작
-CMD ["npm", "start"]
+CMD ["npx", "tsx", "src/server.ts"]

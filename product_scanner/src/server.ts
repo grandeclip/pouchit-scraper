@@ -9,18 +9,24 @@ import { ScanController } from "@/controllers/ScanController";
 import { ProductSearchController } from "@/controllers/ProductSearchController";
 import { WorkflowController } from "@/controllers/WorkflowController";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
+import { requestLogger } from "@/middleware/requestLogger";
 import {
   validateScanRequest,
   validateGoodsIdParam,
   validateProductSearchQuery,
   validateProductSetIdParam,
 } from "@/middleware/validation";
+import { createServiceLogger, logImportant } from "@/utils/logger-context";
+import { SERVICE_NAMES } from "@/config/constants";
+
+const logger = createServiceLogger(SERVICE_NAMES.SERVER);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 미들웨어
 app.use(express.json());
+app.use(requestLogger);
 
 // 컨트롤러 인스턴스
 const scanController = new ScanController();
@@ -88,50 +94,63 @@ app.use(errorHandler);
 
 // 서버 시작
 const server = app.listen(PORT, () => {
-  console.log("✅ Product Scanner 서버 시작");
-  console.log(`📍 포트: ${PORT}`);
-  console.log(`🔗 헬스체크: http://localhost:${PORT}/health`);
-  console.log(`\n📚 Scan API 엔드포인트:`);
-  console.log(`  POST /api/scan/validate - 상품 검증 (CSV vs API)`);
-  console.log(`  POST /api/scan/:goodsId - 상품 스캔`);
-  console.log(`  GET  /api/scan/strategies - 사용 가능한 전략 목록`);
-  console.log(`\n🔍 Product Search API 엔드포인트:`);
-  console.log(`  GET  /api/products/search - 상품 검색 (Supabase)`);
-  console.log(`  GET  /api/products/:productSetId - 상품 ID 조회`);
-  console.log(`  GET  /api/products/health - Supabase 연결 상태`);
-  console.log(`\n⚙️  Workflow API 엔드포인트:`);
-  console.log(`  POST /api/workflows/execute - 워크플로우 실행`);
-  console.log(`  GET  /api/workflows/jobs/:jobId - Job 상태 조회`);
-  console.log(`  GET  /api/workflows - 사용 가능한 워크플로우 목록`);
-  console.log(`  GET  /api/workflows/health - Redis 연결 상태`);
-  console.log(`\n🎯 지원 전략: API (priority 1), Playwright (priority 2)`);
+  logImportant(logger, "Product Scanner 서버 시작", {
+    port: PORT,
+    env: process.env.NODE_ENV || "development",
+    version: "2.0.0",
+  });
+
+  logger.info(
+    {
+      endpoints: {
+        health: `http://localhost:${PORT}/health`,
+        scan: {
+          validate: "POST /api/scan/validate",
+          scan: "POST /api/scan/:goodsId",
+          strategies: "GET /api/scan/strategies",
+        },
+        products: {
+          search: "GET /api/products/search",
+          getById: "GET /api/products/:productSetId",
+          health: "GET /api/products/health",
+        },
+        workflows: {
+          execute: "POST /api/workflows/execute",
+          jobStatus: "GET /api/workflows/jobs/:jobId",
+          list: "GET /api/workflows",
+          health: "GET /api/workflows/health",
+        },
+      },
+    },
+    "API 엔드포인트 등록 완료",
+  );
 });
 
 // Graceful shutdown
 process.on("SIGTERM", async () => {
-  console.log("\n🛑 SIGTERM 수신, 서버 종료 중...");
+  logger.warn("SIGTERM 수신, 서버 종료 중...");
 
   server.close(async () => {
-    console.log("📡 HTTP 서버 종료");
+    logger.info("HTTP 서버 종료");
 
     // 리소스 정리
     await scanController.cleanup();
 
-    console.log("✅ 서버 정상 종료");
+    logImportant(logger, "서버 종료 완료", {});
     process.exit(0);
   });
 });
 
 process.on("SIGINT", async () => {
-  console.log("\n🛑 SIGINT 수신, 서버 종료 중...");
+  logger.warn("SIGINT 수신, 서버 종료 중...");
 
   server.close(async () => {
-    console.log("📡 HTTP 서버 종료");
+    logger.info("HTTP 서버 종료");
 
     // 리소스 정리
     await scanController.cleanup();
 
-    console.log("✅ 서버 정상 종료");
+    logImportant(logger, "서버 종료 완료", {});
     process.exit(0);
   });
 });

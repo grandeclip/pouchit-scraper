@@ -5,6 +5,10 @@
 
 import "dotenv/config";
 import { WorkflowExecutionService } from "@/services/WorkflowExecutionService";
+import { createServiceLogger, logImportant } from "@/utils/logger-context";
+import { SERVICE_NAMES } from "@/config/constants";
+
+const logger = createServiceLogger(SERVICE_NAMES.WORKER);
 
 const POLL_INTERVAL_MS = parseInt(
   process.env.WORKER_POLL_INTERVAL || "5000",
@@ -18,44 +22,56 @@ let retryCount = 0;
 async function processJobs() {
   const service = new WorkflowExecutionService();
 
-  console.log("🚀 Workflow Worker started");
-  console.log(`⏱️  Poll interval: ${POLL_INTERVAL_MS}ms`);
+  logImportant(logger, "Workflow Worker 시작", {
+    poll_interval_ms: POLL_INTERVAL_MS,
+  });
 
   while (isRunning) {
     try {
-      console.log("\n🔍 Checking for jobs...");
-
       const job = await service.processNextJob();
 
       if (job) {
-        console.log(`✅ Job processed: ${job.job_id}`);
-        console.log(`   Status: ${job.status}`);
+        logImportant(logger, "Job 처리 완료", {
+          job_id: job.job_id,
+          status: job.status,
+        });
         retryCount = 0; // 성공 시 재시도 카운트 리셋
-      } else {
-        console.log("ℹ️  No jobs in queue");
       }
+      // 큐가 비었을 때는 로그 생략 (너무 빈번)
 
       // 다음 폴링까지 대기
       await sleep(POLL_INTERVAL_MS);
     } catch (error) {
-      console.error("❌ Error processing job:", error);
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          retry_count: retryCount + 1,
+        },
+        "Job 처리 중 오류 발생",
+      );
       retryCount++;
 
       if (retryCount >= MAX_RETRIES) {
-        console.error(
-          `🛑 Max retries (${MAX_RETRIES}) reached. Stopping worker.`,
+        logger.error(
+          { max_retries: MAX_RETRIES },
+          "최대 재시도 횟수 도달, Worker 중지",
         );
         isRunning = false;
       } else {
-        console.log(
-          `⏳ Retry ${retryCount}/${MAX_RETRIES} in ${POLL_INTERVAL_MS}ms...`,
+        logger.warn(
+          {
+            retry_count: retryCount,
+            max_retries: MAX_RETRIES,
+            retry_delay_ms: POLL_INTERVAL_MS,
+          },
+          "재시도 중...",
         );
         await sleep(POLL_INTERVAL_MS);
       }
     }
   }
 
-  console.log("🛑 Workflow Worker stopped");
+  logImportant(logger, "Workflow Worker 중지", {});
 }
 
 function sleep(ms: number): Promise<void> {
@@ -64,17 +80,20 @@ function sleep(ms: number): Promise<void> {
 
 // Graceful shutdown
 process.on("SIGTERM", () => {
-  console.log("\n🛑 SIGTERM received, stopping worker...");
+  logger.warn("SIGTERM 수신, Worker 중지 중...");
   isRunning = false;
 });
 
 process.on("SIGINT", () => {
-  console.log("\n🛑 SIGINT received, stopping worker...");
+  logger.warn("SIGINT 수신, Worker 중지 중...");
   isRunning = false;
 });
 
 // Start worker
 processJobs().catch((error) => {
-  console.error("💥 Worker crashed:", error);
+  logger.error(
+    { error: error instanceof Error ? error.message : String(error) },
+    "Worker 비정상 종료",
+  );
   process.exit(1);
 });

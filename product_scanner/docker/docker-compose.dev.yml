@@ -11,6 +11,12 @@ services:
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      # Timezone configuration
+      - TZ=Asia/Seoul
+      # Logging configuration
+      - LOG_LEVEL=debug
+      - LOG_PRETTY=true
+      - LOG_DIR=/app/logs
     env_file:
       - ../.env.local
     volumes:
@@ -43,6 +49,12 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - WORKER_POLL_INTERVAL=5000
+      # Timezone configuration
+      - TZ=Asia/Seoul
+      # Logging configuration
+      - LOG_LEVEL=debug
+      - LOG_PRETTY=true
+      - LOG_DIR=/app/logs
     env_file:
       - ../.env.local
     volumes:

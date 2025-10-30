@@ -13,7 +13,7 @@
  * - OCP: 새로운 노드 타입 추가 시 확장 가능
  */
 
-import { v4 as uuidv4 } from "uuid";
+import { v7 as uuidv7 } from "uuid";
 import {
   IWorkflowService,
   ExecuteWorkflowRequest,
@@ -34,6 +34,9 @@ import {
 import { RedisWorkflowRepository } from "@/repositories/RedisWorkflowRepository";
 import { WorkflowLoaderService } from "./WorkflowLoaderService";
 import { NodeStrategyFactory } from "./NodeStrategyFactory";
+import { logger } from "@/config/logger";
+import { createJobLogger, logImportant } from "@/utils/logger-context";
+import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
  * Workflow Execution 서비스 (Facade)
@@ -60,15 +63,18 @@ export class WorkflowExecutionService implements IWorkflowService {
    * @returns Job ID
    */
   async executeWorkflow(request: ExecuteWorkflowRequest): Promise<string> {
-    console.log(`[Service] Executing workflow: ${request.workflow_id}`);
+    logImportant(logger, "Executing workflow", {
+      workflow_id: request.workflow_id,
+      priority: request.priority || JobPriority.NORMAL,
+    });
 
     try {
       // 1. Workflow 정의 로드
-      const workflow = await this.loader.loadWorkflow(request.workflow_id);
+      await this.loader.loadWorkflow(request.workflow_id);
 
       // 2. Job 생성
       const job: Job = {
-        job_id: uuidv4(),
+        job_id: uuidv7(),
         workflow_id: request.workflow_id,
         status: JobStatus.PENDING,
         priority: request.priority || JobPriority.NORMAL,
@@ -77,7 +83,7 @@ export class WorkflowExecutionService implements IWorkflowService {
         progress: 0,
         result: {},
         error: null,
-        created_at: new Date().toISOString(),
+        created_at: getTimestampWithTimezone(),
         started_at: null,
         completed_at: null,
         metadata: request.metadata || {},
@@ -86,11 +92,20 @@ export class WorkflowExecutionService implements IWorkflowService {
       // 3. Repository에 Job 추가
       await this.repository.enqueueJob(job);
 
-      console.log(`[Service] Job created: ${job.job_id}`);
+      logImportant(logger, "Job created", {
+        job_id: job.job_id,
+        workflow_id: job.workflow_id,
+      });
 
       return job.job_id;
     } catch (error) {
-      console.error(`[Service] Failed to execute workflow:`, error);
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          workflow_id: request.workflow_id,
+        },
+        "Failed to execute workflow",
+      );
       throw error;
     }
   }
@@ -101,13 +116,11 @@ export class WorkflowExecutionService implements IWorkflowService {
    * @returns Job 상태 응답
    */
   async getJobStatus(jobId: string): Promise<JobStatusResponse | null> {
-    console.log(`[Service] Getting job status: ${jobId}`);
-
     try {
       const job = await this.repository.getJob(jobId);
 
       if (!job) {
-        console.warn(`[Service] Job not found: ${jobId}`);
+        logger.warn({ job_id: jobId }, "Job을 찾을 수 없음");
         return null;
       }
 
@@ -127,7 +140,13 @@ export class WorkflowExecutionService implements IWorkflowService {
 
       return response;
     } catch (error) {
-      console.error(`[Service] Failed to get job status:`, error);
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          job_id: jobId,
+        },
+        "Failed to get job status",
+      );
       throw error;
     }
   }
@@ -137,25 +156,31 @@ export class WorkflowExecutionService implements IWorkflowService {
    * @returns 처리된 Job 또는 null
    */
   async processNextJob(): Promise<Job | null> {
-    console.log(`[Service] Processing next job...`);
-
     try {
       // 1. Job 가져오기
       const job = await this.repository.dequeueJob();
 
       if (!job) {
-        console.log(`[Service] No jobs in queue`);
+        // 큐가 비었을 때는 로그 생략 (너무 빈번)
         return null;
       }
 
-      console.log(`[Service] Processing job: ${job.job_id}`);
+      logImportant(logger, "Processing job", {
+        job_id: job.job_id,
+        workflow_id: job.workflow_id,
+      });
 
       // 2. Job 실행
       await this.executeJob(job);
 
       return job;
     } catch (error) {
-      console.error(`[Service] Failed to process job:`, error);
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Failed to process job",
+      );
       throw error;
     }
   }
@@ -170,13 +195,19 @@ export class WorkflowExecutionService implements IWorkflowService {
 
       // 2. Job 상태 업데이트 (RUNNING)
       job.status = JobStatus.RUNNING;
-      job.started_at = new Date().toISOString();
+      job.started_at = getTimestampWithTimezone();
       job.current_node = workflow.start_node;
       await this.repository.updateJob(job);
 
       // 3. 노드 순차 실행
       let currentNodeId: string | null = workflow.start_node;
-      let accumulatedData: Record<string, unknown> = {};
+      let accumulatedData: Record<string, unknown> = {
+        // Job 메타데이터 추가 (시작 시간을 ResultWriterNode에서 사용)
+        job_metadata: {
+          started_at: job.started_at,
+        },
+      };
+      let executedNodeCount = 0; // 실행된 노드 수 추적
 
       while (currentNodeId !== null) {
         const node: WorkflowDefinition["nodes"][string] | undefined =
@@ -186,8 +217,10 @@ export class WorkflowExecutionService implements IWorkflowService {
           throw new Error(`Node not found: ${currentNodeId}`);
         }
 
-        console.log(
-          `[Service] Executing node: ${currentNodeId} (${node.type})`,
+        const jobLogger = createJobLogger(job.job_id, job.workflow_id);
+        jobLogger.info(
+          { node_id: currentNodeId, node_type: node.type },
+          "Executing node",
         );
 
         // 노드 실행
@@ -207,14 +240,16 @@ export class WorkflowExecutionService implements IWorkflowService {
         // 결과 누적
         accumulatedData = { ...accumulatedData, ...result.data };
 
+        // 실행된 노드 카운트 증가
+        executedNodeCount++;
+
         // 다음 노드로 이동
         currentNodeId =
           result.next_node !== undefined ? result.next_node : node.next_node;
 
-        // 진행률 업데이트 (간단한 추정)
+        // 진행률 업데이트 (실행된 노드 수 기반)
         const totalNodes = Object.keys(workflow.nodes).length;
-        const executedNodes = Object.keys(accumulatedData).length;
-        job.progress = Math.min(executedNodes / totalNodes, 1.0);
+        job.progress = Math.min(executedNodeCount / totalNodes, 1.0);
         job.current_node = currentNodeId;
         await this.repository.updateJob(job);
       }
@@ -224,24 +259,35 @@ export class WorkflowExecutionService implements IWorkflowService {
       job.current_node = null;
       job.progress = 1.0;
       job.result = accumulatedData;
-      job.completed_at = new Date().toISOString();
+      job.completed_at = getTimestampWithTimezone();
       await this.repository.updateJob(job);
 
-      console.log(`[Service] Job completed: ${job.job_id}`);
+      logImportant(logger, "Job completed", {
+        job_id: job.job_id,
+        workflow_id: job.workflow_id,
+      });
     } catch (error) {
       // Job 실패 처리
       const errorMessage =
         error instanceof Error ? error.message : String(error);
 
-      console.error(`[Service] Job failed: ${job.job_id}`, error);
+      logger.error(
+        {
+          error: errorMessage,
+          job_id: job.job_id,
+          workflow_id: job.workflow_id,
+          current_node: job.current_node || "unknown",
+        },
+        "Job failed",
+      );
 
       job.status = JobStatus.FAILED;
       job.error = {
         message: errorMessage,
         node_id: job.current_node || "unknown",
-        timestamp: new Date().toISOString(),
+        timestamp: getTimestampWithTimezone(),
       };
-      job.completed_at = new Date().toISOString();
+      job.completed_at = getTimestampWithTimezone();
       await this.repository.updateJob(job);
 
       throw error;
@@ -279,8 +325,14 @@ export class WorkflowExecutionService implements IWorkflowService {
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        console.log(
-          `[Service] Node ${nodeId} attempt ${attempt}/${maxAttempts}`,
+        logger.debug(
+          {
+            node_id: nodeId,
+            attempt,
+            max_attempts: maxAttempts,
+            job_id: job.job_id,
+          },
+          "Node execution attempt",
         );
 
         // 노드 실행
@@ -288,9 +340,15 @@ export class WorkflowExecutionService implements IWorkflowService {
 
         return result;
       } catch (error) {
-        console.error(
-          `[Service] Node ${nodeId} attempt ${attempt}/${maxAttempts} failed:`,
-          error,
+        logger.error(
+          {
+            node_id: nodeId,
+            attempt,
+            max_attempts: maxAttempts,
+            error: error instanceof Error ? error.message : String(error),
+            job_id: job.job_id,
+          },
+          "Node execution attempt failed",
         );
 
         if (attempt === maxAttempts) {
