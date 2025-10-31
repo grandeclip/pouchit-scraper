@@ -13,15 +13,18 @@
  * - OCP: 새로운 전략 추가 시 코드 수정 불필요
  */
 
-import { IScanner } from "@/core/interfaces/IScanner";
-import { IValidator } from "@/core/interfaces/IValidator";
-import {
+import type { IScanner } from "@/core/interfaces/IScanner";
+import type { IValidator } from "@/core/interfaces/IValidator";
+import type {
   ValidationRequest,
   ValidationResult,
 } from "@/core/domain/HwahaeConfig";
+import type { HwahaeProduct } from "@/core/domain/HwahaeProduct";
 import { ScannerRegistry } from "./ScannerRegistry";
 import { HwahaeValidator } from "@/validators/HwahaeValidator";
 import { ConfigLoader } from "@/config/ConfigLoader";
+import { hwahaeProductToDTO, HwahaeProductDTO } from "@/mappers/ProductMapper";
+import { logger } from "@/config/logger";
 
 /**
  * 화해 스캔 서비스 (Facade)
@@ -49,8 +52,9 @@ export class HwahaeScanService {
     csvData: ValidationRequest,
     strategyId?: string,
   ): Promise<ValidationResult> {
-    console.log(
-      `[Service] 상품 검증 시작: goodsId=${goodsId}, strategy=${strategyId || "default"}`,
+    logger.info(
+      { goodsId, strategy: strategyId || "default" },
+      "[Service] 상품 검증 시작",
     );
 
     try {
@@ -61,15 +65,23 @@ export class HwahaeScanService {
       const scannedProduct = await scanner.scan(goodsId);
 
       // 검증 실행
-      const result = this.validator.validate(csvData, scannedProduct);
+      const result = this.validator.validate(
+        csvData,
+        scannedProduct as unknown as HwahaeProduct,
+      );
 
-      console.log(
-        `[Service] 상품 검증 완료: success=${result.success}, mismatches=${result.summary.mismatchedFields}`,
+      logger.info(
+        {
+          goodsId,
+          success: result.success,
+          mismatches: result.summary.mismatchedFields,
+        },
+        "[Service] 상품 검증 완료",
       );
 
       return result;
     } catch (error) {
-      console.error(`[Service] 상품 검증 실패:`, error);
+      logger.error({ goodsId, error }, "[Service] 상품 검증 실패");
 
       // 에러를 ValidationResult 형식으로 반환
       return {
@@ -92,19 +104,27 @@ export class HwahaeScanService {
    * 상품 스캔만 실행 (검증 없이)
    * @param goodsId 상품 ID
    * @param strategyId 전략 ID (옵션)
-   * @returns 스캔된 상품 정보
+   * @returns 스캔된 상품 정보 (DTO)
    */
-  async scanProduct(goodsId: string, strategyId?: string) {
-    console.log(
-      `[Service] 상품 스캔 시작: goodsId=${goodsId}, strategy=${strategyId || "default"}`,
+  async scanProduct(
+    goodsId: string,
+    strategyId?: string,
+  ): Promise<HwahaeProductDTO> {
+    logger.info(
+      { goodsId, strategy: strategyId || "default" },
+      "[Service] 상품 스캔 시작",
     );
 
     const scanner = this.getScanner(strategyId);
     const product = await scanner.scan(goodsId);
 
-    console.log(`[Service] 상품 스캔 완료: ${product.productName}`);
+    logger.info(
+      { goodsId, productName: product.productName },
+      "[Service] 상품 스캔 완료",
+    );
 
-    return product.toPlainObject();
+    // Domain → DTO 변환 (Mapper 사용)
+    return hwahaeProductToDTO(product as unknown as HwahaeProduct);
   }
 
   /**
@@ -127,8 +147,8 @@ export class HwahaeScanService {
    * 리소스 정리 (모든 스캐너 종료)
    */
   async cleanup(): Promise<void> {
-    console.log(`[Service] 리소스 정리 중...`);
+    logger.info("[Service] 리소스 정리 중...");
     await ScannerRegistry.getInstance().clearAll();
-    console.log(`[Service] 리소스 정리 완료`);
+    logger.info("[Service] 리소스 정리 완료");
   }
 }

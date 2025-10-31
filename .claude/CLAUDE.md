@@ -99,72 +99,9 @@ The product_scanner module includes a **DAG-based workflow system** for automati
 
 ## 📁 Directory Structure (Standard)
 
-Each scraper module must follow this structure:
+Each scraper module must follow the standard structure.
 
-```text
-scraper_module/
-├── src/                           # Source code (NEW)
-│   ├── server.ts                  # Entry point (under 100 lines)
-│   ├── config/
-│   │   ├── constants.ts           # Application constants
-│   │   ├── logger.ts              # Pino Logger (Singleton)
-│   │   ├── targets/               # YAML configuration files
-│   │   │   ├── target1.yaml
-│   │   │   └── target2.yaml
-│   │   └── ConfigLoader.ts        # YAML 로더 (Singleton)
-│   ├── core/
-│   │   ├── domain/                # Domain models
-│   │   │   ├── Entity.ts
-│   │   │   └── Config.ts
-│   │   └── interfaces/            # Interface definitions
-│   │       ├── IScraper.ts
-│   │       ├── IExtractor.ts
-│   │       └── IRepository.ts     # Repository interface
-│   ├── services/
-│   │   ├── ScraperService.ts      # Business logic (Facade)
-│   │   └── ScraperRegistry.ts     # Registry (Singleton)
-│   ├── repositories/              # Data access layer (NEW)
-│   │   └── SupabaseRepository.ts  # Supabase implementation
-│   ├── scrapers/
-│   │   ├── base/
-│   │   │   ├── BaseScraper.ts     # Abstract base class
-│   │   │   └── ScraperFactory.ts  # Factory
-│   │   └── ConfigDrivenScraper.ts # YAML-based scraper
-│   ├── navigators/
-│   │   ├── PageNavigator.ts       # Navigation orchestrator
-│   │   └── ActionExecutor.ts      # Action executor (Command)
-│   ├── extractors/
-│   │   ├── EvaluateExtractor.ts   # page.evaluate extraction
-│   │   └── SelectorExtractor.ts   # Playwright API extraction
-│   ├── controllers/
-│   │   └── ScrapeController.ts    # HTTP controller
-│   ├── middleware/
-│   │   ├── errorHandler.ts        # Global error handler
-│   │   ├── requestLogger.ts       # HTTP request logger
-│   │   └── validation.ts          # Request validation
-│   └── utils/                     # Utility functions
-│       ├── logger-context.ts      # Logger context helper
-│       └── timestamp.ts           # Timestamp utility
-├── tests/                         # Test files (NEW)
-│   └── *.test.ts
-├── scripts/                       # Standalone scripts (NEW)
-│   └── *.ts
-├── workflows/                     # Workflow definitions (JSON) - product_scanner only
-│   ├── bulk-validation-v1.json    # Example: Linear chain
-│   └── dag-example-v1.json        # Example: DAG structure
-├── docs/                          # Documentation (NEW)
-│   ├── *.md
-│   ├── WORKFLOW.md                # Workflow system guide - product_scanner
-│   └── WORKFLOW_DAG.md            # DAG structure guide - product_scanner
-├── docker/                        # Docker configuration (NEW)
-│   ├── README.md
-│   ├── Dockerfile
-│   ├── Dockerfile.dev
-│   ├── docker-compose.yml
-│   └── docker-compose.dev.yml
-├── package.json                   # Dependencies
-└── tsconfig.json                  # TypeScript config
-```
+**Reference**: See [product_scanner/README.md](../product_scanner/README.md#📁-디렉토리-구조) for complete directory structure and organization patterns.
 
 ## 💻 Code Style Guidelines
 

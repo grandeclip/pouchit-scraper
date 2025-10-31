@@ -11,7 +11,9 @@
 import { INodeStrategy } from "@/core/interfaces/INodeStrategy";
 import { SupabaseSearchNode } from "@/strategies/SupabaseSearchNode";
 import { HwahaeValidationNode } from "@/strategies/HwahaeValidationNode";
+import { OliveyoungValidationNode } from "@/strategies/OliveyoungValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
+import { logger } from "@/config/logger";
 
 /**
  * Node Strategy Factory
@@ -24,6 +26,7 @@ export class NodeStrategyFactory {
     // 사용 가능한 Node Strategy 등록
     this.registerStrategy(new SupabaseSearchNode());
     this.registerStrategy(new HwahaeValidationNode());
+    this.registerStrategy(new OliveyoungValidationNode());
     this.registerStrategy(new ResultWriterNode());
   }
 
@@ -33,7 +36,7 @@ export class NodeStrategyFactory {
    */
   private registerStrategy(strategy: INodeStrategy): void {
     this.strategies.set(strategy.type, strategy);
-    console.log(`[Factory] Registered strategy: ${strategy.type}`);
+    logger.debug({ type: strategy.type }, "Strategy 등록 완료");
   }
 
   /**

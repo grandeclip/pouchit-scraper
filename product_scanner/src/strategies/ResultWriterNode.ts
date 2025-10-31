@@ -14,6 +14,29 @@ import {
   NodeResult,
 } from "@/core/interfaces/INodeStrategy";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
+import { mergeConfig } from "@/utils/ConfigMerger";
+import { logger } from "@/config/logger";
+
+/**
+ * 검증 결과 타입 (Platform-agnostic)
+ */
+interface ValidationResultItem {
+  product_set_id: string;
+  product_id: string;
+  status: string;
+  validated_at: string;
+  db?: {
+    product_name?: string | null;
+  };
+  fetch?: {
+    product_name?: string;
+  } | null;
+  comparison?: {
+    product_name?: boolean;
+  };
+  match?: boolean;
+  error?: string;
+}
 
 /**
  * Result Writer Node Config
@@ -41,14 +64,16 @@ export class ResultWriterNode implements INodeStrategy {
     const completedAt = getTimestampWithTimezone();
 
     // Config와 params 병합
-    const writerConfig = this.mergeConfig(config, params);
+    const writerConfig = mergeConfig<ResultWriterConfig>(config, params);
 
     // Platform 정보 추출 (Multi-Queue Architecture)
     // 하위 호환성: platform이 없으면 "default" 사용
     const platform = (params.platform as string) || "default";
 
-    // 이전 노드의 검증 결과 가져오기
-    const validationResult = input.hwahae_validation as
+    // 이전 노드의 검증 결과 가져오기 (platform-agnostic)
+    // 가능한 키: hwahae_validation, oliveyoung_validation, ...
+    const validationKey = `${platform}_validation`;
+    const validationResult = input[validationKey] as
       | {
           validations: unknown[];
           summary: {
@@ -66,14 +91,15 @@ export class ResultWriterNode implements INodeStrategy {
         success: false,
         data: {},
         error: {
-          message: "No validation results found from previous node",
+          message: `No validation results found from previous node (expected key: ${validationKey})`,
           code: "MISSING_INPUT_DATA",
         },
       };
     }
 
-    console.log(
-      `[${this.type}] Writing ${validationResult.validations.length} validation results`,
+    logger.info(
+      { type: this.type, count: validationResult.validations.length },
+      "결과 파일 작성 중",
     );
 
     try {
@@ -128,8 +154,14 @@ export class ResultWriterNode implements INodeStrategy {
       const stats = await fs.stat(filePath);
       const fileSize = stats.size;
 
-      console.log(
-        `[${this.type}] Results written to ${filePath} (${fileSize} bytes)`,
+      logger.info(
+        {
+          type: this.type,
+          filePath,
+          fileSize,
+          recordCount: validationResult.validations.length,
+        },
+        "결과 파일 작성 완료",
       );
 
       return {
@@ -145,7 +177,7 @@ export class ResultWriterNode implements INodeStrategy {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[${this.type}] Write failed:`, message);
+      logger.error({ type: this.type, error: message }, "결과 파일 작성 실패");
 
       return {
         success: false,
@@ -202,7 +234,9 @@ export class ResultWriterNode implements INodeStrategy {
       "error",
     ];
 
-    const rows = validations.map((v: any) => {
+    const typedValidations = validations as ValidationResultItem[];
+
+    const rows = typedValidations.map((v) => {
       return [
         v.product_set_id || "",
         v.product_id || "",
@@ -261,38 +295,5 @@ export class ResultWriterNode implements INodeStrategy {
     if (config.pretty !== undefined && typeof config.pretty !== "boolean") {
       throw new Error("pretty must be a boolean");
     }
-  }
-
-  /**
-   * Config와 params 병합
-   */
-  private mergeConfig(
-    config: Record<string, unknown>,
-    params: Record<string, unknown>,
-  ): ResultWriterConfig {
-    const merged: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(config)) {
-      merged[key] = this.substituteVariables(value, params);
-    }
-
-    return merged as unknown as ResultWriterConfig;
-  }
-
-  /**
-   * 변수 치환
-   */
-  private substituteVariables(
-    value: unknown,
-    params: Record<string, unknown>,
-  ): unknown {
-    if (typeof value === "string") {
-      return value.replace(/\$\{(\w+)\}/g, (_, key) => {
-        const replacement = params[key];
-        return replacement !== undefined ? String(replacement) : `\${${key}}`;
-      });
-    }
-
-    return value;
   }
 }

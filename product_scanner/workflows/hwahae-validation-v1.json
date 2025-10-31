@@ -13,7 +13,7 @@
       "hwahae"
     ]
   },
-  "name": "Bulk Product Validation",
+  "name": "Hwahae Product Validation",
   "nodes": {
     "1": {
       "config": {
@@ -66,5 +66,5 @@
   },
   "start_node": "1",
   "version": "1.0.0",
-  "workflow_id": "bulk-validation-v1"
+  "workflow_id": "hwahae-validation-v1"
 }

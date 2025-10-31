@@ -10,17 +10,20 @@
  * - SRP: 스캔 흐름 관리만 담당
  * - OCP: 확장에 열려있고 수정에 닫혀있음
  * - LSP: 모든 하위 클래스는 이 클래스로 대체 가능
+ *
+ * @template T - 플랫폼별 Product 타입
  */
 
-import { IScanner } from "@/core/interfaces/IScanner";
-import { HwahaeProduct } from "@/core/domain/HwahaeProduct";
-import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
-import { StrategyConfig } from "@/core/domain/StrategyConfig";
+import type { IScanner } from "@/core/interfaces/IScanner";
+import type { IProduct } from "@/core/interfaces/IProduct";
+import type { HwahaeConfig } from "@/core/domain/HwahaeConfig";
+import type { StrategyConfig } from "@/core/domain/StrategyConfig";
+import { logger } from "@/config/logger";
 
 /**
  * 기본 스캐너 (Template Method Pattern)
  */
-export abstract class BaseScanner implements IScanner {
+export abstract class BaseScanner<T extends IProduct> implements IScanner<T> {
   protected initialized: boolean = false;
 
   constructor(
@@ -42,20 +45,47 @@ export abstract class BaseScanner implements IScanner {
    * - finally 블록에서 반드시 리소스 정리
    * - 에러 발생 시에도 cleanup() 호출 보장
    */
-  async scan(goodsId: string): Promise<HwahaeProduct> {
+  async scan(productId: string): Promise<T> {
+    try {
+      return await this.scanWithoutCleanup(productId);
+    } finally {
+      // 반드시 리소스 정리 (에러 발생 여부와 무관)
+      try {
+        await this.cleanup();
+      } catch (cleanupError) {
+        logger.warn(
+          { strategy: this.strategy.id, error: cleanupError },
+          "cleanup 실패",
+        );
+      }
+    }
+  }
+
+  /**
+   * 상품 스캔 (cleanup 없이)
+   *
+   * 용도:
+   * - ValidationNode처럼 여러 상품을 연속 스캔할 때
+   * - 호출자가 Scanner 생명주기를 직접 관리할 때
+   *
+   * 주의:
+   * - 사용 후 반드시 cleanup() 호출 필요
+   * - 메모리 누수 방지를 위해 호출자 책임
+   */
+  async scanWithoutCleanup(productId: string): Promise<T> {
     const startTime = Date.now();
 
     try {
-      console.log(`[${this.strategy.id}] 스캔 시작: goodsId=${goodsId}`);
+      logger.debug({ strategy: this.strategy.id, productId }, "스캔 시작");
 
       // 1. 초기화
       await this.ensureInitialized();
 
       // 2. 전처리
-      await this.beforeScan(goodsId);
+      await this.beforeScan(productId);
 
       // 3. 데이터 추출
-      const rawData = await this.extractData(goodsId);
+      const rawData = await this.extractData(productId);
 
       // 4. 데이터 파싱
       const product = await this.parseData(rawData);
@@ -64,22 +94,23 @@ export abstract class BaseScanner implements IScanner {
       await this.afterScan(product);
 
       const duration = Date.now() - startTime;
-      console.log(
-        `[${this.strategy.id}] 스캔 완료: ${product.productName} (${duration}ms)`,
+      logger.info(
+        {
+          strategy: this.strategy.id,
+          productName: product.productName,
+          duration,
+        },
+        "스캔 완료",
       );
 
       return product;
     } catch (error) {
       const duration = Date.now() - startTime;
-      console.error(`[${this.strategy.id}] 스캔 실패 (${duration}ms):`, error);
+      logger.error(
+        { strategy: this.strategy.id, duration, error },
+        "스캔 실패",
+      );
       throw error;
-    } finally {
-      // 반드시 리소스 정리 (에러 발생 여부와 무관)
-      try {
-        await this.cleanup();
-      } catch (cleanupError) {
-        console.warn(`[${this.strategy.id}] cleanup 실패:`, cleanupError);
-      }
     }
   }
 
@@ -91,10 +122,10 @@ export abstract class BaseScanner implements IScanner {
       return;
     }
 
-    console.log(`[${this.strategy.id}] 초기화 중...`);
+    logger.debug({ strategy: this.strategy.id }, "초기화 중");
     await this.doInitialize();
     this.initialized = true;
-    console.log(`[${this.strategy.id}] 초기화 완료`);
+    logger.debug({ strategy: this.strategy.id }, "초기화 완료");
   }
 
   /**
@@ -109,14 +140,14 @@ export abstract class BaseScanner implements IScanner {
   /**
    * 전처리 훅 (하위 클래스에서 오버라이드 가능)
    */
-  protected async beforeScan(goodsId: string): Promise<void> {
+  protected async beforeScan(productId: string): Promise<void> {
     // 기본 구현: 아무 것도 하지 않음
   }
 
   /**
    * 후처리 훅 (하위 클래스에서 오버라이드 가능)
    */
-  protected async afterScan(product: HwahaeProduct): Promise<void> {
+  protected async afterScan(product: T): Promise<void> {
     // 기본 구현: 아무 것도 하지 않음
   }
 
@@ -128,12 +159,12 @@ export abstract class BaseScanner implements IScanner {
   /**
    * 데이터 추출 (하위 클래스에서 구현)
    */
-  protected abstract extractData(goodsId: string): Promise<any>;
+  protected abstract extractData(productId: string): Promise<any>;
 
   /**
    * 데이터 파싱 (하위 클래스에서 구현)
    */
-  protected abstract parseData(rawData: any): Promise<HwahaeProduct>;
+  protected abstract parseData(rawData: any): Promise<T>;
 
   /**
    * 리소스 정리 (하위 클래스에서 구현)

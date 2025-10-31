@@ -165,13 +165,13 @@ product_scanner/
 │   ├── hwahae-validation-node.test.ts
 │   └── supabase.test.ts
 ├── scripts/                       # 독립 실행 스크립트
-│   ├── analyze-oliveyoung-selectors.ts
-│   ├── capture-oliveyoung-dom.ts
-│   ├── capture-oliveyoung-edge-cases.ts
-│   ├── test-oliveyoung-strategy.ts
-│   └── test-rate-limit.ts
+│   ├── test-hwahae-workflow.sh    # 화해 워크플로우 테스트
+│   ├── test-oliveyoung-workflow.sh  # 올영 워크플로우 테스트
+│   └── test-oliveyoung-strategy.ts  # 올영 전략 단위 테스트
 ├── workflows/                     # Workflow 정의 (JSON)
-│   └── bulk-validation-v1.json
+│   ├── hwahae-validation-v1.json    # 화해 검증 워크플로우
+│   ├── oliveyoung-validation-v1.json  # 올영 검증 워크플로우
+│   └── dag-example-v1.json          # DAG 구조 예제
 ├── docs/                          # 문서
 │   ├── hwahae-validator.md
 │   ├── WORKFLOW.md                # Workflow 시스템 가이드
@@ -186,6 +186,94 @@ product_scanner/
 ├── tsconfig.json                  # TypeScript 설정
 ├── tsconfig.test.json             # 테스트용 tsconfig
 └── tsconfig.scripts.json          # 스크립트용 tsconfig
+```
+
+## 🔧 개발 환경 설정
+
+### TypeScript 설정
+
+프로젝트는 3개의 TypeScript 설정 파일로 구성됩니다:
+
+#### 1. `tsconfig.json` (메인)
+
+- **대상**: `src/` 디렉토리
+- **용도**: 프로덕션 코드
+- **타입 체크**: `npx tsc --noEmit`
+
+#### 2. `tsconfig.scripts.json` (스크립트)
+
+- **대상**: `scripts/` 디렉토리
+- **용도**: 브라우저 DOM API 사용 스크립트
+- **라이브러리**: ES2020 + DOM
+- **타입 체크**: `npx tsc --project tsconfig.scripts.json --noEmit`
+
+#### 3. `tsconfig.test.json` (테스트)
+
+- **대상**: `tests/` 디렉토리
+- **용도**: Jest 테스트 코드
+- **타입**: node, jest
+- **타입 체크**: `npx tsc --project tsconfig.test.json --noEmit`
+
+### 의존성 설치
+
+Docker compose dev 환경에서 실행 시 자동으로 설치됩니다:
+
+```bash
+# 개발 환경 시작 (Volume mount + Hot reload)
+make dev
+
+# 또는
+docker-compose -f docker/docker-compose.dev.yml up
+```
+
+로컬 개발 시:
+
+```bash
+npm install
+```
+
+### 타입 체크 실행
+
+```bash
+# 전체 타입 체크 (src만)
+npm run type-check
+
+# 스크립트 타입 체크
+npx tsc --project tsconfig.scripts.json --noEmit
+
+# 테스트 타입 체크
+npx tsc --project tsconfig.test.json --noEmit
+```
+
+### Jest 테스트
+
+```bash
+# 테스트 실행
+npm test
+
+# Watch 모드
+npm run test:watch
+
+# 특정 테스트
+npm run test:validation-node
+```
+
+### 문제 해결
+
+#### `@types/jest` not found
+
+Docker 환경에서는 자동으로 설치됩니다. 로컬 개발 시:
+
+```bash
+npm install
+```
+
+#### DOM API 타입 에러 (scripts/)
+
+`tsconfig.scripts.json` 사용:
+
+```bash
+npx tsc --project tsconfig.scripts.json --noEmit
 ```
 
 ## 🚀 사용법
