@@ -18,7 +18,8 @@
     "1": {
       "config": {
         "limit": "${limit}",
-        "link_url_pattern": "${link_url_pattern}"
+        "link_url_pattern": "${link_url_pattern}",
+        "sale_status": "${sale_status}"
       },
       "name": "Search Products from Supabase",
       "next_nodes": [

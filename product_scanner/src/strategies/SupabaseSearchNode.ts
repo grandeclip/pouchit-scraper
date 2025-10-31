@@ -14,7 +14,8 @@ import {
 } from "@/core/interfaces/INodeStrategy";
 import { IProductSearchService } from "@/core/interfaces/IProductSearchService";
 import { ProductSearchService } from "@/services/ProductSearchService";
-import { WORKFLOW_DEFAULT_CONFIG } from "@/config/constants";
+import { WORKFLOW_DEFAULT_CONFIG, WORKFLOW_CONFIG } from "@/config/constants";
+import { logger } from "@/config/logger";
 
 /**
  * Supabase Search Node Config
@@ -46,7 +47,7 @@ export class SupabaseSearchNode implements INodeStrategy {
     // Config와 params 병합 (변수 치환)
     const searchConfig = this.mergeConfig(config, params);
 
-    console.log(`[${this.type}] Searching products:`, searchConfig);
+    logger.info({ searchConfig }, `[${this.type}] Searching products`);
 
     try {
       // 검색 실행
@@ -57,7 +58,7 @@ export class SupabaseSearchNode implements INodeStrategy {
           searchConfig.limit || WORKFLOW_DEFAULT_CONFIG.SUPABASE_SEARCH_LIMIT,
       });
 
-      console.log(`[${this.type}] Found ${products.length} products`);
+      logger.info({ count: products.length }, `[${this.type}] Found products`);
 
       return {
         success: true,
@@ -70,7 +71,7 @@ export class SupabaseSearchNode implements INodeStrategy {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[${this.type}] Search failed:`, message);
+      logger.error({ error: message }, `[${this.type}] Search failed`);
 
       return {
         success: false,
@@ -133,13 +134,33 @@ export class SupabaseSearchNode implements INodeStrategy {
   ): SupabaseSearchConfig {
     const merged: Record<string, unknown> = {};
 
+    // 1. Config 값들을 템플릿 변수 치환하여 병합
     for (const [key, value] of Object.entries(config)) {
       merged[key] = this.substituteVariables(value, params);
     }
 
-    // Type coercion: limit을 숫자로 변환
+    // 2. Params에서 직접 전달된 값들 병합 (우선순위 높음)
+    for (const [key, value] of Object.entries(params)) {
+      // workflow 예약 파라미터는 건너뛰기 (template variable용)
+      if (WORKFLOW_CONFIG.RESERVED_PARAMS.includes(key as any)) {
+        continue;
+      }
+      // params 값이 명시적으로 전달된 경우 덮어쓰기
+      if (value !== undefined) {
+        merged[key] = value;
+      }
+    }
+
+    // 3. Type coercion: limit을 숫자로 변환
     if (merged.limit !== undefined && typeof merged.limit === "string") {
       merged.limit = parseInt(merged.limit, 10);
+    }
+
+    // 4. 빈 템플릿 변수 제거 (${variable} 형태 그대로 남은 경우)
+    for (const [key, value] of Object.entries(merged)) {
+      if (typeof value === "string" && /^\$\{.+\}$/.test(value)) {
+        delete merged[key];
+      }
     }
 
     return merged as SupabaseSearchConfig;

@@ -171,6 +171,12 @@ export const WORKFLOW_CONFIG = {
    * 기본값: 5000ms (5초)
    */
   POLL_INTERVAL_MS: parseInt(process.env.WORKER_POLL_INTERVAL || "5000", 10),
+
+  /**
+   * Workflow 예약 파라미터 (template variable 용도)
+   * 노드 Config 병합 시 제외됨
+   */
+  RESERVED_PARAMS: ["platform", "workflow_id"] as const,
 } as const;
 
 /**
