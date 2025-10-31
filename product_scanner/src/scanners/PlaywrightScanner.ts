@@ -15,7 +15,7 @@ import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser, BrowserContext, Page } from "playwright";
 
-import { BaseScanner } from "./base/BaseScanner";
+import { BaseScanner } from "@/scanners/base/BaseScanner";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { PlaywrightStrategyConfig } from "@/core/domain/StrategyConfig";
 import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
@@ -95,7 +95,18 @@ export class PlaywrightScanner extends BaseScanner {
     await this.executeNavigationSteps(goodsId);
 
     // 데이터 추출
-    return await this.extractFromPage();
+    const rawData = await this.extractFromPage();
+
+    /**
+     * goodsId를 rawData에 추가
+     * 이유: BaseScanner.scan() 흐름에서 extractData() → parseData() 순서로 진행되며,
+     *       parseData()에서 도메인 모델 생성 시 id가 필요하므로 여기서 주입
+     * 책임: extractData()는 '원시 데이터 추출 + 메타데이터 보강' 담당
+     */
+    return {
+      ...rawData,
+      id: goodsId,
+    };
   }
 
   /**

@@ -1,8 +1,8 @@
 /**
- * 화해 상품 도메인 모델
+ * 올리브영 상품 도메인 모델
  *
  * SOLID 원칙:
- * - SRP: 화해 상품 데이터만 표현
+ * - SRP: 올리브영 상품 데이터만 표현
  * - 불변 객체 (Value Object 패턴)
  * - ISP: IProduct 인터페이스 구현
  */
@@ -10,17 +10,18 @@
 import { IProduct, SaleStatus } from "@/core/interfaces/IProduct";
 
 /**
- * API 판매 상태 (화해 원본)
+ * DOM 추출 판매 상태 (올리브영 원본)
  */
-export type ApiSaleStatus = "SELNG" | "SLDOT" | "STSEL";
+export type OliveyoungDomSaleStatus = "SELNG" | "SLDOT" | "STSEL";
 
 /**
- * 화해 상품 엔티티
+ * 올리브영 상품 엔티티
  */
-export class HwahaeProduct implements IProduct {
+export class OliveyoungProduct implements IProduct {
   constructor(
-    public readonly goodsId: string,
+    public readonly goodsNo: string,
     public readonly productName: string,
+    public readonly brand: string,
     public readonly thumbnail: string,
     public readonly originalPrice: number,
     public readonly discountedPrice: number,
@@ -33,11 +34,11 @@ export class HwahaeProduct implements IProduct {
    * IProduct 호환성을 위한 id getter
    */
   get id(): string {
-    return this.goodsId;
+    return this.goodsNo;
   }
 
   private validate(): void {
-    if (!this.goodsId) throw new Error("goodsId is required");
+    if (!this.goodsNo) throw new Error("goodsNo is required");
     if (!this.productName) throw new Error("productName is required");
     if (!this.thumbnail) throw new Error("thumbnail is required");
     if (this.originalPrice < 0) throw new Error("originalPrice must be >= 0");
@@ -65,14 +66,14 @@ export class HwahaeProduct implements IProduct {
   /**
    * 가격 차이 계산
    */
-  getPriceDifference(other: HwahaeProduct): number {
+  getPriceDifference(other: OliveyoungProduct): number {
     return Math.abs(this.discountedPrice - other.discountedPrice);
   }
 
   /**
    * 가격 변동률 계산
    */
-  getPriceChangeRate(other: HwahaeProduct): number {
+  getPriceChangeRate(other: OliveyoungProduct): number {
     if (other.discountedPrice === 0) return 0;
     return Math.abs(
       (this.discountedPrice - other.discountedPrice) / other.discountedPrice,
@@ -87,36 +88,25 @@ export class HwahaeProduct implements IProduct {
   }
 
   /**
-   * API 판매 상태 → CSV 판매 상태 변환
+   * DOM 판매 상태 → CSV 판매 상태 변환
    */
-  static mapSaleStatus(apiStatus: ApiSaleStatus): SaleStatus {
-    const mapping: Record<ApiSaleStatus, SaleStatus> = {
+  static mapSaleStatus(domStatus: OliveyoungDomSaleStatus): SaleStatus {
+    const mapping: Record<OliveyoungDomSaleStatus, SaleStatus> = {
       SELNG: "on_sale",
       SLDOT: "sold_out",
       STSEL: "off_sale",
     };
-    return mapping[apiStatus];
-  }
-
-  /**
-   * CSV 판매 상태 → API 판매 상태 변환 (역매핑)
-   */
-  static reverseSaleStatus(csvStatus: SaleStatus): ApiSaleStatus {
-    const reverseMapping: Record<SaleStatus, ApiSaleStatus> = {
-      on_sale: "SELNG",
-      sold_out: "SLDOT",
-      off_sale: "STSEL",
-    };
-    return reverseMapping[csvStatus];
+    return mapping[domStatus];
   }
 
   /**
    * 도메인 객체를 일반 객체로 변환
    */
-  toPlainObject(): HwahaeProductPlainObject {
+  toPlainObject(): OliveyoungProductPlainObject {
     return {
-      goodsId: this.goodsId,
+      goodsNo: this.goodsNo,
       productName: this.productName,
+      brand: this.brand,
       thumbnail: this.thumbnail,
       originalPrice: this.originalPrice,
       discountedPrice: this.discountedPrice,
@@ -126,30 +116,32 @@ export class HwahaeProduct implements IProduct {
   }
 
   /**
-   * 팩토리 메서드: 일반 객체로부터 HwahaeProduct 생성
+   * 팩토리 메서드: 일반 객체로부터 OliveyoungProduct 생성
    */
-  static fromPlainObject(obj: any): HwahaeProduct {
-    return new HwahaeProduct(
-      String(obj.goodsId || obj.id),
-      obj.productName || obj.name,
-      obj.thumbnail,
-      Number(obj.originalPrice || obj.consumer_price),
-      Number(obj.discountedPrice || obj.price),
-      obj.saleStatus,
+  static fromPlainObject(obj: PlainObjectSource): OliveyoungProduct {
+    return new OliveyoungProduct(
+      String(obj.goodsNo || obj.id || ""),
+      obj.productName || obj.name || "",
+      obj.brand || "",
+      obj.thumbnail || "",
+      Number(obj.originalPrice || obj.consumer_price || 0),
+      Number(obj.discountedPrice || obj.price || 0),
+      obj.saleStatus || "off_sale",
     );
   }
 
   /**
-   * 팩토리 메서드: API 응답으로부터 HwahaeProduct 생성
+   * 팩토리 메서드: DOM 데이터로부터 OliveyoungProduct 생성
    */
-  static fromApiResponse(apiData: HwahaeApiResponse): HwahaeProduct {
-    return new HwahaeProduct(
-      String(apiData.id),
-      apiData.name,
-      apiData.title_images[0],
-      apiData.consumer_price,
-      apiData.price,
-      HwahaeProduct.mapSaleStatus(apiData.sale_status),
+  static fromDOMData(domData: OliveyoungDOMResponse): OliveyoungProduct {
+    return new OliveyoungProduct(
+      String(domData.id || domData.goodsNo || "unknown"),
+      domData.name,
+      domData.brand || "",
+      domData.title_images[0] || "",
+      domData.consumer_price,
+      domData.price,
+      OliveyoungProduct.mapSaleStatus(domData.sale_status),
     );
   }
 }
@@ -157,9 +149,10 @@ export class HwahaeProduct implements IProduct {
 /**
  * 직렬화를 위한 일반 객체 타입
  */
-export interface HwahaeProductPlainObject {
-  goodsId: string;
+export interface OliveyoungProductPlainObject {
+  goodsNo: string;
   productName: string;
+  brand: string;
   thumbnail: string;
   originalPrice: number;
   discountedPrice: number;
@@ -168,14 +161,35 @@ export interface HwahaeProductPlainObject {
 }
 
 /**
- * 화해 API 응답 타입
+ * fromPlainObject 입력 타입 (다양한 소스 지원)
  */
-export interface HwahaeApiResponse {
-  id: number;
+export interface PlainObjectSource {
+  goodsNo?: string;
+  id?: string;
+  productName?: string;
+  name?: string;
+  brand?: string;
+  thumbnail?: string;
+  originalPrice?: number;
+  consumer_price?: number;
+  discountedPrice?: number;
+  price?: number;
+  saleStatus?: SaleStatus;
+}
+
+/**
+ * 올리브영 DOM 추출 데이터 타입
+ */
+export interface OliveyoungDOMResponse {
+  id?: string;
+  goodsNo?: string;
   name: string;
+  brand?: string;
   title_images: string[];
   consumer_price: number;
   price: number;
-  sale_status: ApiSaleStatus;
+  sale_status: OliveyoungDomSaleStatus;
+  _source?: string;
+  _redirected?: boolean;
   [key: string]: any;
 }

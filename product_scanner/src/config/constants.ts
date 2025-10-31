@@ -172,3 +172,46 @@ export const WORKFLOW_CONFIG = {
    */
   POLL_INTERVAL_MS: parseInt(process.env.WORKER_POLL_INTERVAL || "5000", 10),
 } as const;
+
+/**
+ * Scraper 설정
+ * Browser/API 스크래핑 공통 설정
+ */
+export const SCRAPER_CONFIG = {
+  /**
+   * 브라우저 기본 viewport
+   */
+  DEFAULT_VIEWPORT: {
+    width: 1920,
+    height: 1080,
+  },
+
+  /**
+   * 네비게이션 타임아웃 (ms)
+   */
+  NAVIGATION_TIMEOUT_MS: 30000,
+
+  /**
+   * Selector 대기 타임아웃 (ms)
+   */
+  SELECTOR_TIMEOUT_MS: 5000,
+
+  /**
+   * Rate limit 기본 delay (ms)
+   * 초당 0.5회 요청 (2000ms 간격)
+   * 플랫폼별 요구사항에 따라 YAML에서 오버라이드 가능
+   */
+  RATE_LIMIT_DELAY_MS: 2000,
+
+  /**
+   * 기본 User Agent (환경변수로 오버라이드 가능)
+   */
+  DEFAULT_USER_AGENT:
+    process.env.USER_AGENT ||
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+
+  /**
+   * 기본 대기 시간 (ms)
+   */
+  DEFAULT_WAIT_TIME_MS: 1000,
+} as const;

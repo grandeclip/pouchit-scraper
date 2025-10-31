@@ -7,7 +7,7 @@
  */
 
 import { z } from "zod";
-import { SaleStatus } from "./HwahaeProduct";
+import { SaleStatus } from "@/core/interfaces/IProduct";
 
 /**
  * ProductSet Zod 스키마

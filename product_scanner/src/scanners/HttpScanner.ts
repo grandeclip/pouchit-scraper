@@ -11,7 +11,7 @@
  * - DIP: 설정에 의존
  */
 
-import { BaseScanner } from "./base/BaseScanner";
+import { BaseScanner } from "@/scanners/base/BaseScanner";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { HttpStrategyConfig } from "@/core/domain/StrategyConfig";
 import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";

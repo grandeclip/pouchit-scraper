@@ -45,6 +45,15 @@ export interface PlaywrightStrategyConfig extends BaseStrategyConfig {
   playwright: {
     headless: boolean;
     timeout: number;
+    browserOptions?: {
+      args?: string[];
+    };
+    contextOptions?: {
+      viewport?: { width: number; height: number };
+      userAgent?: string;
+      locale?: string;
+      timezoneId?: string;
+    };
     navigationSteps: NavigationStep[];
     extraction: ExtractionConfig;
   };

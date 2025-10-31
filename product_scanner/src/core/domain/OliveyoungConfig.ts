@@ -1,50 +1,36 @@
 /**
- * 화해 검증 설정 도메인 모델
+ * 올리브영 설정 도메인 모델
  * YAML 구조를 TypeScript 타입으로 정의
  *
  * SOLID 원칙:
  * - OCP: strategies 배열로 확장 가능
  * - ISP: 전략별 설정 분리
+ * - DIP: PlatformConfig 인터페이스 확장
  */
 
-import { StrategyConfig } from "@/core/domain/StrategyConfig";
 import { PlatformConfig } from "@/core/domain/PlatformConfig";
+import { StrategyConfig } from "@/core/domain/StrategyConfig";
 import { PLATFORM_IDS } from "@/core/domain/PlatformId";
 
 /**
- * 화해 플랫폼 전체 설정
+ * 올리브영 플랫폼 전체 설정
  */
-export interface HwahaeConfig extends PlatformConfig {
-  platform: typeof PLATFORM_IDS.HWAHAE;
+export interface OliveyoungConfig extends PlatformConfig {
+  platform: typeof PLATFORM_IDS.OLIVEYOUNG;
   name: string;
   baseUrl: string;
-  apiVersion: string;
   endpoints: EndpointsConfig;
   strategies: StrategyConfig[]; // 다중 전략 지원
   fieldMapping: FieldMappingConfig;
   validation: ValidationConfig;
   errorHandling: ErrorHandlingConfig;
-
-  // Deprecated: 하위 호환성 유지 (strategies[0]으로 대체)
-  http?: HttpConfig;
 }
 
 /**
- * API 엔드포인트 설정
+ * API 엔드포인트 설정 (현재는 빈 객체, 향후 확장 가능)
  */
 export interface EndpointsConfig {
-  goodsDetail: string;
-}
-
-/**
- * HTTP 요청 설정
- */
-export interface HttpConfig {
-  method: string;
-  headers: Record<string, string>;
-  timeout: number;
-  retryCount: number;
-  retryDelay: number;
+  [key: string]: string;
 }
 
 /**
@@ -52,6 +38,7 @@ export interface HttpConfig {
  */
 export interface FieldMappingConfig {
   productName: FieldMappingRule;
+  brand?: FieldMappingRule;
   thumbnail: FieldMappingRule;
   originalPrice: FieldMappingRule;
   discountedPrice: FieldMappingRule;
@@ -102,8 +89,9 @@ export interface ErrorHandlingConfig {
  * 검증 요청 (Supabase row 데이터)
  */
 export interface ValidationRequest {
-  goodsId: string;
+  goodsNo: string;
   productName: string;
+  brand?: string;
   thumbnail: string;
   originalPrice: number;
   discountedPrice: number;
@@ -115,7 +103,7 @@ export interface ValidationRequest {
  */
 export interface ValidationResult {
   success: boolean;
-  goodsId: string;
+  goodsNo: string;
   productName: string;
   differences: FieldDifference[];
   summary: {
