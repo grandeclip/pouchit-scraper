@@ -7,7 +7,7 @@ API_BASE_URL="http://localhost:3989/api/v1"
 MAX_POLLS=60
 POLL_INTERVAL=5
 SALE_STATUS="on_sale"
-LIMIT=3
+LIMIT=1
 
 echo "🧪 올리브영 워크플로우 테스트 시작"
 echo ""
