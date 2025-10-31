@@ -1,14 +1,15 @@
 # Product Scanner
 
-화해 상품 정보를 스캔하고 Supabase 데이터베이스의 상품을 검색하는 서비스입니다.
+**제네릭 기반 멀티 플랫폼 상품 스캐너** - 화해, 올리브영 등 쇼핑몰 상품 정보 스캔 및 Supabase 검색 서비스
 
 ## 📌 용도
 
-### 1. 화해 상품 스캔
+### 1. 멀티 플랫폼 상품 스캔
 
-- 화해 API 및 Playwright를 활용한 상품 정보 스캔
-- 다중 전략 기반 스크래핑 (API 우선, Playwright 대체)
-- CSV 데이터와 API 데이터 검증
+- **화해**: API + Playwright 이중 전략
+- **올리브영**: Playwright 브라우저 기반 스크래핑
+- **제네릭 아키텍처**: 새 플랫폼 추가 시 YAML 설정만으로 확장
+- CSV 데이터와 실시간 데이터 검증
 
 ### 2. Supabase 상품 검색
 
@@ -50,20 +51,50 @@ graph LR
 
 ## 🏗️ 아키텍처
 
+### 제네릭 기반 설계
+
+**핵심 컨셉**: 플랫폼 독립적 타입 시스템
+
+```typescript
+// 플랫폼 독립 인터페이스
+interface IProduct {
+  id: string;
+  productName: string;
+  getDiscountRate(): number;
+}
+
+// 제네릭 스캐너 인터페이스
+interface IScanner<TProduct extends IProduct> {
+  scan(id: string): Promise<TProduct>;
+}
+
+// 플랫폼별 구현
+class HwahaeProduct implements IProduct {}
+class OliveyoungProduct implements IProduct {}
+```
+
+**장점**:
+
+- ✅ 타입 안전성: 컴파일 타임 타입 검증
+- ✅ 코드 재사용: 공통 로직은 BaseScanner에 집중
+- ✅ 확장성: 새 플랫폼 추가 시 IProduct 구현만 필요
+
 ### 디자인 패턴
 
-- **Strategy Pattern**: 사이트별 스크래핑 전략 (API vs Playwright)
+- **Strategy Pattern**: 플랫폼별 스크래핑 전략 (API/Playwright)
+- **Template Method Pattern**: BaseScanner<TRawData, TProduct, TConfig>
+- **Factory Pattern**: 플랫폼별 스캐너 팩토리 (OliveyoungScannerFactory)
 - **Repository Pattern**: 데이터 접근 로직 캡슐화 (Supabase)
-- **Factory Pattern**: 스크래퍼 인스턴스 생성
 - **Facade Pattern**: 서비스 계층 단순화
-- **Singleton Pattern**: Supabase 클라이언트 재사용
-- **Template Method Pattern**: 공통 스캔 플로우 정의
+- **Singleton Pattern**: ConfigLoader, Supabase 클라이언트
 
 ### SOLID 원칙
 
-- **SRP**: 각 클래스는 단일 책임 (스캔, 검색, 데이터 접근, API 처리)
-- **OCP**: 새 사이트 추가 시 기존 코드 수정 없이 확장
-- **DIP**: 추상화된 인터페이스에 의존 (IProductRepository, IProductSearchService)
+- **SRP**: 각 클래스는 단일 책임
+- **OCP**: 새 플랫폼 추가 시 기존 코드 수정 없이 확장
+- **LSP**: 모든 Product는 IProduct로 대체 가능
+- **ISP**: 클라이언트별 인터페이스 분리 (IScanner, IProduct)
+- **DIP**: 추상화(IProduct, IScanner)에 의존
 
 ## 📁 디렉토리 구조
 
@@ -71,31 +102,48 @@ graph LR
 product_scanner/
 ├── src/                           # 소스 코드
 │   ├── server.ts                  # 엔트리포인트
-│   ├── config/                    # 설정 파일 & 로더
+│   ├── worker.ts                  # Workflow Worker
+│   ├── config/                    # 설정 & 로더
 │   │   ├── constants.ts           # 애플리케이션 상수
 │   │   ├── logger.ts              # Pino 로거 설정
-│   │   ├── ConfigLoader.ts
-│   │   └── platforms/             # YAML 설정
-│   │       └── hwahae.yaml
-│   ├── core/                      # 도메인 모델 & 인터페이스
-│   │   ├── domain/
-│   │   │   ├── HwahaeProduct.ts
-│   │   │   ├── HwahaeConfig.ts
-│   │   │   └── ProductSet.ts      # 상품 세트 도메인
-│   │   └── interfaces/
-│   │       ├── IScraper.ts
-│   │       ├── IProductRepository.ts    # Repository 인터페이스
-│   │       └── IProductSearchService.ts # Service 인터페이스
+│   │   ├── ConfigLoader.ts        # YAML 설정 로더 (Singleton)
+│   │   └── platforms/             # 플랫폼별 YAML 설정
+│   │       ├── hwahae.yaml        # 화해 설정
+│   │       └── oliveyoung.yaml    # 올리브영 설정
+│   ├── core/                      # 도메인 & 인터페이스
+│   │   ├── domain/                # 도메인 모델
+│   │   │   ├── PlatformId.ts     # 플랫폼 ID 타입 (hwahae | oliveyoung)
+│   │   │   ├── HwahaeProduct.ts   # 화해 상품 (IProduct 구현)
+│   │   │   ├── HwahaeConfig.ts    # 화해 설정
+│   │   │   ├── OliveyoungProduct.ts  # 올리브영 상품 (IProduct 구현)
+│   │   │   ├── OliveyoungConfig.ts   # 올리브영 설정
+│   │   │   ├── ProductSet.ts      # Supabase 상품 세트
+│   │   │   ├── StrategyConfig.ts  # 전략 설정
+│   │   │   └── StrategyConfig.guards.ts  # 타입 가드
+│   │   └── interfaces/            # 인터페이스 정의
+│   │       ├── IProduct.ts        # 플랫폼 독립 상품 인터페이스
+│   │       ├── IScanner.generic.ts  # 제네릭 스캐너 인터페이스
+│   │       ├── IProductRepository.ts
+│   │       └── IProductSearchService.ts
 │   ├── services/                  # 비즈니스 로직
 │   │   ├── ScanService.ts
-│   │   └── ProductSearchService.ts      # 상품 검색 서비스 (Facade)
+│   │   └── ProductSearchService.ts
 │   ├── repositories/              # 데이터 접근 계층
-│   │   └── SupabaseProductRepository.ts # Supabase Repository
-│   ├── scrapers/                  # 스크래퍼
+│   │   └── SupabaseProductRepository.ts
+│   ├── scanners/                  # 스캐너 구현
 │   │   ├── base/
-│   │   │   └── BaseScraper.ts
-│   │   ├── PlaywrightScraper.ts
-│   │   └── HttpScraper.ts
+│   │   │   └── BaseScanner.generic.ts  # 제네릭 Base 클래스
+│   │   ├── strategies/            # 전략 구현
+│   │   │   ├── ApiScanner.ts      # API 기반 스캐너
+│   │   │   └── BrowserScanner.ts  # Playwright 기반 스캐너
+│   │   ├── platforms/             # 플랫폼별 팩토리
+│   │   │   └── oliveyoung/
+│   │   │       └── OliveyoungScannerFactory.ts
+│   │   ├── HttpScanner.ts         # 레거시 (화해 전용)
+│   │   └── PlaywrightScraper.ts   # 레거시 (화해 전용)
+│   ├── strategies/                # Workflow 노드 전략
+│   │   ├── HwahaeValidationNode.ts
+│   │   └── SupabaseSearchNode.ts
 │   ├── extractors/                # 데이터 추출기
 │   │   ├── PriceExtractor.ts
 │   │   └── StockExtractor.ts
@@ -105,31 +153,49 @@ product_scanner/
 │   │   └── HwahaeValidator.ts
 │   ├── controllers/               # HTTP 컨트롤러
 │   │   ├── ScanController.ts
-│   │   └── ProductSearchController.ts   # 상품 검색 컨트롤러
+│   │   └── ProductSearchController.ts
 │   ├── middleware/                # 미들웨어
 │   │   ├── errorHandler.ts
-│   │   ├── requestLogger.ts       # HTTP 요청 로거
+│   │   ├── requestLogger.ts
 │   │   └── validation.ts
 │   └── utils/                     # 유틸리티
-│       ├── logger-context.ts      # 로거 컨텍스트 헬퍼
-│       └── timestamp.ts           # 타임스탬프 유틸
-├── tests/                         # 테스트 파일
-│   ├── hwahae-validator.test.ts
+│       ├── logger-context.ts
+│       └── timestamp.ts
+├── tests/                         # Jest 테스트
+│   ├── hwahae-validation-node.test.ts
 │   └── supabase.test.ts
 ├── scripts/                       # 독립 실행 스크립트
-│   └── hwahae-validator.ts
+│   ├── analyze-oliveyoung-selectors.ts
+│   ├── capture-oliveyoung-dom.ts
+│   ├── capture-oliveyoung-edge-cases.ts
+│   ├── test-oliveyoung-strategy.ts
+│   └── test-rate-limit.ts
+├── workflows/                     # Workflow 정의 (JSON)
+│   └── bulk-validation-v1.json
 ├── docs/                          # 문서
-│   └── hwahae-validator.md
+│   ├── hwahae-validator.md
+│   ├── WORKFLOW.md                # Workflow 시스템 가이드
+│   └── WORKFLOW_DAG.md            # DAG 구조 가이드
 ├── docker/                        # Docker 설정
-│   ├── README.md                  # Docker 상세 가이드
-│   ├── Dockerfile                 # 배포용
-│   ├── Dockerfile.dev             # 개발용
-│   ├── docker-compose.yml         # 배포 환경
-│   └── docker-compose.dev.yml     # 개발 환경
-└── logs/                          # 로그 (runtime)
+│   ├── README.md
+│   ├── Dockerfile
+│   ├── Dockerfile.dev
+│   ├── docker-compose.yml
+│   └── docker-compose.dev.yml
+├── jest.config.js                 # Jest 설정
+├── tsconfig.json                  # TypeScript 설정
+├── tsconfig.test.json             # 테스트용 tsconfig
+└── tsconfig.scripts.json          # 스크립트용 tsconfig
 ```
 
 ## 🚀 사용법
+
+### 지원 플랫폼
+
+| 플랫폼   | Platform ID  | 전략                          | 비고          |
+| -------- | ------------ | ----------------------------- | ------------- |
+| 화해     | `hwahae`     | API (우선), Playwright (대체) | 완전 지원     |
+| 올리브영 | `oliveyoung` | Playwright                    | 브라우저 전용 |
 
 ### API 엔드포인트 (v2.1.0)
 
@@ -148,14 +214,37 @@ GET /api/v1/platforms
 
 # Response
 {
-  "platforms": ["hwahae"],
-  "count": 1
+  "platforms": ["hwahae", "oliveyoung"],
+  "count": 2
 }
 ```
 
-#### 3. 화해 상품 스캔
+#### 3. 플랫폼별 상품 스캔
 
-**검증 (CSV vs API)**
+**화해 상품 스캔**
+
+```bash
+# 기본 스캔 (API 우선, Playwright 대체)
+POST /api/v1/platforms/hwahae/scan/:goodsId
+
+# 전략 지정 (옵션)
+POST /api/v1/platforms/hwahae/scan/:goodsId?strategyId=http-api
+
+# 사용 가능한 전략 목록
+GET /api/v1/platforms/hwahae/scan/strategies
+```
+
+**올리브영 상품 스캔**
+
+```bash
+# 브라우저 스캔
+POST /api/v1/platforms/oliveyoung/scan/:goodsId
+
+# 전략 목록
+GET /api/v1/platforms/oliveyoung/scan/strategies
+```
+
+**검증 (CSV vs API) - 화해 전용**
 
 ```bash
 POST /api/v1/platforms/hwahae/scan/validate
@@ -169,21 +258,6 @@ Content-Type: application/json
     "price": "59900"
   }
 }
-```
-
-**상품 스캔**
-
-```bash
-POST /api/v1/platforms/hwahae/scan/:goodsId
-
-# 전략 지정 (옵션)
-POST /api/v1/platforms/hwahae/scan/:goodsId?strategyId=http-api
-```
-
-**사용 가능한 전략 목록**
-
-```bash
-GET /api/v1/platforms/hwahae/scan/strategies
 ```
 
 #### 4. Supabase 상품 검색
@@ -427,23 +501,38 @@ make help         # 도움말
 
 ## 📊 주요 특징
 
+### 제네릭 기반 멀티 플랫폼 지원
+
+- **플랫폼 독립 설계**: `IProduct`, `IScanner<TProduct>` 인터페이스
+- **타입 안전 확장**: 새 플랫폼 추가 시 컴파일 타임 검증
+- **코드 재사용**: BaseScanner<TRawData, TProduct, TConfig>
+- **YAML 설정**: 플랫폼별 전략을 YAML로 정의
+
 ### 다중 전략 스크래핑
 
-- **API 우선**: 화해 공식 API를 우선 사용 (빠르고 안정적)
-- **Playwright 대체**: API 실패 시 자동으로 브라우저 자동화로 전환
-- **검증 기능**: CSV 데이터와 API 데이터 비교 검증
+- **화해**: API 우선 (빠름), Playwright 대체 (안정)
+- **올리브영**: Playwright 브라우저 전용
+- **자동 대체**: 전략 실패 시 다음 우선순위 전략 실행
+- **검증 기능**: CSV vs API 데이터 비교 (화해 전용)
 
 ### Repository Pattern
 
-- **추상화**: `IProductRepository` 인터페이스로 데이터 접근 계층 분리
-- **테스트 가능**: Dependency Injection으로 Mock Repository 주입 가능
-- **Singleton**: Supabase 클라이언트 재사용으로 연결 효율 최적화
+- **추상화**: `IProductRepository` 인터페이스로 데이터 접근 분리
+- **테스트 가능**: DI로 Mock Repository 주입
+- **Singleton**: Supabase 클라이언트 재사용
 
 ### 타입 안전성
 
-- **TypeScript Strict Mode**: 100% 타입 안전성
-- **Zod 검증**: 런타임 데이터 검증으로 타입 불일치 방지
-- **도메인 엔티티**: 비즈니스 로직을 도메인 모델로 캡슐화
+- **TypeScript Strict Mode**: 100% 타입 안전
+- **Zod 검증**: 런타임 데이터 검증
+- **제네릭 타입**: 컴파일 타임 타입 에러 방지
+- **도메인 엔티티**: 비즈니스 로직 캡슐화
+
+### 테스트 인프라
+
+- **Jest**: 단위 테스트 프레임워크
+- **타입 안전 테스트**: tsconfig.test.json 분리
+- **독립 실행**: 테스트 환경 격리
 
 ## 🔒 보안
 
