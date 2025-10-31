@@ -15,6 +15,8 @@ import {
 import { HwahaeScanService } from "@/services/HwahaeScanService";
 import { ProductSetSearchResult } from "@/core/domain/ProductSet";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
+import { ConfigLoader } from "@/config/ConfigLoader";
+import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 
 /**
  * Hwahae Validation Node Config
@@ -64,10 +66,12 @@ interface ProductValidationResult {
 export class HwahaeValidationNode implements INodeStrategy {
   public readonly type = "hwahae_validation";
   private service: HwahaeScanService;
+  private configLoader: ConfigLoader;
 
   constructor(service?: HwahaeScanService) {
     // Dependency Injection
     this.service = service || new HwahaeScanService();
+    this.configLoader = ConfigLoader.getInstance();
   }
 
   /**
@@ -96,18 +100,24 @@ export class HwahaeValidationNode implements INodeStrategy {
     console.log(`[${this.type}] Validating ${products.length} products`);
 
     try {
+      // Platform Config에서 Rate Limit 설정 로드
+      const config: PlatformConfig = this.configLoader.loadConfig(
+        "hwahae",
+      ) as PlatformConfig;
+      const waitTimeMs = config.workflow?.rate_limit?.wait_time_ms || 1000;
+
       // 순차 검증 (MVP) - Rate Limiting 적용
       const validations: ProductValidationResult[] = [];
 
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
 
-        // Rate Limiting: 첫 번째 요청이 아니면 1초 대기
+        // Rate Limiting: 첫 번째 요청이 아니면 대기
         if (i > 0) {
           console.log(
-            `[${this.type}] Rate limiting: waiting 1000ms before next request...`,
+            `[${this.type}] Rate limiting: waiting ${waitTimeMs}ms before next request...`,
           );
-          await this.sleep(1000);
+          await this.sleep(waitTimeMs);
         }
 
         const validation = await this.validateProduct(product);
@@ -190,8 +200,15 @@ export class HwahaeValidationNode implements INodeStrategy {
    * goodsId 추출
    *
    * 지원 패턴:
-   * - https://www.hwahae.co.kr/goods/21320
-   * - https://www.hwahae.co.kr/products/12345
+   * - 정상: https://www.hwahae.co.kr/goods/21320
+   * - products: https://www.hwahae.co.kr/products/2038055
+   * - Query params: https://www.hwahae.co.kr/goods/66061?srsltid=...
+   * - 상품명 포함: https://www.hwahae.co.kr/products/상품명/2099549?srsltid=...
+   * - 상품명+params: https://www.hwahae.co.kr/goods/상품명/70815?goods_tab=...
+   *
+   * 추출 전략:
+   * 1. Query parameter 제거 (? 이후)
+   * 2. /goods/ 또는 /products/ 이후 경로에서 마지막 연속된 숫자 추출
    */
   private extractGoodsId(linkUrl: string): string | null {
     // hwahae URL인지 확인
@@ -199,9 +216,26 @@ export class HwahaeValidationNode implements INodeStrategy {
       return null;
     }
 
-    // /goods/숫자 또는 /products/숫자 패턴 매칭
-    const match = linkUrl.match(/\/(?:goods|products)\/(\d+)/);
-    return match ? match[1] : null;
+    // 1. Query parameter 제거
+    const urlWithoutQuery = linkUrl.split("?")[0];
+
+    // 2. /goods/ 또는 /products/ 이후 경로 추출
+    const pathMatch = urlWithoutQuery.match(
+      /\/(?:goods|products)\/(.+?)(?:\/)?$/,
+    );
+    if (!pathMatch) {
+      return null;
+    }
+
+    const pathSegment = pathMatch[1];
+
+    // 3. 경로에서 모든 숫자 추출하여 마지막 것 사용
+    // - /goods/21320 → ["21320"] → 21320
+    // - /products/2038055 → ["2038055"] → 2038055
+    // - /products/상품명/2099549 → ["2099549"] → 2099549
+    // - /goods/상품명/70815 → ["70815"] → 70815
+    const allNumbers = pathSegment.match(/\d+/g);
+    return allNumbers ? allNumbers[allNumbers.length - 1] : null;
   }
 
   /**

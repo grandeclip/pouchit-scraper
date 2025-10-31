@@ -219,9 +219,10 @@ errorHandling:
   # 500 Internal Server Error → 재시도
   serverErrorRetry: true
 
-# Workflow Rate Limiting (Multi-Queue Architecture)
+# Workflow Rate Limiting
+# Node-level rate limiting (상품별 HTTP 요청 간격 제어)
 workflow:
   rate_limit:
     enabled: true
-    wait_time_ms: 1000
-    description: "Platform-level rate limiting for workflow jobs"
+    wait_time_ms: 2500  # 각 상품 스캔 간 대기 시간 (밀리초)
+    description: "HTTP request rate limiting per product (applies in HwahaeValidationNode)"
