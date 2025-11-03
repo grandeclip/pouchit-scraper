@@ -34,7 +34,7 @@
     },
     "2": {
       "config": {
-        "concurrency": 1,
+        "concurrency": 8,
         "strategy_id": "default"
       },
       "name": "Validate with Oliveyoung Playwright",

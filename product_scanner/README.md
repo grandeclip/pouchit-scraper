@@ -633,6 +633,7 @@ make help         # 도움말
 - **Singleton Pattern**: Supabase 클라이언트 재사용
 - **쿼리 최적화**: 필요한 필드만 SELECT
 - **다중 전략**: API 우선으로 응답 시간 단축
+- **병렬 처리**: Workflow 배치 병렬 실행 (올리브영: 최대 88% 성능 개선)
 
 ## 🔄 Workflow 시스템
 
@@ -678,7 +679,37 @@ curl http://localhost:3000/api/v1/workflows/jobs/{job_id}
 - **결과 파일명**: `job_{platform}_{job_id}.json` 형식으로 자동 생성
 - **병렬 처리**: Platform별 독립 큐로 동시 실행 가능
 
+### 병렬 처리 (Concurrency)
+
+올리브영 Workflow는 배치 병렬 처리를 지원하여 대량 상품 검증 성능을 향상시킵니다.
+
+**성능 개선**:
+
+- 순차 처리 (concurrency: 1): 800개 → 67분
+- 4병렬 처리 (concurrency: 4): 800개 → 17분 (75% 개선)
+- 8병렬 처리 (concurrency: 8): 800개 → 8.3분 (88% 개선)
+
+**설정 방법**:
+
+```json
+// workflows/oliveyoung-validation-v1.json
+{
+  "2": {
+    "config": {
+      "concurrency": 8 // 1~10 (YAML max 제한)
+    }
+  }
+}
+```
+
+**주의사항**:
+
+- 초기 배포 시 `concurrency: 1`로 시작 권장
+- 리소스 모니터링 후 점진적 증가 (1 → 4 → 8)
+- 자세한 내용: **[PARALLEL_PROCESSING_TEST.md](docs/PARALLEL_PROCESSING_TEST.md)**
+
 ### 문서
 
 - **[WORKFLOW.md](docs/WORKFLOW.md)** - 워크플로우 시스템 전체 가이드
 - **[WORKFLOW_DAG.md](docs/WORKFLOW_DAG.md)** - DAG 구조 상세 가이드
+- **[PARALLEL_PROCESSING_TEST.md](docs/PARALLEL_PROCESSING_TEST.md)** - 병렬 처리 성능 테스트 가이드

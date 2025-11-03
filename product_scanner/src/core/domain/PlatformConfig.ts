@@ -17,10 +17,20 @@ export interface WorkflowRateLimitConfig {
 }
 
 /**
+ * Workflow Concurrency 설정 (병렬 처리)
+ */
+export interface WorkflowConcurrencyConfig {
+  max: number; // 최대 병렬 개수
+  default: number; // 기본 병렬 개수
+  description?: string;
+}
+
+/**
  * Workflow 설정
  */
 export interface WorkflowConfig {
   rate_limit?: WorkflowRateLimitConfig;
+  concurrency?: WorkflowConcurrencyConfig;
 }
 
 /**

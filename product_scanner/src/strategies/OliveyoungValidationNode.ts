@@ -17,7 +17,7 @@ import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import type { IScanner } from "@/core/interfaces/IScanner";
-import { ScannerRegistry } from "@/services/ScannerRegistry";
+import { ScannerFactory } from "@/scanners/base/ScannerFactory";
 import { logger } from "@/config/logger";
 
 /**
@@ -59,18 +59,17 @@ interface ProductValidationResult {
 export class OliveyoungValidationNode implements INodeStrategy {
   public readonly type = "oliveyoung_validation";
   private configLoader: ConfigLoader;
-  private registry: ScannerRegistry;
+  private static readonly DEFAULT_MAX_CONCURRENCY = 10;
 
   constructor() {
     this.configLoader = ConfigLoader.getInstance();
-    this.registry = ScannerRegistry.getInstance();
   }
 
   /**
    * 노드 실행
    */
   async execute(context: NodeContext): Promise<NodeResult> {
-    const { input, params } = context;
+    const { input, params, config } = context;
 
     // Platform ID 추출 (params 우선, 없으면 "oliveyoung")
     const platform = (params.platform as string) || "oliveyoung";
@@ -92,54 +91,96 @@ export class OliveyoungValidationNode implements INodeStrategy {
     }
 
     const products = supabaseResult.products;
-    logger.info({ type: this.type, count: products.length }, "검증 시작");
 
-    // Scanner 획득 (Registry에서 가져오거나 생성)
-    const scanner: IScanner = this.registry.getScanner(platform);
+    // Platform Config에서 설정 로드
+    const platformConfig: PlatformConfig = this.configLoader.loadConfig(
+      platform,
+    ) as PlatformConfig;
+    const waitTimeMs =
+      platformConfig.workflow?.rate_limit?.wait_time_ms || 3000;
+    const maxConcurrency =
+      platformConfig.workflow?.concurrency?.max ||
+      OliveyoungValidationNode.DEFAULT_MAX_CONCURRENCY;
+
+    // Concurrency 설정: config → YAML default → 1 (순차)
+    const requestedConcurrency =
+      (config.concurrency as number) ||
+      platformConfig.workflow?.concurrency?.default ||
+      1;
+    const concurrency = Math.min(requestedConcurrency, maxConcurrency);
+
+    // Concurrency 제한 경고
+    if (requestedConcurrency > maxConcurrency) {
+      logger.warn(
+        {
+          type: this.type,
+          requested: requestedConcurrency,
+          max: maxConcurrency,
+          applied: concurrency,
+        },
+        "Concurrency 제한 적용됨",
+      );
+    }
+
+    logger.info(
+      { type: this.type, count: products.length, concurrency },
+      "병렬 검증 시작",
+    );
 
     try {
-      // Platform Config에서 설정 로드
-      const config: PlatformConfig = this.configLoader.loadConfig(
-        platform,
-      ) as PlatformConfig;
-      const waitTimeMs = config.workflow?.rate_limit?.wait_time_ms || 3000;
-      const maxConcurrency = config.workflow?.concurrency?.max || 10;
+      // 배치 분할
+      const batches = this.splitIntoBatches(products, concurrency);
 
-      // 순차 검증 (MVP) - Rate Limiting 적용
-      const validations: ProductValidationResult[] = [];
+      logger.debug(
+        {
+          type: this.type,
+          batchCount: batches.length,
+          itemsPerBatch: batches.map((b) => b.length),
+        },
+        "배치 분할 완료",
+      );
 
-      for (let i = 0; i < products.length; i++) {
-        const product = products[i];
+      // 병렬 실행: 배치별 독립 Scanner 생성 (Factory 직접 사용)
+      const batchResults = await Promise.all(
+        batches.map(async (batch, index) => {
+          // Scanner 생성 실패 시 에러 격리
+          let batchScanner: IScanner;
+          try {
+            batchScanner = ScannerFactory.createScanner(platform);
+            logger.debug(
+              { type: this.type, batchIndex: index, batchSize: batch.length },
+              "배치 Scanner 생성 완료",
+            );
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            logger.error(
+              { type: this.type, batchIndex: index, error: message },
+              "Scanner 생성 실패",
+            );
+            return batch.map((p) =>
+              this.createFailedValidation(p, "Scanner unavailable"),
+            );
+          }
 
-        // Rate Limiting: 첫 번째 요청이 아니면 대기
-        if (i > 0) {
-          logger.debug(
-            { type: this.type, waitTimeMs },
-            "Rate limiting 대기 중",
-          );
-          await this.sleep(waitTimeMs);
-        }
+          return this.validateBatch(
+            batch,
+            index,
+            batchScanner,
+            waitTimeMs,
+          ).finally(() => {
+            batchScanner.cleanup().catch((error) => {
+              logger.warn(
+                { type: this.type, batchIndex: index, error },
+                "Batch scanner cleanup 실패",
+              );
+            });
+          });
+        }),
+      );
 
-        // 개별 에러 격리
-        try {
-          const validation = await this.validateProduct(product, scanner);
-          validations.push(validation);
-        } catch (error) {
-          const message =
-            error instanceof Error ? error.message : String(error);
-          logger.error(
-            {
-              type: this.type,
-              productSetId: product.product_set_id,
-              error: message,
-            },
-            "상품 검증 실패",
-          );
-          validations.push(this.createFailedValidation(product, message));
-        }
-      }
-
-      // 요약 통계 계산
+      // 결과 병합
+      const validations = batchResults.flat();
       const summary = this.calculateSummary(validations);
 
       logger.info({ type: this.type, summary }, "검증 완료");
@@ -165,18 +206,80 @@ export class OliveyoungValidationNode implements INodeStrategy {
           code: "OLIVEYOUNG_VALIDATION_ERROR",
         },
       };
-    } finally {
-      // Scanner 리소스 정리 (브라우저 종료)
+    }
+  }
+
+  /**
+   * 상품 목록을 N개 배치로 분할
+   */
+  private splitIntoBatches<T>(items: T[], batchCount: number): T[][] {
+    if (batchCount <= 0) {
+      throw new Error("batchCount must be positive");
+    }
+
+    if (batchCount === 1) {
+      return [items];
+    }
+
+    const batchSize = Math.ceil(items.length / batchCount);
+    const batches: T[][] = [];
+
+    for (let i = 0; i < items.length; i += batchSize) {
+      batches.push(items.slice(i, i + batchSize));
+    }
+
+    return batches;
+  }
+
+  /**
+   * 단일 배치 검증 (병렬 실행 단위)
+   */
+  private async validateBatch(
+    products: ProductSetSearchResult[],
+    batchIndex: number,
+    scanner: IScanner,
+    waitTimeMs: number,
+  ): Promise<ProductValidationResult[]> {
+    const validations: ProductValidationResult[] = [];
+
+    logger.debug(
+      { type: this.type, batchIndex, count: products.length },
+      "배치 검증 시작",
+    );
+
+    for (let i = 0; i < products.length; i++) {
+      const product = products[i];
+
+      // Rate Limiting: 배치 내부만 적용 (첫 번째 요청 제외)
+      if (i > 0) {
+        await this.sleep(waitTimeMs);
+      }
+
+      // 개별 에러 격리
       try {
-        await scanner.cleanup();
-        logger.debug({ type: this.type }, "Scanner cleanup 완료");
-      } catch (cleanupError) {
-        logger.warn(
-          { type: this.type, error: cleanupError },
-          "Scanner cleanup 실패",
+        const validation = await this.validateProduct(product, scanner);
+        validations.push(validation);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error(
+          {
+            type: this.type,
+            batchIndex,
+            productSetId: product.product_set_id,
+            error: message,
+          },
+          "상품 검증 실패",
         );
+        validations.push(this.createFailedValidation(product, message));
       }
     }
+
+    logger.info(
+      { type: this.type, batchIndex, count: validations.length },
+      "배치 검증 완료",
+    );
+
+    return validations;
   }
 
   /**
@@ -211,7 +314,13 @@ export class OliveyoungValidationNode implements INodeStrategy {
       const oliveyoungProduct = scannedProduct.toPlainObject();
 
       // 비교 결과 생성
-      return this.compareProducts(product, oliveyoungProduct);
+      return this.compareProducts(product, {
+        productName: oliveyoungProduct.productName as string,
+        thumbnail: oliveyoungProduct.thumbnail as string,
+        originalPrice: oliveyoungProduct.originalPrice as number,
+        discountedPrice: oliveyoungProduct.discountedPrice as number,
+        saleStatus: oliveyoungProduct.saleStatus as string,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
