@@ -295,6 +295,17 @@ export class WorkflowExecutionService implements IWorkflowService {
         const totalNodes = Object.keys(workflow.nodes).length;
         job.progress = Math.min(executedNodes.size / totalNodes, 1.0);
         job.current_node = nodesToExecute.length > 0 ? nodesToExecute[0] : null;
+
+        // Redis 업데이트 (디버깅 로그 추가)
+        jobLogger.info(
+          {
+            job_id: job.job_id,
+            status: job.status,
+            progress: job.progress,
+            current_node: job.current_node,
+          },
+          "Updating job status in Redis",
+        );
         await this.repository.updateJob(job);
 
         jobLogger.info(

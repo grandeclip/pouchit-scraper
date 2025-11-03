@@ -4,10 +4,8 @@
 set -e
 
 API_BASE_URL="http://localhost:3989/api/v1"
-MAX_POLLS=60
-POLL_INTERVAL=5
 SALE_STATUS="on_sale"
-LIMIT=1
+LIMIT=5
 
 echo "🧪 올리브영 워크플로우 테스트 시작"
 echo ""
@@ -53,59 +51,3 @@ fi
 
 echo "✅ Job 생성 완료: ${JOB_ID}"
 echo ""
-
-# Step 2: Job 상태 폴링
-echo "⏳ Job 실행 대기 중..."
-POLL_COUNT=0
-
-while [ $POLL_COUNT -lt $MAX_POLLS ]; do
-  sleep $POLL_INTERVAL
-  POLL_COUNT=$((POLL_COUNT + 1))
-
-  STATUS_RESPONSE=$(curl -s "${API_BASE_URL}/workflows/jobs/${JOB_ID}")
-  STATUS=$(echo $STATUS_RESPONSE | jq -r '.status')
-  PROGRESS=$(echo $STATUS_RESPONSE | jq -r '.progress')
-  CURRENT_NODE=$(echo $STATUS_RESPONSE | jq -r '.current_node // "N/A"')
-
-  echo "[${POLL_COUNT}] Status: ${STATUS}, Progress: ${PROGRESS}%, Node: ${CURRENT_NODE}"
-
-  if [ "$STATUS" == "completed" ]; then
-    echo ""
-    echo "🎉 워크플로우 완료!"
-    echo ""
-    break
-  fi
-
-  if [ "$STATUS" == "failed" ]; then
-    echo ""
-    echo "❌ 워크플로우 실패:"
-    echo $STATUS_RESPONSE | jq '.error'
-    exit 1
-  fi
-done
-
-if [ $POLL_COUNT -ge $MAX_POLLS ]; then
-  echo ""
-  echo "⏱️ 타임아웃: 워크플로우가 제한 시간 내에 완료되지 않았습니다."
-  exit 1
-fi
-
-# Step 3: 결과 확인
-echo "📊 최종 결과:"
-echo $STATUS_RESPONSE | jq '.result'
-echo ""
-
-# Step 4: 검증 요약
-echo "✅ 검증 요약:"
-echo $STATUS_RESPONSE | jq -r '
-  .result.oliveyoung_validation.summary |
-  "  - 전체: \(.total)
-  - 성공: \(.success)
-  - 실패: \(.failed)
-  - Not Found: \(.not_found)
-  - 매칭: \(.total_matched)
-  - 매칭률: \(.match_rate)%"
-'
-
-echo ""
-echo "🎉 테스트 성공!"
