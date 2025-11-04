@@ -53,7 +53,7 @@ graph LR
 
 ### 제네릭 기반 설계
 
-**핵심 컨셉**: 플랫폼 독립적 타입 시스템
+**핵심 컨셉**: 플랫폼 독립적 타입 시스템 + 병렬 처리 최적화
 
 ```typescript
 // 플랫폼 독립 인터페이스
@@ -87,6 +87,8 @@ class OliveyoungProduct implements IProduct {}
 - **Repository Pattern**: 데이터 접근 로직 캡슐화 (Supabase)
 - **Facade Pattern**: 서비스 계층 단순화
 - **Singleton Pattern**: ConfigLoader, Supabase 클라이언트
+- **Object Pool Pattern**: BrowserPool (브라우저 인스턴스 재사용)
+- **Command Pattern**: PlaywrightScriptExecutor (YAML 기반 액션 실행)
 
 ### SOLID 원칙
 
@@ -105,11 +107,11 @@ product_scanner/
 │   ├── worker.ts                  # Workflow Worker
 │   ├── config/                    # 설정 & 로더
 │   │   ├── constants.ts           # 애플리케이션 상수
-│   │   ├── logger.ts              # Pino 로거 설정
+│   │   ├── logger.ts              # Pino 로거 설정 (서비스별 분리)
 │   │   ├── ConfigLoader.ts        # YAML 설정 로더 (Singleton)
 │   │   └── platforms/             # 플랫폼별 YAML 설정
 │   │       ├── hwahae.yaml        # 화해 설정
-│   │       └── oliveyoung.yaml    # 올리브영 설정
+│   │       └── oliveyoung.yaml    # 올리브영 설정 (max_concurrency)
 │   ├── core/                      # 도메인 & 인터페이스
 │   │   ├── domain/                # 도메인 모델
 │   │   │   ├── PlatformId.ts     # 플랫폼 ID 타입 (hwahae | oliveyoung)
@@ -132,10 +134,12 @@ product_scanner/
 │   │   └── SupabaseProductRepository.ts
 │   ├── scanners/                  # 스캐너 구현
 │   │   ├── base/
-│   │   │   └── BaseScanner.generic.ts  # 제네릭 Base 클래스
+│   │   │   ├── BaseScanner.generic.ts  # 제네릭 Base 클래스
+│   │   │   ├── BrowserPool.ts      # 브라우저 인스턴스 풀 (Object Pool)
+│   │   │   └── IBrowserPool.ts     # 브라우저 풀 인터페이스
 │   │   ├── strategies/            # 전략 구현
 │   │   │   ├── ApiScanner.ts      # API 기반 스캐너
-│   │   │   └── BrowserScanner.ts  # Playwright 기반 스캐너
+│   │   │   └── BrowserScanner.ts  # Playwright 기반 스캐너 (풀 통합)
 │   │   ├── platforms/             # 플랫폼별 팩토리
 │   │   │   └── oliveyoung/
 │   │   │       └── OliveyoungScannerFactory.ts
@@ -159,8 +163,9 @@ product_scanner/
 │   │   ├── requestLogger.ts
 │   │   └── validation.ts
 │   └── utils/                     # 유틸리티
-│       ├── logger-context.ts
-│       └── timestamp.ts
+│       ├── logger-context.ts       # 로거 컨텍스트 헬퍼
+│       ├── timestamp.ts            # 타임스탬프 유틸
+│       └── PlaywrightScriptExecutor.ts  # YAML 기반 액션 실행기
 ├── tests/                         # Jest 테스트
 │   ├── hwahae-validation-node.test.ts
 │   └── supabase.test.ts
@@ -599,9 +604,16 @@ make help         # 도움말
 ### 다중 전략 스크래핑
 
 - **화해**: API 우선 (빠름), Playwright 대체 (안정)
-- **올리브영**: Playwright 브라우저 전용
+- **올리브영**: Playwright 브라우저 전용 + 병렬 처리
 - **자동 대체**: 전략 실패 시 다음 우선순위 전략 실행
 - **검증 기능**: CSV vs API 데이터 비교 (화해 전용)
+
+### 브라우저 인스턴스 풀링 (Object Pool Pattern)
+
+- **BrowserPool**: 브라우저 인스턴스 재사용으로 리소스 최적화
+- **동적 관리**: 수요에 따른 인스턴스 자동 생성/제거
+- **헬스 체크**: 비정상 인스턴스 자동 교체
+- **동시성 제어**: 최대 동시 실행 수 제한 (YAML 설정)
 
 ### Repository Pattern
 
