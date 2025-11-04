@@ -33,6 +33,7 @@ interface HwahaeValidationConfig {
 interface ProductValidationResult {
   product_set_id: string;
   product_id: string;
+  url: string | null; // 검증 시도한 link_url
   db: {
     product_name: string | null;
     thumbnail?: string | null;
@@ -265,6 +266,7 @@ export class HwahaeValidationNode implements INodeStrategy {
     return {
       product_set_id: supabase.product_set_id,
       product_id: supabase.product_id,
+      url: supabase.link_url,
       db: {
         product_name: supabase.product_name,
         thumbnail: supabase.thumbnail,
@@ -296,6 +298,7 @@ export class HwahaeValidationNode implements INodeStrategy {
     return {
       product_set_id: product.product_set_id,
       product_id: product.product_id,
+      url: product.link_url,
       db: {
         product_name: product.product_name,
         thumbnail: product.thumbnail,

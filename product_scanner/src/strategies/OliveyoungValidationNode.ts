@@ -23,7 +23,8 @@ import { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
 import { SCRAPER_CONFIG } from "@/config/constants";
 import * as path from "path";
 import * as fs from "fs/promises";
-import { scrapeOliveyoungProduct } from "./OliveyoungValidationNode_helpers";
+import { PlaywrightScriptExecutor } from "@/utils/PlaywrightScriptExecutor";
+import { OliveyoungProduct } from "@/core/domain/OliveyoungProduct";
 
 /**
  * 단일 상품 검증 결과
@@ -31,6 +32,7 @@ import { scrapeOliveyoungProduct } from "./OliveyoungValidationNode_helpers";
 interface ProductValidationResult {
   product_set_id: string;
   product_id: string;
+  url: string | null; // 검증 시도한 link_url
   db: {
     product_name: string | null;
     thumbnail?: string | null;
@@ -293,7 +295,11 @@ export class OliveyoungValidationNode implements INodeStrategy {
         }
 
         try {
-          const validation = await this.validateProductWithPage(product, page);
+          const validation = await this.validateProductWithPage(
+            product,
+            page,
+            platformConfig,
+          );
           validations.push(validation);
 
           // 스크린샷 저장 (성공)
@@ -450,6 +456,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
   private async validateProductWithPage(
     product: ProductSetSearchResult,
     page: Page,
+    platformConfig: OliveyoungConfig,
   ): Promise<ProductValidationResult> {
     try {
       // link_url에서 goodsNo 추출
@@ -471,8 +478,24 @@ export class OliveyoungValidationNode implements INodeStrategy {
         "상품 검증 중",
       );
 
-      // 올리브영 상품 스크래핑 (헬퍼 함수 사용)
-      const oliveyoungProduct = await scrapeOliveyoungProduct(page, goodsNo);
+      // YAML 기반 스크래핑 실행
+      const domData = await PlaywrightScriptExecutor.scrapeProduct(
+        page,
+        goodsNo,
+        platformConfig,
+      );
+
+      // "삭제된 상품" 체크 (not_found 처리)
+      if (domData.name === "삭제된 상품" || domData._source === "not_found") {
+        return this.createNotFoundValidation(product);
+      }
+
+      // OliveyoungProduct 도메인 객체로 변환
+      const oliveyoungProduct = OliveyoungProduct.fromDOMData({
+        ...domData,
+        id: goodsNo,
+        goodsNo,
+      });
       const plainObject = oliveyoungProduct.toPlainObject();
 
       // 비교 결과 생성
@@ -546,6 +569,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
     return {
       product_set_id: supabase.product_set_id,
       product_id: supabase.product_id,
+      url: supabase.link_url,
       db: {
         product_name: supabase.product_name,
         thumbnail: supabase.thumbnail,
@@ -577,6 +601,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
     return {
       product_set_id: product.product_set_id,
       product_id: product.product_id,
+      url: product.link_url,
       db: {
         product_name: product.product_name,
         thumbnail: product.thumbnail,

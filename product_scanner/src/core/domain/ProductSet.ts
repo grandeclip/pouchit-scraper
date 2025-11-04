@@ -46,7 +46,7 @@ export interface ProductSetSearchResult {
   product_set_id: string; // UUID
   product_id: string; // UUID
   product_name: string | null;
-  link_url: string | null;
+  link_url: string | null; // Validation에서 URL로 사용됨
   thumbnail?: string | null;
   sale_status?: string | null;
   original_price?: number | null;
