@@ -20,6 +20,7 @@ import {
   ProductSetSearchResult,
 } from "@/core/domain/ProductSet";
 import { SupabaseProductRepository } from "@/repositories/SupabaseProductRepository";
+import { logger } from "@/config/logger";
 
 /**
  * Product Search 서비스 (Facade)
@@ -40,7 +41,7 @@ export class ProductSearchService implements IProductSearchService {
   async searchProducts(
     request: ProductSetSearchRequest,
   ): Promise<ProductSetSearchResult[]> {
-    console.log(`[Service] 상품 검색 시작:`, request);
+    logger.info({ request }, "상품 검색 시작");
 
     try {
       // Repository를 통한 검색
@@ -49,11 +50,11 @@ export class ProductSearchService implements IProductSearchService {
       // 도메인 엔티티를 검색 결과로 변환
       const results = entities.map((entity) => entity.toSearchResult());
 
-      console.log(`[Service] 상품 검색 완료: ${results.length}개 상품 발견`);
+      logger.info({ count: results.length }, "상품 검색 완료");
 
       return results;
     } catch (error) {
-      console.error(`[Service] 상품 검색 실패:`, error);
+      logger.error({ error, request }, "상품 검색 실패");
       throw error;
     }
   }
@@ -66,25 +67,26 @@ export class ProductSearchService implements IProductSearchService {
   async getProductById(
     productSetId: string,
   ): Promise<ProductSetSearchResult | null> {
-    console.log(`[Service] 상품 조회 시작: product_set_id=${productSetId}`);
+    logger.info({ productSetId }, "상품 조회 시작");
 
     try {
       const entity = await this.repository.findById(productSetId);
 
       if (!entity) {
-        console.log(
-          `[Service] 상품을 찾을 수 없음: product_set_id=${productSetId}`,
-        );
+        logger.info({ productSetId }, "상품을 찾을 수 없음");
         return null;
       }
 
       const result = entity.toSearchResult();
 
-      console.log(`[Service] 상품 조회 완료: ${result.product_name}`);
+      logger.info(
+        { productSetId, productName: result.product_name },
+        "상품 조회 완료",
+      );
 
       return result;
     } catch (error) {
-      console.error(`[Service] 상품 조회 실패:`, error);
+      logger.error({ error, productSetId }, "상품 조회 실패");
       throw error;
     }
   }
@@ -94,16 +96,16 @@ export class ProductSearchService implements IProductSearchService {
    * @returns 연결 여부
    */
   async healthCheck(): Promise<boolean> {
-    console.log(`[Service] Health check 시작`);
+    logger.info("Health check 시작");
 
     try {
       const isHealthy = await this.repository.healthCheck();
 
-      console.log(`[Service] Health check ${isHealthy ? "성공" : "실패"}`);
+      logger.info({ isHealthy }, `Health check ${isHealthy ? "성공" : "실패"}`);
 
       return isHealthy;
     } catch (error) {
-      console.error(`[Service] Health check 실패:`, error);
+      logger.error({ error }, "Health check 실패");
       return false;
     }
   }

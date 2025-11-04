@@ -11,6 +11,7 @@ import { Request, Response } from "express";
 import { IWorkflowService } from "@/core/interfaces/IWorkflowService";
 import { WorkflowExecutionService } from "@/services/WorkflowExecutionService";
 import { JobPriority } from "@/core/domain/Workflow";
+import { createRequestLogger } from "@/utils/logger-context";
 
 /**
  * Workflow 컨트롤러
@@ -63,7 +64,12 @@ export class WorkflowController {
         message: "Workflow execution started",
       });
     } catch (error) {
-      console.error("[Controller] execute error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error({ error }, "워크플로우 실행 중 오류 발생");
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -96,7 +102,12 @@ export class WorkflowController {
         data: status,
       });
     } catch (error) {
-      console.error("[Controller] getJobStatus error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error({ error }, "Job 상태 조회 중 오류 발생");
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -118,7 +129,12 @@ export class WorkflowController {
         data: workflows,
       });
     } catch (error) {
-      console.error("[Controller] listWorkflows error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error({ error }, "워크플로우 목록 조회 중 오류 발생");
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -146,7 +162,12 @@ export class WorkflowController {
         });
       }
     } catch (error) {
-      console.error("[Controller] healthCheck error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error({ error }, "헬스체크 중 오류 발생");
       res.status(503).json({
         success: false,
         error: error instanceof Error ? error.message : "Service unavailable",

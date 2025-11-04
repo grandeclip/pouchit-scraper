@@ -11,6 +11,7 @@
 import { Request, Response } from "express";
 import { HwahaeScanService } from "@/services/HwahaeScanService";
 import { ValidationRequest } from "@/core/domain/HwahaeConfig";
+import { createRequestLogger } from "@/utils/logger-context";
 
 /**
  * 스캔 컨트롤러 (플랫폼별)
@@ -67,7 +68,15 @@ export class ScanController {
       // 응답
       res.status(200).json(result);
     } catch (error) {
-      console.error("[Controller] validate error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Controller] 검증 요청 처리 실패",
+      );
       res.status(500).json({
         error: error instanceof Error ? error.message : "Internal server error",
       });
@@ -100,16 +109,28 @@ export class ScanController {
       // 응답
       res.status(200).json(product);
     } catch (error) {
-      console.error("[Controller] scan error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
 
       // 404 처리
       if (error instanceof Error && error.message.includes("not found")) {
+        logger.error(
+          { error: error.message },
+          "[Controller] 상품 스캔 실패 - 상품 없음",
+        );
         res.status(404).json({
           error: "Product not found",
         });
         return;
       }
 
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Controller] 상품 스캔 실패",
+      );
       res.status(500).json({
         error: error instanceof Error ? error.message : "Internal server error",
       });
@@ -128,7 +149,15 @@ export class ScanController {
         strategies,
       });
     } catch (error) {
-      console.error("[Controller] getStrategies error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Controller] 전략 목록 조회 실패",
+      );
       res.status(500).json({
         error: error instanceof Error ? error.message : "Internal server error",
       });

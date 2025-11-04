@@ -12,6 +12,7 @@ import { IProductSearchService } from "@/core/interfaces/IProductSearchService";
 import { ProductSearchService } from "@/services/ProductSearchService";
 import { ProductSetSearchRequest } from "@/core/domain/ProductSet";
 import { API_CONFIG } from "@/config/constants";
+import { createRequestLogger } from "@/utils/logger-context";
 
 /**
  * Product Search 컨트롤러
@@ -49,7 +50,15 @@ export class ProductSearchController {
         data: results,
       });
     } catch (error) {
-      console.error("[Controller] search error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Controller] 상품 검색 실패",
+      );
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -82,7 +91,15 @@ export class ProductSearchController {
         data: result,
       });
     } catch (error) {
-      console.error("[Controller] getById error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Controller] 상품 ID 조회 실패",
+      );
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",
@@ -105,7 +122,15 @@ export class ProductSearchController {
           : "Supabase connection failed",
       });
     } catch (error) {
-      console.error("[Controller] health error:", error);
+      const logger = createRequestLogger(
+        req.headers["x-request-id"] as string,
+        req.method,
+        req.path,
+      );
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Controller] Health check 실패",
+      );
       res.status(503).json({
         success: false,
         error: error instanceof Error ? error.message : "Internal server error",

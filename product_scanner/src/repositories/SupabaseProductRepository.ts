@@ -24,6 +24,7 @@ import {
   DATABASE_CONFIG,
   REPOSITORY_CONFIG,
 } from "@/config/constants";
+import { logger } from "@/config/logger";
 
 /**
  * Supabase Product Repository
@@ -56,7 +57,7 @@ export class SupabaseProductRepository implements IProductRepository {
     }
 
     SupabaseProductRepository.instance = createClient(supabaseUrl, supabaseKey);
-    console.log("✅ Supabase client initialized");
+    logger.info("Supabase client 초기화 완료");
 
     return SupabaseProductRepository.instance;
   }
@@ -73,11 +74,14 @@ export class SupabaseProductRepository implements IProductRepository {
       limit = API_CONFIG.DEFAULT_SEARCH_LIMIT,
     } = request;
 
-    console.log(`[Repository] 상품 검색 시작:`, {
-      link_url_pattern,
-      sale_status,
-      limit,
-    });
+    logger.info(
+      {
+        link_url_pattern,
+        sale_status,
+        limit,
+      },
+      "[Repository] 상품 검색 시작",
+    );
 
     try {
       // 쿼리 빌더 시작 (설정된 필드 목록 사용)
@@ -101,16 +105,19 @@ export class SupabaseProductRepository implements IProductRepository {
       const { data, error } = await query;
 
       if (error) {
-        console.error(`[Repository] Supabase 쿼리 실패:`, error);
+        logger.error(
+          { error: error.message, code: error.code },
+          "[Repository] Supabase 쿼리 실패",
+        );
         throw new Error(`Supabase query failed: ${error.message}`);
       }
 
       if (!data || data.length === 0) {
-        console.log(`[Repository] 검색 결과 없음`);
+        logger.info("[Repository] 검색 결과 없음");
         return [];
       }
 
-      console.log(`[Repository] 검색 완료: ${data.length}개 상품 발견`);
+      logger.info({ count: data.length }, "[Repository] 검색 완료");
 
       // 데이터 검증 및 변환
       const entities = data.map((record) => {
@@ -122,7 +129,10 @@ export class SupabaseProductRepository implements IProductRepository {
 
       return entities;
     } catch (error) {
-      console.error(`[Repository] 상품 검색 실패:`, error);
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Repository] 상품 검색 실패",
+      );
       throw error;
     }
   }
@@ -133,7 +143,10 @@ export class SupabaseProductRepository implements IProductRepository {
    * @returns 상품 정보
    */
   async findById(productSetId: string): Promise<ProductSetEntity | null> {
-    console.log(`[Repository] 상품 조회 시작: product_set_id=${productSetId}`);
+    logger.info(
+      { product_set_id: productSetId },
+      "[Repository] 상품 조회 시작",
+    );
 
     try {
       const { data, error } = await this.client
@@ -145,31 +158,39 @@ export class SupabaseProductRepository implements IProductRepository {
       if (error) {
         // 404는 정상 케이스
         if (error.code === "PGRST116") {
-          console.log(
-            `[Repository] 상품을 찾을 수 없음: product_set_id=${productSetId}`,
+          logger.info(
+            { product_set_id: productSetId },
+            "[Repository] 상품을 찾을 수 없음",
           );
           return null;
         }
 
-        console.error(`[Repository] Supabase 쿼리 실패:`, error);
+        logger.error(
+          { error: error.message, code: error.code },
+          "[Repository] Supabase 쿼리 실패",
+        );
         throw new Error(`Supabase query failed: ${error.message}`);
       }
 
       if (!data) {
-        console.log(
-          `[Repository] 상품을 찾을 수 없음: product_set_id=${productSetId}`,
+        logger.info(
+          { product_set_id: productSetId },
+          "[Repository] 상품을 찾을 수 없음",
         );
         return null;
       }
 
-      console.log(`[Repository] 상품 조회 완료`);
+      logger.info("[Repository] 상품 조회 완료");
 
       // Zod 스키마로 검증
       const validated = ProductSetSchema.parse(data);
       // 도메인 엔티티로 변환
       return ProductSetEntity.fromDbRecord(validated);
     } catch (error) {
-      console.error(`[Repository] 상품 조회 실패:`, error);
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Repository] 상품 조회 실패",
+      );
       throw error;
     }
   }
@@ -186,14 +207,20 @@ export class SupabaseProductRepository implements IProductRepository {
         .limit(1);
 
       if (error) {
-        console.error(`[Repository] Health check 실패:`, error);
+        logger.error(
+          { error: error.message },
+          "[Repository] Health check 실패",
+        );
         return false;
       }
 
-      console.log(`[Repository] Health check 성공`);
+      logger.debug("[Repository] Health check 성공");
       return true;
     } catch (error) {
-      console.error(`[Repository] Health check 실패:`, error);
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[Repository] Health check 실패",
+      );
       return false;
     }
   }

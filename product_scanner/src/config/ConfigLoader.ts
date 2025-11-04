@@ -12,6 +12,7 @@ import * as path from "path";
 import * as yaml from "js-yaml";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { PATH_CONFIG } from "./constants";
+import { logger } from "./logger";
 
 /**
  * Config Loader Singleton
@@ -118,7 +119,7 @@ export class ConfigLoader {
 
     // 하위 호환성: http 필드가 있으면 경고
     if (config.http) {
-      console.warn(
+      logger.warn(
         "[ConfigLoader] DEPRECATED: 'http' field is deprecated. Use 'strategies' instead.",
       );
     }

@@ -10,6 +10,7 @@ import fs from "fs/promises";
 import path from "path";
 import Ajv from "ajv";
 import { WorkflowDefinition } from "@/core/domain/Workflow";
+import { logger } from "@/config/logger";
 
 /**
  * Workflow JSON Schema
@@ -74,11 +75,11 @@ export class WorkflowLoaderService {
    * @returns Workflow 정의
    */
   async loadWorkflow(workflowId: string): Promise<WorkflowDefinition> {
-    console.log(`[WorkflowLoader] Loading workflow: ${workflowId}`);
+    logger.info({ workflowId }, "Workflow 로딩 중");
 
     // 캐시 확인
     if (this.cache.has(workflowId)) {
-      console.log(`[WorkflowLoader] Cache hit: ${workflowId}`);
+      logger.info({ workflowId }, "캐시 히트");
       return this.cache.get(workflowId)!;
     }
 
@@ -113,7 +114,7 @@ export class WorkflowLoaderService {
     // 캐시 저장
     this.cache.set(workflowId, workflow);
 
-    console.log(`[WorkflowLoader] Workflow loaded successfully: ${workflowId}`);
+    logger.info({ workflowId, name: workflow.name }, "Workflow 로딩 완료");
 
     return workflow;
   }
@@ -129,7 +130,10 @@ export class WorkflowLoaderService {
         .filter((file) => file.endsWith(".json"))
         .map((file) => file.replace(".json", ""));
     } catch (error) {
-      console.error("[WorkflowLoader] Failed to list workflows:", error);
+      logger.error(
+        { error, workflowDir: this.workflowDir },
+        "Workflow 목록 조회 실패",
+      );
       return [];
     }
   }
@@ -205,8 +209,9 @@ export class WorkflowLoaderService {
     // 순환 참조 경고
     const hasCycle = this.detectCycle(start_node, nodes);
     if (hasCycle) {
-      console.warn(
-        `[WorkflowLoader] Warning: Cycle detected in workflow '${workflow.workflow_id}'`,
+      logger.warn(
+        { workflowId: workflow.workflow_id },
+        "Workflow에서 순환 참조 탐지됨",
       );
     }
   }

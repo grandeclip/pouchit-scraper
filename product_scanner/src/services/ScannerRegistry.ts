@@ -13,6 +13,7 @@
 
 import { IScanner } from "@/core/interfaces/IScanner";
 import { ScannerFactory } from "@/scanners/base/ScannerFactory";
+import { logger } from "@/config/logger";
 
 /**
  * 스캐너 레지스트리 (Singleton)
@@ -44,7 +45,7 @@ export class ScannerRegistry {
 
     // 캐시 확인
     if (!this.scanners.has(key)) {
-      console.log(`[Registry] 새 스캐너 생성: ${key}`);
+      logger.info({ key, platform, strategyId }, "새 스캐너 생성");
       const scanner = ScannerFactory.createScanner(platform, strategyId);
       this.scanners.set(key, scanner);
     }
@@ -64,7 +65,7 @@ export class ScannerRegistry {
     strategyId?: string,
   ): void {
     const key = this.makeKey(platform, strategyId);
-    console.log(`[Registry] 스캐너 등록: ${key}`);
+    logger.info({ key, platform, strategyId }, "스캐너 등록");
     this.scanners.set(key, scanner);
   }
 
@@ -80,7 +81,7 @@ export class ScannerRegistry {
       const scanner = this.scanners.get(key)!;
       await scanner.cleanup();
       this.scanners.delete(key);
-      console.log(`[Registry] 스캐너 제거: ${key}`);
+      logger.info({ key, platform, strategyId }, "스캐너 제거");
     }
   }
 
@@ -88,7 +89,7 @@ export class ScannerRegistry {
    * 모든 스캐너 정리 및 제거
    */
   async clearAll(): Promise<void> {
-    console.log(`[Registry] 모든 스캐너 정리 중...`);
+    logger.info({ count: this.scanners.size }, "모든 스캐너 정리 중");
 
     const cleanupPromises = Array.from(this.scanners.values()).map((scanner) =>
       scanner.cleanup(),
@@ -97,7 +98,7 @@ export class ScannerRegistry {
     await Promise.allSettled(cleanupPromises);
     this.scanners.clear();
 
-    console.log(`[Registry] 모든 스캐너 정리 완료`);
+    logger.info("모든 스캐너 정리 완료");
   }
 
   /**

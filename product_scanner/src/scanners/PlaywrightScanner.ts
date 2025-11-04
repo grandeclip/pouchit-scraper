@@ -19,6 +19,7 @@ import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { PlaywrightStrategyConfig } from "@/core/domain/StrategyConfig";
 import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
+import { logger } from "@/config/logger";
 
 // Stealth 플러그인 적용
 chromium.use(StealthPlugin());
@@ -50,7 +51,7 @@ export class PlaywrightScanner extends BaseScanner<
    * 초기화 (브라우저 실행)
    */
   protected async doInitialize(): Promise<void> {
-    console.log(`[${this.strategy.id}] 브라우저 실행 중...`);
+    logger.info({ strategy_id: this.strategy.id }, "브라우저 실행 중");
 
     // 브라우저 실행
     this.browser = await chromium.launch({
@@ -84,7 +85,7 @@ export class PlaywrightScanner extends BaseScanner<
     // 페이지 생성
     this.page = await this.context.newPage();
 
-    console.log(`[${this.strategy.id}] 브라우저 준비 완료`);
+    logger.info({ strategy_id: this.strategy.id }, "브라우저 준비 완료");
   }
 
   /**
@@ -134,7 +135,7 @@ export class PlaywrightScanner extends BaseScanner<
    * 리소스 정리 (브라우저 종료)
    */
   async cleanup(): Promise<void> {
-    console.log(`[${this.strategy.id}] 브라우저 정리 중...`);
+    logger.info({ strategy_id: this.strategy.id }, "브라우저 정리 중");
 
     if (this.page) {
       await this.page.close();
@@ -151,7 +152,7 @@ export class PlaywrightScanner extends BaseScanner<
       this.browser = null;
     }
 
-    console.log(`[${this.strategy.id}] 브라우저 정리 완료`);
+    logger.info({ strategy_id: this.strategy.id }, "브라우저 정리 완료");
   }
 
   /**
@@ -170,7 +171,7 @@ export class PlaywrightScanner extends BaseScanner<
       switch (step.action) {
         case "navigate":
           if (url) {
-            console.log(`[${this.strategy.id}] Navigate to: ${url}`);
+            logger.info({ strategy_id: this.strategy.id, url }, "페이지 이동");
             await this.page.goto(url, {
               waitUntil: "networkidle",
               timeout: 30000,
@@ -180,7 +181,10 @@ export class PlaywrightScanner extends BaseScanner<
 
         case "waitForSelector":
           if (step.selector) {
-            console.log(`[${this.strategy.id}] Wait for: ${step.selector}`);
+            logger.info(
+              { strategy_id: this.strategy.id, selector: step.selector },
+              "셀렉터 대기",
+            );
             await this.page.waitForSelector(step.selector, {
               timeout: step.timeout || 5000,
             });
@@ -189,26 +193,38 @@ export class PlaywrightScanner extends BaseScanner<
 
         case "wait":
           const waitTime = step.timeout || 1000;
-          console.log(`[${this.strategy.id}] Wait for: ${waitTime}ms`);
+          logger.info(
+            { strategy_id: this.strategy.id, wait_ms: waitTime },
+            "대기",
+          );
           await this.page.waitForTimeout(waitTime);
           break;
 
         case "click":
           if (step.selector) {
-            console.log(`[${this.strategy.id}] Click: ${step.selector}`);
+            logger.info(
+              { strategy_id: this.strategy.id, selector: step.selector },
+              "클릭",
+            );
             await this.page.click(step.selector);
           }
           break;
 
         case "type":
           if (step.selector && step.value) {
-            console.log(`[${this.strategy.id}] Type into: ${step.selector}`);
+            logger.info(
+              { strategy_id: this.strategy.id, selector: step.selector },
+              "입력",
+            );
             await this.page.fill(step.selector, step.value);
           }
           break;
 
         default:
-          console.warn(`[${this.strategy.id}] Unknown action: ${step.action}`);
+          logger.warn(
+            { strategy_id: this.strategy.id, action: step.action },
+            "알 수 없는 액션",
+          );
       }
     }
   }
@@ -225,25 +241,28 @@ export class PlaywrightScanner extends BaseScanner<
 
     if (extractionConfig.method === "evaluate" && extractionConfig.script) {
       // page.evaluate 방식
-      console.log(`[${this.strategy.id}] Extracting via evaluate...`);
+      logger.info({ strategy_id: this.strategy.id }, "evaluate로 데이터 추출");
       const evalFunction = new Function(
         `return (${extractionConfig.script})`,
       )();
       // Debug: Check page title before extraction
       const pageTitle = await this.page.title();
-      console.log(`[${this.strategy.id}] Page title:`, pageTitle);
+      logger.info(
+        { strategy_id: this.strategy.id, page_title: pageTitle },
+        "페이지 제목",
+      );
 
       const result = await this.page.evaluate(evalFunction);
-      console.log(
-        `[${this.strategy.id}] Extracted data:`,
-        JSON.stringify(result),
+      logger.info(
+        { strategy_id: this.strategy.id, data: JSON.stringify(result) },
+        "추출 완료",
       );
       return result;
     }
 
     if (extractionConfig.method === "selector" && extractionConfig.selectors) {
       // Playwright selector 방식
-      console.log(`[${this.strategy.id}] Extracting via selectors...`);
+      logger.info({ strategy_id: this.strategy.id }, "셀렉터로 데이터 추출");
       const result: any = {};
 
       for (const [key, selector] of Object.entries(

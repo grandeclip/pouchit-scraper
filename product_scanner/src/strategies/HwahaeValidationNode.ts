@@ -17,6 +17,8 @@ import { ProductSetSearchResult } from "@/core/domain/ProductSet";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
+import { logger } from "@/config/logger";
+import { logImportant } from "@/utils/logger-context";
 
 /**
  * Hwahae Validation Node Config
@@ -98,7 +100,9 @@ export class HwahaeValidationNode implements INodeStrategy {
     }
 
     const products = supabaseResult.products;
-    console.log(`[${this.type}] Validating ${products.length} products`);
+    logImportant(logger, `[${this.type}] 검증 시작`, {
+      product_count: products.length,
+    });
 
     try {
       // Platform Config에서 Rate Limit 설정 로드
@@ -115,8 +119,9 @@ export class HwahaeValidationNode implements INodeStrategy {
 
         // Rate Limiting: 첫 번째 요청이 아니면 대기
         if (i > 0) {
-          console.log(
-            `[${this.type}] Rate limiting: waiting ${waitTimeMs}ms before next request...`,
+          logger.debug(
+            { wait_time_ms: waitTimeMs, index: i },
+            `[${this.type}] Rate limiting 대기`,
           );
           await this.sleep(waitTimeMs);
         }
@@ -128,9 +133,9 @@ export class HwahaeValidationNode implements INodeStrategy {
       // 요약 통계 계산
       const summary = this.calculateSummary(validations);
 
-      console.log(
-        `[${this.type}] Validation complete. Success: ${summary.success}, Failed: ${summary.failed}, Not Found: ${summary.not_found}`,
-      );
+      logImportant(logger, `[${this.type}] 검증 완료`, {
+        summary,
+      });
 
       return {
         success: true,
@@ -143,7 +148,7 @@ export class HwahaeValidationNode implements INodeStrategy {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`[${this.type}] Validation failed:`, message);
+      logger.error({ error: message }, `[${this.type}] 검증 실패`);
 
       return {
         success: false,
@@ -177,8 +182,13 @@ export class HwahaeValidationNode implements INodeStrategy {
         );
       }
 
-      console.log(
-        `[${this.type}] Validating product ${product.product_set_id} (goodsId: ${goodsId})`,
+      logger.info(
+        {
+          product_set_id: product.product_set_id,
+          goods_id: goodsId,
+          url: product.link_url,
+        },
+        `[${this.type}] 상품 검증`,
       );
 
       // 화해 API로 상품 조회

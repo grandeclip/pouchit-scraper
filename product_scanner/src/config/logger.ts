@@ -144,30 +144,66 @@ class ServiceRoutingStream implements DestinationStream {
 }
 
 /**
+ * 콘솔 필터링 스트림
+ * WARNING/ERROR 항상 출력, important: true인 INFO만 출력
+ */
+class ConsoleFilterStream implements DestinationStream {
+  constructor(private targetStream: any) {}
+
+  write(chunk: string): boolean {
+    try {
+      const log = JSON.parse(chunk);
+      const level = log.level;
+
+      // WARNING(40) 이상 항상 출력
+      if (level >= 40) {
+        this.targetStream.write(chunk);
+        return true;
+      }
+
+      // INFO(30)는 important: true일 때만 출력
+      if (level === 30 && log.important === true) {
+        this.targetStream.write(chunk);
+        return true;
+      }
+
+      // 나머지는 스킵
+      return true;
+    } catch (err) {
+      // JSON 파싱 실패 시 그냥 출력
+      this.targetStream.write(chunk);
+      return true;
+    }
+  }
+}
+
+/**
  * 메인 로거 인스턴스
  */
 let logger: pino.Logger;
 
 if (NODE_ENV === "development" && LOG_PRETTY) {
   // 개발 환경: 예쁜 콘솔 출력 + 서비스별 파일 저장
+  const prettyStream = pino.transport({
+    target: "pino-pretty",
+    options: {
+      colorize: true,
+      translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
+      ignore: "pid,hostname,service,env",
+      messageFormat: "{if important}⭐ {end}{msg}",
+    },
+  });
+
   const streams = [
-    // 서비스별 파일 라우팅
+    // 서비스별 파일 라우팅 (모든 레벨)
     {
       level: "debug" as pino.LevelWithSilent,
       stream: new ServiceRoutingStream(),
     },
-    // 예쁜 콘솔 출력
+    // 필터링된 콘솔 출력 (WARNING/ERROR + important INFO만)
     {
       level: "debug" as pino.LevelWithSilent,
-      stream: pino.transport({
-        target: "pino-pretty",
-        options: {
-          colorize: true,
-          translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
-          ignore: "pid,hostname,service,env",
-          messageFormat: "{if important}⭐ {end}{msg}",
-        },
-      }),
+      stream: new ConsoleFilterStream(prettyStream),
     },
   ];
   logger = pino(baseConfig, pino.multistream(streams));
