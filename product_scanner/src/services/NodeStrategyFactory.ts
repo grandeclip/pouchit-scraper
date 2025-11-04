@@ -12,6 +12,7 @@ import { INodeStrategy } from "@/core/interfaces/INodeStrategy";
 import { SupabaseSearchNode } from "@/strategies/SupabaseSearchNode";
 import { HwahaeValidationNode } from "@/strategies/HwahaeValidationNode";
 import { OliveyoungValidationNode } from "@/strategies/OliveyoungValidationNode";
+import { MusinsaValidationNode } from "@/strategies/MusinsaValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
 import { logger } from "@/config/logger";
 
@@ -27,6 +28,7 @@ export class NodeStrategyFactory {
     this.registerStrategy(new SupabaseSearchNode());
     this.registerStrategy(new HwahaeValidationNode());
     this.registerStrategy(new OliveyoungValidationNode());
+    this.registerStrategy(new MusinsaValidationNode());
     this.registerStrategy(new ResultWriterNode());
   }
 

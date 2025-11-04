@@ -1,9 +1,9 @@
 /**
- * Oliveyoung Validation Node Strategy
+ * Musinsa Validation Node Strategy
  *
  * SOLID 원칙:
- * - SRP: 올리브영 검증 및 비교만 담당
- * - DIP: OliveyoungScanService에 의존
+ * - SRP: 무신사 검증 및 비교만 담당
+ * - DIP: MusinsaScanService에 의존
  * - Strategy Pattern: INodeStrategy 구현
  */
 
@@ -19,15 +19,15 @@ import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
 import { BrowserPool } from "@/scanners/base/BrowserPool";
 import type { Browser, BrowserContext, Page } from "playwright";
-import { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
+// MusinsaConfig는 별도로 정의하지 않고 PlatformConfig 사용
 import { SCRAPER_CONFIG } from "@/config/constants";
 import * as path from "path";
 import * as fs from "fs/promises";
 import { PlaywrightScriptExecutor } from "@/utils/PlaywrightScriptExecutor";
 import {
-  OliveyoungProduct,
-  OliveyoungDomSaleStatus,
-} from "@/core/domain/OliveyoungProduct";
+  MusinsaProduct,
+  MusinsaDomSaleStatus,
+} from "@/core/domain/MusinsaProduct";
 
 /**
  * 단일 상품 검증 결과
@@ -79,10 +79,10 @@ const VALIDATION_CONFIG = {
 } as const;
 
 /**
- * Oliveyoung Validation Node Strategy
+ * Musinsa Validation Node Strategy
  */
-export class OliveyoungValidationNode implements INodeStrategy {
-  public readonly type = "oliveyoung_validation";
+export class MusinsaValidationNode implements INodeStrategy {
+  public readonly type = "musinsa_validation";
   private configLoader: ConfigLoader;
   private browserPool: BrowserPool | null = null;
 
@@ -96,8 +96,8 @@ export class OliveyoungValidationNode implements INodeStrategy {
   async execute(context: NodeContext): Promise<NodeResult> {
     const { input, params, config } = context;
 
-    // Platform ID 추출 (params 우선, 없으면 "oliveyoung")
-    const platform = (params.platform as string) || "oliveyoung";
+    // Platform ID 추출 (params 우선, 없으면 "musinsa")
+    const platform = (params.platform as string) || "musinsa";
 
     // 이전 노드(SupabaseSearchNode)의 결과 가져오기
     const supabaseResult = input.supabase_search as
@@ -190,8 +190,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
           return this.validateBatchWithPool(
             batch,
             index,
-            platform,
-            platformConfig as OliveyoungConfig,
+            platformConfig,
             waitTimeMs,
             jobId,
           );
@@ -207,7 +206,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
       return {
         success: true,
         data: {
-          oliveyoung_validation: {
+          musinsa_validation: {
             validations,
             summary,
           },
@@ -222,7 +221,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
         data: {},
         error: {
           message,
-          code: "OLIVEYOUNG_VALIDATION_ERROR",
+          code: "MUSINSA_VALIDATION_ERROR",
         },
       };
     } finally {
@@ -262,8 +261,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
   private async validateBatchWithPool(
     products: ProductSetSearchResult[],
     batchIndex: number,
-    platform: string,
-    platformConfig: OliveyoungConfig,
+    platformConfig: PlatformConfig,
     waitTimeMs: number,
     jobId?: string,
   ): Promise<ProductValidationResult[]> {
@@ -307,12 +305,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
 
           // 스크린샷 저장 (성공)
           if (jobId) {
-            await this.takeScreenshot(
-              page,
-              jobId,
-              product.product_set_id,
-              false,
-            );
+            await this.takeScreenshot(page, jobId, product.product_set_id);
           }
 
           // 성공 시 연속 실패 카운터 리셋
@@ -333,12 +326,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
 
           // 스크린샷 저장 (실패)
           if (jobId) {
-            await this.takeScreenshot(
-              page,
-              jobId,
-              product.product_set_id,
-              true,
-            );
+            await this.takeScreenshot(page, jobId, product.product_set_id);
           }
 
           // 연속 실패 카운터 증가
@@ -459,32 +447,32 @@ export class OliveyoungValidationNode implements INodeStrategy {
   private async validateProductWithPage(
     product: ProductSetSearchResult,
     page: Page,
-    platformConfig: OliveyoungConfig,
+    platformConfig: PlatformConfig,
   ): Promise<ProductValidationResult> {
     try {
-      // link_url에서 goodsNo 추출
+      // link_url에서 productNo 추출
       if (!product.link_url) {
         return this.createFailedValidation(product, "link_url is null");
       }
 
-      const goodsNo = this.extractGoodsNo(product.link_url);
+      const productNo = this.extractGoodsNo(product.link_url);
 
-      if (!goodsNo) {
+      if (!productNo) {
         return this.createFailedValidation(
           product,
-          "Failed to extract goodsNo from link_url",
+          "Failed to extract productNo from link_url",
         );
       }
 
       logger.debug(
-        { type: this.type, productSetId: product.product_set_id, goodsNo },
+        { type: this.type, productSetId: product.product_set_id, productNo },
         "상품 검증 중",
       );
 
       // YAML 기반 스크래핑 실행
       const domData = await PlaywrightScriptExecutor.scrapeProduct(
         page,
-        goodsNo,
+        productNo,
         platformConfig,
       );
 
@@ -493,14 +481,14 @@ export class OliveyoungValidationNode implements INodeStrategy {
         return this.createNotFoundValidation(product);
       }
 
-      // OliveyoungProduct 도메인 객체로 변환
-      const oliveyoungProduct = OliveyoungProduct.fromDOMData({
+      // MusinsaProduct 도메인 객체로 변환
+      const musinsaProduct = MusinsaProduct.fromDOMData({
         ...domData,
-        id: goodsNo,
-        goodsNo,
-        sale_status: domData.sale_status as OliveyoungDomSaleStatus,
+        id: productNo,
+        productNo,
+        sale_status: domData.sale_status as MusinsaDomSaleStatus,
       });
-      const plainObject = oliveyoungProduct.toPlainObject();
+      const plainObject = musinsaProduct.toPlainObject();
 
       // 비교 결과 생성
       return this.compareProducts(product, {
@@ -522,24 +510,25 @@ export class OliveyoungValidationNode implements INodeStrategy {
   }
 
   /**
-   * goodsNo 추출
+   * productNo 추출
    *
    * 지원 패턴:
-   * - 정상: https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231822
-   * - Query params: https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231822&srsltid=...
+   * - 정상: https://www.musinsa.com/products/4350236
+   * - Query params: https://www.musinsa.com/products/4350236?srsltid=...
    *
    * 추출 전략:
-   * 1. URL에서 goodsNo query parameter 추출
+   * 1. URL 경로에서 /products/{productNo} 패턴 추출
    */
   private extractGoodsNo(linkUrl: string): string | null {
-    // oliveyoung URL인지 확인
-    if (!linkUrl.includes("oliveyoung.co.kr")) {
+    // musinsa URL인지 확인
+    if (!linkUrl.includes("musinsa.com")) {
       return null;
     }
 
     try {
-      const url = new URL(linkUrl);
-      return url.searchParams.get("goodsNo");
+      // /products/4350236 패턴에서 숫자 추출
+      const match = linkUrl.match(/\/products\/(\d+)/);
+      return match ? match[1] : null;
     } catch {
       return null;
     }
@@ -550,7 +539,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
    */
   private compareProducts(
     supabase: ProductSetSearchResult,
-    oliveyoung: {
+    musinsa: {
       productName: string;
       thumbnail: string;
       originalPrice: number;
@@ -559,12 +548,11 @@ export class OliveyoungValidationNode implements INodeStrategy {
     },
   ): ProductValidationResult {
     const comparison = {
-      product_name: supabase.product_name === oliveyoung.productName,
-      thumbnail: supabase.thumbnail === oliveyoung.thumbnail,
-      original_price: supabase.original_price === oliveyoung.originalPrice,
-      discounted_price:
-        supabase.discounted_price === oliveyoung.discountedPrice,
-      sale_status: supabase.sale_status === oliveyoung.saleStatus,
+      product_name: supabase.product_name === musinsa.productName,
+      thumbnail: supabase.thumbnail === musinsa.thumbnail,
+      original_price: supabase.original_price === musinsa.originalPrice,
+      discounted_price: supabase.discounted_price === musinsa.discountedPrice,
+      sale_status: supabase.sale_status === musinsa.saleStatus,
     };
 
     // 모든 필드가 true인지 확인
@@ -582,11 +570,11 @@ export class OliveyoungValidationNode implements INodeStrategy {
         sale_status: supabase.sale_status,
       },
       fetch: {
-        product_name: oliveyoung.productName,
-        thumbnail: oliveyoung.thumbnail,
-        original_price: oliveyoung.originalPrice,
-        discounted_price: oliveyoung.discountedPrice,
-        sale_status: oliveyoung.saleStatus,
+        product_name: musinsa.productName,
+        thumbnail: musinsa.thumbnail,
+        original_price: musinsa.originalPrice,
+        discounted_price: musinsa.discountedPrice,
+        sale_status: musinsa.saleStatus,
       },
       comparison,
       match,
@@ -635,10 +623,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
     product: ProductSetSearchResult,
   ): ProductValidationResult {
     return {
-      ...this.createFailedValidation(
-        product,
-        "Product not found in Oliveyoung",
-      ),
+      ...this.createFailedValidation(product, "Product not found in Musinsa"),
       status: "not_found",
     };
   }
@@ -682,14 +667,13 @@ export class OliveyoungValidationNode implements INodeStrategy {
     page: Page | null,
     jobId: string,
     productSetId: string,
-    isError: boolean,
   ): Promise<void> {
     if (!page) {
       return;
     }
 
     try {
-      const platform = "oliveyoung";
+      const platform = "musinsa";
       const outputDir = VALIDATION_CONFIG.SCREENSHOT_OUTPUT_DIR;
 
       // 오늘 날짜 폴더명 (YYYY-MM-DD)

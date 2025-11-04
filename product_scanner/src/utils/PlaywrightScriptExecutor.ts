@@ -10,23 +10,24 @@
  */
 
 import type { Page } from "playwright";
-import type { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
-import type { OliveyoungDomSaleStatus } from "@/core/domain/OliveyoungProduct";
+import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { SCRAPER_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
 
 /**
- * Playwright Script 실행 결과 타입
+ * Playwright Script 실행 결과 타입 (범용)
+ * 플랫폼별 DOM 판매 상태 타입을 포함
  */
 export interface ScriptExecutionResult {
   name: string;
-  brand: string;
+  brand?: string;
   title_images: string[];
   consumer_price: number;
   price: number;
-  sale_status: OliveyoungDomSaleStatus;
+  sale_status: string; // 플랫폼별 DOM 판매 상태 (예: "SELNG", "SLDOT", "STSEL")
   _source: string;
   _redirected: boolean;
+  [key: string]: any; // 플랫폼별 추가 필드 지원
 }
 
 /**
@@ -37,13 +38,13 @@ export class PlaywrightScriptExecutor {
    * YAML 설정 기반으로 상품 스크래핑
    *
    * @param page Playwright Page 인스턴스
-   * @param productId 상품 ID (예: goodsNo)
+   * @param productId 상품 ID (예: goodsNo, productNo)
    * @param config 플랫폼 설정 (YAML에서 로드)
    */
   static async scrapeProduct(
     page: Page,
     productId: string,
-    config: OliveyoungConfig,
+    config: PlatformConfig,
   ): Promise<ScriptExecutionResult> {
     const strategy = config.strategies?.[0];
 
@@ -71,7 +72,7 @@ export class PlaywrightScriptExecutor {
     page: Page,
     productId: string,
     steps: any[],
-    config: OliveyoungConfig,
+    config: PlatformConfig,
   ): Promise<void> {
     for (const step of steps) {
       const { action, url, timeout, description } = step;
