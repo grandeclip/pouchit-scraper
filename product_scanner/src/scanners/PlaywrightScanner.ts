@@ -15,7 +15,7 @@ import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser, BrowserContext, Page } from "playwright";
 
-import { BaseScanner } from "@/scanners/base/BaseScanner";
+import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { PlaywrightStrategyConfig } from "@/core/domain/StrategyConfig";
 import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
@@ -26,7 +26,11 @@ chromium.use(StealthPlugin());
 /**
  * Playwright 스캐너
  */
-export class PlaywrightScanner extends BaseScanner {
+export class PlaywrightScanner extends BaseScanner<
+  HwahaeApiResponse,
+  HwahaeProduct,
+  HwahaeConfig
+> {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;

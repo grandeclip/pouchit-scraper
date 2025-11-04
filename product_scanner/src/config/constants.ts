@@ -220,4 +220,10 @@ export const SCRAPER_CONFIG = {
    * 기본 대기 시간 (ms)
    */
   DEFAULT_WAIT_TIME_MS: 1000,
+
+  /**
+   * 페이지 렌더링 대기 시간 (ms)
+   * 동적 콘텐츠 로딩 대기용
+   */
+  PAGE_RENDER_DELAY_MS: 3000,
 } as const;

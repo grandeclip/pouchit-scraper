@@ -16,9 +16,14 @@ import { ProductSetSearchResult } from "@/core/domain/ProductSet";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
-import type { IScanner } from "@/core/interfaces/IScanner";
-import { ScannerFactory } from "@/scanners/base/ScannerFactory";
 import { logger } from "@/config/logger";
+import { BrowserPool } from "@/scanners/base/BrowserPool";
+import type { Browser, BrowserContext, Page } from "playwright";
+import { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
+import { SCRAPER_CONFIG } from "@/config/constants";
+import * as path from "path";
+import * as fs from "fs/promises";
+import { scrapeOliveyoungProduct } from "./OliveyoungValidationNode_helpers";
 
 /**
  * 단일 상품 검증 결과
@@ -54,12 +59,27 @@ interface ProductValidationResult {
 }
 
 /**
+ * Validation Node 설정
+ */
+const VALIDATION_CONFIG = {
+  /** 기본 최대 동시 실행 수 */
+  DEFAULT_MAX_CONCURRENCY: 10,
+  /** 연속 실패 허용 횟수 (Session Recovery 임계값) */
+  MAX_CONSECUTIVE_FAILURES: parseInt(
+    process.env.VALIDATION_MAX_CONSECUTIVE_FAILURES || "2",
+    10,
+  ),
+  /** 스크린샷 저장 디렉토리 */
+  SCREENSHOT_OUTPUT_DIR: process.env.SCREENSHOT_OUTPUT_DIR || "/app/results",
+} as const;
+
+/**
  * Oliveyoung Validation Node Strategy
  */
 export class OliveyoungValidationNode implements INodeStrategy {
   public readonly type = "oliveyoung_validation";
   private configLoader: ConfigLoader;
-  private static readonly DEFAULT_MAX_CONCURRENCY = 10;
+  private browserPool: BrowserPool | null = null;
 
   constructor() {
     this.configLoader = ConfigLoader.getInstance();
@@ -100,7 +120,7 @@ export class OliveyoungValidationNode implements INodeStrategy {
       platformConfig.workflow?.rate_limit?.wait_time_ms || 3000;
     const maxConcurrency =
       platformConfig.workflow?.concurrency?.max ||
-      OliveyoungValidationNode.DEFAULT_MAX_CONCURRENCY;
+      VALIDATION_CONFIG.DEFAULT_MAX_CONCURRENCY;
 
     // Concurrency 설정: config → YAML default → 1 (순차)
     const requestedConcurrency =
@@ -128,6 +148,25 @@ export class OliveyoungValidationNode implements INodeStrategy {
     );
 
     try {
+      // Browser Pool 초기화
+      this.browserPool = BrowserPool.getInstance({
+        poolSize: concurrency,
+        browserOptions: {
+          headless: true,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-blink-features=AutomationControlled",
+          ],
+        },
+      });
+
+      await this.browserPool.initialize();
+
+      // Job ID 추출 (스크린샷 파일명에 사용)
+      const jobId = context.job_id;
+
       // 배치 분할
       const batches = this.splitIntoBatches(products, concurrency);
 
@@ -140,42 +179,17 @@ export class OliveyoungValidationNode implements INodeStrategy {
         "배치 분할 완료",
       );
 
-      // 병렬 실행: 배치별 독립 Scanner 생성 (Factory 직접 사용)
+      // 병렬 실행: 배치별 독립 Browser 사용 (Pool에서 획득)
       const batchResults = await Promise.all(
         batches.map(async (batch, index) => {
-          // Scanner 생성 실패 시 에러 격리
-          let batchScanner: IScanner;
-          try {
-            batchScanner = ScannerFactory.createScanner(platform);
-            logger.debug(
-              { type: this.type, batchIndex: index, batchSize: batch.length },
-              "배치 Scanner 생성 완료",
-            );
-          } catch (error) {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            logger.error(
-              { type: this.type, batchIndex: index, error: message },
-              "Scanner 생성 실패",
-            );
-            return batch.map((p) =>
-              this.createFailedValidation(p, "Scanner unavailable"),
-            );
-          }
-
-          return this.validateBatch(
+          return this.validateBatchWithPool(
             batch,
             index,
-            batchScanner,
+            platform,
+            platformConfig as OliveyoungConfig,
             waitTimeMs,
-          ).finally(() => {
-            batchScanner.cleanup().catch((error) => {
-              logger.warn(
-                { type: this.type, batchIndex: index, error },
-                "Batch scanner cleanup 실패",
-              );
-            });
-          });
+            jobId,
+          );
         }),
       );
 
@@ -206,6 +220,12 @@ export class OliveyoungValidationNode implements INodeStrategy {
           code: "OLIVEYOUNG_VALIDATION_ERROR",
         },
       };
+    } finally {
+      // Browser Pool 정리
+      if (this.browserPool) {
+        await this.browserPool.cleanup();
+        this.browserPool = null;
+      }
     }
   }
 
@@ -232,62 +252,204 @@ export class OliveyoungValidationNode implements INodeStrategy {
   }
 
   /**
-   * 단일 배치 검증 (병렬 실행 단위)
+   * Browser Pool을 사용한 단일 배치 검증 (Session Recovery 포함)
    */
-  private async validateBatch(
+  private async validateBatchWithPool(
     products: ProductSetSearchResult[],
     batchIndex: number,
-    scanner: IScanner,
+    platform: string,
+    platformConfig: OliveyoungConfig,
     waitTimeMs: number,
+    jobId?: string,
   ): Promise<ProductValidationResult[]> {
+    if (!this.browserPool) {
+      throw new Error("BrowserPool이 초기화되지 않음");
+    }
+
     const validations: ProductValidationResult[] = [];
+    let consecutiveFailures = 0;
+    let browser: Browser | null = null;
+    let context: BrowserContext | null = null;
+    let page: Page | null = null;
 
     logger.debug(
       { type: this.type, batchIndex, count: products.length },
-      "배치 검증 시작",
+      "배치 검증 시작 (Browser Pool 사용)",
     );
 
-    for (let i = 0; i < products.length; i++) {
-      const product = products[i];
+    try {
+      // Browser 획득
+      browser = await this.browserPool.acquireBrowser();
 
-      // Rate Limiting: 배치 내부만 적용 (첫 번째 요청 제외)
-      if (i > 0) {
-        await this.sleep(waitTimeMs);
+      // Context/Page 생성
+      ({ context, page } = await this.createBrowserContext(browser));
+
+      for (let i = 0; i < products.length; i++) {
+        const product = products[i];
+
+        // Rate Limiting
+        if (i > 0) {
+          await this.sleep(waitTimeMs);
+        }
+
+        try {
+          const validation = await this.validateProductWithPage(product, page);
+          validations.push(validation);
+
+          // 스크린샷 저장 (성공)
+          if (jobId) {
+            await this.takeScreenshot(
+              page,
+              jobId,
+              product.product_set_id,
+              false,
+            );
+          }
+
+          // 성공 시 연속 실패 카운터 리셋
+          consecutiveFailures = 0;
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          logger.error(
+            {
+              type: this.type,
+              batchIndex,
+              productSetId: product.product_set_id,
+              error: message,
+            },
+            "상품 검증 실패",
+          );
+          validations.push(this.createFailedValidation(product, message));
+
+          // 스크린샷 저장 (실패)
+          if (jobId) {
+            await this.takeScreenshot(
+              page,
+              jobId,
+              product.product_set_id,
+              true,
+            );
+          }
+
+          // 연속 실패 카운터 증가
+          consecutiveFailures++;
+
+          // Session Recovery: 연속 N회 실패 시 재시작
+          if (
+            consecutiveFailures >= VALIDATION_CONFIG.MAX_CONSECUTIVE_FAILURES
+          ) {
+            logger.warn(
+              {
+                type: this.type,
+                batchIndex,
+                consecutiveFailures,
+                threshold: VALIDATION_CONFIG.MAX_CONSECUTIVE_FAILURES,
+              },
+              "연속 실패 임계값 도달 - Browser/Context 재시작",
+            );
+
+            // 기존 Context/Page 정리
+            if (page) {
+              await page.close().catch(() => {});
+              page = null;
+            }
+            if (context) {
+              await context.close().catch(() => {});
+              context = null;
+            }
+
+            // 새 Context/Page 생성
+            ({ context, page } = await this.createBrowserContext(browser));
+
+            // 카운터 리셋
+            consecutiveFailures = 0;
+
+            logger.info(
+              { type: this.type, batchIndex },
+              "Browser/Context 재시작 완료",
+            );
+          }
+        }
       }
 
-      // 개별 에러 격리
-      try {
-        const validation = await this.validateProduct(product, scanner);
-        validations.push(validation);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        logger.error(
-          {
-            type: this.type,
-            batchIndex,
-            productSetId: product.product_set_id,
-            error: message,
-          },
-          "상품 검증 실패",
-        );
-        validations.push(this.createFailedValidation(product, message));
+      logger.info(
+        { type: this.type, batchIndex, count: validations.length },
+        "배치 검증 완료",
+      );
+
+      return validations;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(
+        { type: this.type, batchIndex, error: message },
+        "배치 검증 중 치명적 오류 발생",
+      );
+
+      // 실패한 상품들에 대해 모두 실패 처리
+      const remaining = products.slice(validations.length);
+      return [
+        ...validations,
+        ...remaining.map((p) => this.createFailedValidation(p, message)),
+      ];
+    } finally {
+      // Context/Page 정리
+      if (page) {
+        await page.close().catch((error) => {
+          logger.warn({ type: this.type, batchIndex, error }, "Page 종료 실패");
+        });
+      }
+      if (context) {
+        await context.close().catch((error) => {
+          logger.warn(
+            { type: this.type, batchIndex, error },
+            "Context 종료 실패",
+          );
+        });
+      }
+
+      // Browser 반환 (Pool로)
+      if (browser) {
+        await this.browserPool.releaseBrowser(browser);
       }
     }
-
-    logger.info(
-      { type: this.type, batchIndex, count: validations.length },
-      "배치 검증 완료",
-    );
-
-    return validations;
   }
 
   /**
-   * 단일 상품 검증
+   * Browser에서 Context/Page 생성
    */
-  private async validateProduct(
+  private async createBrowserContext(browser: Browser): Promise<{
+    context: BrowserContext;
+    page: Page;
+  }> {
+    // Context 생성
+    const context = await browser.newContext({
+      viewport: SCRAPER_CONFIG.DEFAULT_VIEWPORT,
+      userAgent: SCRAPER_CONFIG.DEFAULT_USER_AGENT,
+      locale: "ko-KR",
+      timezoneId: "Asia/Seoul",
+    });
+
+    // Anti-detection 설정
+    await context.addInitScript(() => {
+      // @ts-expect-error - Browser context에서 실행되는 코드
+      Object.defineProperty(navigator, "webdriver", {
+        get: () => false,
+      });
+    });
+
+    // Page 생성
+    const page = await context.newPage();
+
+    return { context, page };
+  }
+
+  /**
+   * Page를 사용한 단일 상품 검증
+   */
+  private async validateProductWithPage(
     product: ProductSetSearchResult,
-    scanner: IScanner,
+    page: Page,
   ): Promise<ProductValidationResult> {
     try {
       // link_url에서 goodsNo 추출
@@ -309,17 +471,17 @@ export class OliveyoungValidationNode implements INodeStrategy {
         "상품 검증 중",
       );
 
-      // 올리브영 Playwright로 상품 조회 (cleanup 없이)
-      const scannedProduct = await scanner.scanWithoutCleanup(goodsNo);
-      const oliveyoungProduct = scannedProduct.toPlainObject();
+      // 올리브영 상품 스크래핑 (헬퍼 함수 사용)
+      const oliveyoungProduct = await scrapeOliveyoungProduct(page, goodsNo);
+      const plainObject = oliveyoungProduct.toPlainObject();
 
       // 비교 결과 생성
       return this.compareProducts(product, {
-        productName: oliveyoungProduct.productName as string,
-        thumbnail: oliveyoungProduct.thumbnail as string,
-        originalPrice: oliveyoungProduct.originalPrice as number,
-        discountedPrice: oliveyoungProduct.discountedPrice as number,
-        saleStatus: oliveyoungProduct.saleStatus as string,
+        productName: plainObject.productName as string,
+        thumbnail: plainObject.thumbnail as string,
+        originalPrice: plainObject.originalPrice as number,
+        discountedPrice: plainObject.discountedPrice as number,
+        saleStatus: plainObject.saleStatus as string,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -482,6 +644,53 @@ export class OliveyoungValidationNode implements INodeStrategy {
    */
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 스크린샷 저장 (ValidationNode 레벨)
+   */
+  private async takeScreenshot(
+    page: Page | null,
+    jobId: string,
+    productSetId: string,
+    isError: boolean,
+  ): Promise<void> {
+    if (!page) {
+      return;
+    }
+
+    try {
+      const platform = "oliveyoung";
+      const outputDir = VALIDATION_CONFIG.SCREENSHOT_OUTPUT_DIR;
+
+      // 오늘 날짜 폴더명 (YYYY-MM-DD)
+      const today = new Date().toISOString().split("T")[0];
+
+      // 디렉토리 생성: outputDir/YYYY-MM-DD/platform/jobId/
+      const jobDir = path.join(outputDir, today, platform, jobId);
+      await fs.mkdir(jobDir, { recursive: true });
+
+      // 파일명: {product_set_id}.png
+      const filename = `${productSetId}.png`;
+      const filepath = path.join(jobDir, filename);
+
+      // 스크린샷 저장
+      await page.screenshot({
+        path: filepath,
+        fullPage: true,
+      });
+
+      logger.debug(
+        { type: this.type, filepath, productSetId },
+        "스크린샷 저장 완료",
+      );
+    } catch (error) {
+      // 스크린샷 실패는 무시 (원래 작업에 영향 주지 않음)
+      logger.warn(
+        { type: this.type, error, productSetId },
+        "스크린샷 저장 실패 - 무시",
+      );
+    }
   }
 
   /**

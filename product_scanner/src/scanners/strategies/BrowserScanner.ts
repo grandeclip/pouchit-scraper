@@ -19,6 +19,8 @@ import { chromium as playwrightChromium } from "playwright";
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser, BrowserContext, Page } from "playwright";
+import * as path from "path";
+import * as fs from "fs/promises";
 
 import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { IProduct } from "@/core/interfaces/IProduct";
@@ -48,6 +50,17 @@ export interface BrowserScannerOptions<
   strategy: PlaywrightStrategyConfig;
   /** DOM 데이터 → Product 변환 함수 */
   parseDOM: (domData: TDomData, id: string) => Promise<TProduct>;
+  /** 스크린샷 옵션 */
+  screenshot?: {
+    /** 스크린샷 활성화 여부 */
+    enabled: boolean;
+    /** 스크린샷 저장 경로 (디렉토리) */
+    outputDir: string;
+    /** Job ID (파일명에 사용) */
+    jobId?: string;
+  };
+  /** 외부 Browser 인스턴스 (Pool 사용 시) */
+  externalBrowser?: Browser;
 }
 
 /**
@@ -63,10 +76,20 @@ export class BrowserScanner<
   private page: Page | null = null;
   private parseDOM: (domData: TDomData, id: string) => Promise<TProduct>;
   private lastScanId: string = "";
+  private screenshotOptions?: {
+    enabled: boolean;
+    outputDir: string;
+    jobId?: string;
+  };
+  private externalBrowser: Browser | null = null;
+  private usingExternalBrowser: boolean = false;
 
   constructor(options: BrowserScannerOptions<TDomData, TProduct, TConfig>) {
     super(options.config, options.strategy);
     this.parseDOM = options.parseDOM;
+    this.screenshotOptions = options.screenshot;
+    this.externalBrowser = options.externalBrowser || null;
+    this.usingExternalBrowser = !!options.externalBrowser;
   }
 
   /**
@@ -91,16 +114,25 @@ export class BrowserScanner<
 
     const pwConfig = this.playwrightStrategy.playwright;
 
-    // 브라우저 실행
-    this.browser = await chromium.launch({
-      headless: pwConfig.headless,
-      args: pwConfig.browserOptions?.args || [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-blink-features=AutomationControlled",
-      ],
-    });
+    // 외부 Browser 사용 시 (Pool에서 주입)
+    if (this.usingExternalBrowser && this.externalBrowser) {
+      logger.info(
+        { strategyId: this.strategy.id },
+        "외부 Browser 사용 (Pool에서 주입)",
+      );
+      this.browser = this.externalBrowser;
+    } else {
+      // 자체 Browser 생성
+      this.browser = await chromium.launch({
+        headless: pwConfig.headless,
+        args: pwConfig.browserOptions?.args || [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-blink-features=AutomationControlled",
+        ],
+      });
+    }
 
     // 컨텍스트 생성
     const contextOptions = pwConfig.contextOptions || {};
@@ -235,9 +267,16 @@ export class BrowserScanner<
       this.context = null;
     }
 
-    if (this.browser) {
+    // 외부 Browser 사용 시 종료하지 않음 (Pool에서 관리)
+    if (this.browser && !this.usingExternalBrowser) {
       await this.browser.close();
       this.browser = null;
+    } else if (this.usingExternalBrowser) {
+      logger.info(
+        { strategyId: this.strategy.id },
+        "외부 Browser는 Pool에서 관리 - 종료 스킵",
+      );
+      this.browser = null; // 참조만 제거
     }
 
     logger.info({ strategyId: this.strategy.id }, "브라우저 정리 완료");
@@ -393,5 +432,57 @@ export class BrowserScanner<
     throw new Error(
       `잘못된 extraction 설정 - strategy: ${this.strategy.id}. method는 'evaluate'(+script) 또는 'selector'(+selectors) 필요`,
     );
+  }
+
+  /**
+   * 스크린샷 저장
+   */
+  private async takeScreenshot(
+    id: string,
+    isError: boolean = false,
+  ): Promise<void> {
+    // 스크린샷 비활성화 시 스킵
+    if (!this.screenshotOptions?.enabled || !this.page) {
+      return;
+    }
+
+    try {
+      const { outputDir, jobId } = this.screenshotOptions;
+
+      // Platform ID 추출 (config에서)
+      const platform =
+        (this.config as any).platform?.id ||
+        (this.config as any).id ||
+        "unknown";
+
+      // 디렉토리 생성: outputDir/platform/
+      const platformDir = path.join(outputDir, platform);
+      await fs.mkdir(platformDir, { recursive: true });
+
+      // 파일명 생성: {jobId}_{product_set_id}_{status}.png
+      const status = isError ? "error" : "success";
+      const filename = jobId
+        ? `${jobId}_${id}_${status}.png`
+        : `${id}_${status}.png`;
+
+      const filepath = path.join(platformDir, filename);
+
+      // 스크린샷 저장
+      await this.page.screenshot({
+        path: filepath,
+        fullPage: true,
+      });
+
+      logger.debug(
+        { strategyId: this.strategy.id, filepath, status },
+        "스크린샷 저장 완료",
+      );
+    } catch (error) {
+      // 스크린샷 실패는 무시 (원래 작업에 영향 주지 않음)
+      logger.warn(
+        { strategyId: this.strategy.id, error },
+        "스크린샷 저장 실패 - 무시",
+      );
+    }
   }
 }

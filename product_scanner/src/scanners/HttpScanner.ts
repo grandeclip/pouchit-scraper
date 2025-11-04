@@ -11,7 +11,7 @@
  * - DIP: 설정에 의존
  */
 
-import { BaseScanner } from "@/scanners/base/BaseScanner";
+import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { HttpStrategyConfig } from "@/core/domain/StrategyConfig";
 import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
@@ -19,7 +19,11 @@ import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
 /**
  * HTTP 스캐너
  */
-export class HttpScanner extends BaseScanner {
+export class HttpScanner extends BaseScanner<
+  HwahaeApiResponse,
+  HwahaeProduct,
+  HwahaeConfig
+> {
   constructor(config: HwahaeConfig, strategy: HttpStrategyConfig) {
     super(config, strategy);
   }
