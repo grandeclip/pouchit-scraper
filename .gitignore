@@ -92,5 +92,8 @@ results/
 Icon
 
 # temp
+.playwright/
+.playwright-mcp/
 hwahae/
 **/oliveyoung-analysis/
+**/musinsa-analysis/

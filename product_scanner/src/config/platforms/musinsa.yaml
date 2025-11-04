@@ -1,0 +1,203 @@
+# 무신사(Musinsa) 플랫폼 설정
+# 전략: Playwright 브라우저 기반 스크래핑
+
+platform: musinsa
+name: "무신사"
+baseUrl: "https://www.musinsa.com"
+
+# 엔드포인트 (Playwright 전용이므로 빈 객체)
+endpoints: {}
+
+# 스캔 전략 (Strategy Pattern)
+strategies:
+  # Playwright 브라우저 전략
+  - id: "browser"
+    type: "playwright"
+    priority: 1
+    description: "브라우저 기반 스크래핑"
+    playwright:
+      headless: true
+      timeout: 30000
+
+      # 브라우저 설정
+      browserOptions:
+        args:
+          - "--disable-blink-features=AutomationControlled"
+
+      # Context 설정
+      contextOptions:
+        viewport:
+          width: 1920
+          height: 1080
+        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+      # 네비게이션 전략
+      navigationSteps:
+        # Step 1: 상품 상세 페이지로 직접 이동
+        - action: "navigate"
+          url: "https://www.musinsa.com/products/${goodsId}"
+          description: "상품 상세 페이지 접속"
+
+        # Step 2: 페이지 로딩 대기
+        - action: "wait"
+          timeout: 3000
+          description: "페이지 렌더링 대기"
+
+      # 데이터 추출 전략
+      extraction:
+        method: "evaluate"
+        description: "DOM에서 상품 정보 추출"
+        script: |
+          () => {
+            // Helper: 알람창(dialog) 체크
+            const hasInvalidDialog = () => {
+              const dialogTexts = ['유효하지 않은 상품', '존재하지 않는', '찾을 수 없'];
+              const allText = document.body.innerText;
+              return dialogTexts.some(text => allText.includes(text));
+            };
+
+            // 1. 삭제된 상품 체크 (알람창 또는 리다이렉트)
+            if (hasInvalidDialog() || window.location.pathname === '/') {
+              return {
+                name: '삭제된 상품',
+                title_images: ['https://via.placeholder.com/1x1'],
+                consumer_price: 0,
+                price: 0,
+                sale_status: 'STSEL',
+                _source: 'not_found',
+                _redirected: true
+              };
+            }
+
+            // 2. 상품명 추출
+            const nameEl = document.querySelector('span.GoodsName-sc-1omefes-1') ||
+                          document.querySelector('.GoodsName__Wrap span');
+            const productName = nameEl?.textContent?.trim() || '';
+
+            // 상품명 없으면 삭제된 상품
+            if (!productName) {
+              return {
+                name: '삭제된 상품',
+                title_images: ['https://via.placeholder.com/1x1'],
+                consumer_price: 0,
+                price: 0,
+                sale_status: 'STSEL',
+                _source: 'not_found',
+                _redirected: false
+              };
+            }
+
+            // 3. 썸네일 추출 (fallback 추가)
+            const thumbnailEl = document.querySelector('img[alt="Thumbnail 0"]') ||
+                               document.querySelector('img[src*="goods_img"]') ||
+                               document.querySelector('.swiper-slide img');
+            const thumbnail = thumbnailEl?.src || 'https://via.placeholder.com/500x600';
+
+            // 4. 정가 추출 (할인 전 가격)
+            const originalPriceEl = document.querySelector('span.text-body_13px_reg.line-through.text-gray-500');
+            const originalPriceText = originalPriceEl?.textContent?.trim() || '';
+            const originalPrice = parseInt(originalPriceText.replace(/[^0-9]/g, '')) || 0;
+
+            // 5. 할인가 추출
+            const priceEl = document.querySelector('span.Price__CalculatedPrice-sc-1hw5bl8-10');
+            const priceText = priceEl?.textContent?.trim() || '';
+            const price = parseInt(priceText.replace(/[^0-9]/g, '')) || 0;
+
+            // 6. 판매 상태 판단
+            const detectSaleStatus = () => {
+              // Helper: 요소가 실제로 보이는지 확인
+              const isVisible = (el) => {
+                if (!el) return false;
+                const style = window.getComputedStyle(el);
+                return style.display !== 'none' &&
+                       style.visibility !== 'hidden' &&
+                       style.opacity !== '0';
+              };
+
+              // 품절 체크: disabled 버튼 또는 품절 텍스트
+              const buyButtons = Array.from(document.querySelectorAll('button'));
+              const buyBtn = buyButtons.find(btn => btn.textContent.includes('구매하기'));
+
+              if (buyBtn) {
+                if (buyBtn.disabled || !isVisible(buyBtn)) {
+                  return 'SLDOT'; // 품절
+                }
+                return 'SELNG'; // 판매중
+              }
+
+              // 구매하기 버튼이 없으면 품절로 간주
+              return 'SLDOT';
+            };
+
+            return {
+              name: productName,
+              title_images: thumbnail ? [thumbnail] : [],
+              consumer_price: originalPrice || price, // 정가 없으면 판매가 사용
+              price: price,
+              sale_status: detectSaleStatus(),
+              _source: 'dom',
+              _redirected: false
+            };
+          }
+
+# 필드 매핑 규칙
+fieldMapping:
+  # 상품명
+  productName:
+    source: "name"
+    type: "string"
+    required: true
+
+  # 썸네일
+  thumbnail:
+    source: "thumbnail"
+    type: "string"
+    required: true
+    normalize: true
+
+  # 정가
+  originalPrice:
+    source: "consumer_price"
+    type: "number"
+    required: true
+
+  # 판매가
+  discountedPrice:
+    source: "price"
+    type: "number"
+    required: true
+
+  # 판매 상태
+  saleStatus:
+    source: "sale_status"
+    type: "enum"
+    required: true
+    mapping:
+      SELNG: "on_sale"      # 판매중
+      SLDOT: "sold_out"     # 품절
+      STSEL: "off_sale"     # 판매중지/삭제
+
+# 검증 규칙
+validation:
+  priceThreshold: 0.10
+  normalizeUrls: true
+  strictMode: false
+
+# 에러 처리
+errorHandling:
+  notFound: "product_deleted"
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+
+# Workflow Rate Limiting
+workflow:
+  rate_limit:
+    enabled: true
+    wait_time_ms: 2000
+    description: "무신사 플랫폼 rate limiting"
+
+  # Concurrency Settings (병렬 처리 설정)
+  concurrency:
+    max: 10        # 최대 병렬 개수
+    default: 8     # 기본 병렬 개수
+    description: "배치 병렬 처리 설정"
