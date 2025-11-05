@@ -2,51 +2,21 @@
  * Result Writer Node Strategy
  *
  * SOLID 원칙:
- * - SRP: 결과 파일 작성만 담당
+ * - SRP: JSONL 결과 파일 확인만 담당 (실제 작성은 ValidationNode에서 수행)
  * - Strategy Pattern: INodeStrategy 구현
+ *
+ * 변경 사항:
+ * - JSONL 파일은 ValidationNode의 StreamingResultWriter가 생성
+ * - ResultWriterNode는 파일 존재 확인 및 메타데이터 전달만 수행
  */
 
 import fs from "fs/promises";
-import path from "path";
 import {
   INodeStrategy,
   NodeContext,
   NodeResult,
 } from "@/core/interfaces/INodeStrategy";
-import { getTimestampWithTimezone } from "@/utils/timestamp";
-import { mergeConfig } from "@/utils/ConfigMerger";
 import { logger } from "@/config/logger";
-
-/**
- * 검증 결과 타입 (Platform-agnostic)
- */
-interface ValidationResultItem {
-  product_set_id: string;
-  product_id: string;
-  status: string;
-  validated_at: string;
-  db?: {
-    product_name?: string | null;
-  };
-  fetch?: {
-    product_name?: string;
-  } | null;
-  comparison?: {
-    product_name?: boolean;
-  };
-  match?: boolean;
-  error?: string;
-}
-
-/**
- * Result Writer Node Config
- */
-interface ResultWriterConfig {
-  output_dir: string;
-  format: "json" | "jsonl" | "csv";
-  filename?: string;
-  pretty?: boolean;
-}
 
 /**
  * Result Writer Node Strategy
@@ -56,26 +26,19 @@ export class ResultWriterNode implements INodeStrategy {
 
   /**
    * 노드 실행
+   * Streaming Write 모드: JSONL 파일 메타데이터 확인 (이미 완료됨)
    */
   async execute(context: NodeContext): Promise<NodeResult> {
-    const { config, params, input, job_id, workflow_id } = context;
+    const { params, input } = context;
 
-    // 현재 시각 기록 (Job 완료 시각)
-    const completedAt = getTimestampWithTimezone();
-
-    // Config와 params 병합
-    const writerConfig = mergeConfig<ResultWriterConfig>(config, params);
-
-    // Platform 정보 추출 (Multi-Queue Architecture)
-    // 하위 호환성: platform이 없으면 "default" 사용
+    // Platform 정보 추출
     const platform = (params.platform as string) || "default";
 
-    // 이전 노드의 검증 결과 가져오기 (platform-agnostic)
-    // 가능한 키: hwahae_validation, oliveyoung_validation, ...
+    // 이전 노드의 검증 결과 가져오기 (Streaming Write 모드)
     const validationKey = `${platform}_validation`;
     const validationResult = input[validationKey] as
       | {
-          validations: unknown[];
+          jsonl_path: string;
           summary: {
             total: number;
             success: number;
@@ -83,6 +46,7 @@ export class ResultWriterNode implements INodeStrategy {
             not_found: number;
             match_rate: number;
           };
+          record_count: number;
         }
       | undefined;
 
@@ -97,203 +61,56 @@ export class ResultWriterNode implements INodeStrategy {
       };
     }
 
-    logger.info(
-      { type: this.type, count: validationResult.validations.length },
-      "결과 파일 작성 중",
-    );
+    const jsonlPath = validationResult.jsonl_path;
 
     try {
-      // 날짜 기반 출력 디렉토리 생성 (YYYY-MM-DD)
-      const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-      const baseOutputDir = path.resolve(writerConfig.output_dir);
-      const outputDir = path.join(baseOutputDir, date);
-      await fs.mkdir(outputDir, { recursive: true });
-
-      // 파일명 생성: job_{platform}_{job_id}.json
-      const filename =
-        writerConfig.filename || `job_${platform}_${job_id}.json`;
-      const filePath = path.join(outputDir, filename);
-
-      // 출력 데이터 준비
-      // Job 메타데이터에서 시작 시간 가져오기 (없으면 현재 시각 사용)
-      const jobMetadata = input.job_metadata as
-        | { started_at?: string }
-        | undefined;
-      const startedAt = jobMetadata?.started_at || completedAt;
-
-      const outputData = {
-        job_id,
-        platform,
-        workflow_id, // context에서 직접 가져옴
-        started_at: startedAt,
-        completed_at: completedAt,
-        summary: validationResult.summary,
-        validations: validationResult.validations,
-      };
-
-      // 포맷별 저장
-      switch (writerConfig.format) {
-        case "json":
-          await this.writeJson(
-            filePath,
-            outputData,
-            writerConfig.pretty ?? true,
-          );
-          break;
-        case "jsonl":
-          await this.writeJsonLines(filePath, validationResult.validations);
-          break;
-        case "csv":
-          await this.writeCsv(filePath, validationResult.validations);
-          break;
-        default:
-          throw new Error(`Unsupported format: ${writerConfig.format}`);
-      }
-
-      // 파일 크기 조회
-      const stats = await fs.stat(filePath);
+      // 파일 존재 확인
+      const stats = await fs.stat(jsonlPath);
       const fileSize = stats.size;
 
       logger.info(
         {
           type: this.type,
-          filePath,
-          fileSize,
-          recordCount: validationResult.validations.length,
+          jsonl_path: jsonlPath,
+          file_size: fileSize,
+          record_count: validationResult.record_count,
+          summary: validationResult.summary,
         },
-        "결과 파일 작성 완료",
+        "JSONL 결과 파일 확인 완료 (메타데이터 포함)",
       );
 
       return {
         success: true,
         data: {
           result_writer: {
-            file_path: filePath,
+            jsonl_path: jsonlPath,
             file_size: fileSize,
-            record_count: validationResult.validations.length,
+            record_count: validationResult.record_count,
+            summary: validationResult.summary,
             written_at: new Date().toISOString(),
           },
         },
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      logger.error({ type: this.type, error: message }, "결과 파일 작성 실패");
+      logger.error({ type: this.type, error: message }, "결과 파일 확인 실패");
 
       return {
         success: false,
         data: {},
         error: {
           message,
-          code: "RESULT_WRITE_ERROR",
+          code: "RESULT_FILE_NOT_FOUND",
         },
       };
     }
   }
 
   /**
-   * JSON 저장
-   */
-  private async writeJson(
-    filePath: string,
-    data: unknown,
-    pretty: boolean,
-  ): Promise<void> {
-    const content = pretty
-      ? JSON.stringify(data, null, 2)
-      : JSON.stringify(data);
-    await fs.writeFile(filePath, content, "utf-8");
-  }
-
-  /**
-   * JSON Lines 저장
-   */
-  private async writeJsonLines(
-    filePath: string,
-    validations: unknown[],
-  ): Promise<void> {
-    const lines = validations.map((v) => JSON.stringify(v)).join("\n");
-    await fs.writeFile(filePath, lines, "utf-8");
-  }
-
-  /**
-   * CSV 저장
-   */
-  private async writeCsv(
-    filePath: string,
-    validations: unknown[],
-  ): Promise<void> {
-    const headers = [
-      "product_set_id",
-      "product_id",
-      "status",
-      "validated_at",
-      "db_product_name",
-      "fetch_product_name",
-      "product_name_match",
-      "overall_match",
-      "error",
-    ];
-
-    const typedValidations = validations as ValidationResultItem[];
-
-    const rows = typedValidations.map((v) => {
-      return [
-        v.product_set_id || "",
-        v.product_id || "",
-        v.status || "",
-        v.validated_at || "",
-        this.escapeCsv(v.db?.product_name || ""),
-        this.escapeCsv(v.fetch?.product_name || ""),
-        v.comparison?.product_name || false,
-        v.match || false,
-        this.escapeCsv(v.error || ""),
-      ].join(",");
-    });
-
-    const content = [headers.join(","), ...rows].join("\n");
-    await fs.writeFile(filePath, content, "utf-8");
-  }
-
-  /**
-   * CSV 값 이스케이프
-   */
-  private escapeCsv(value: string | number | boolean): string {
-    const str = String(value);
-
-    if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-
-    return str;
-  }
-
-  /**
-   * Config 검증
+   * Config 검증 (현재는 검증 로직 없음 - JSONL만 사용)
    */
   validateConfig(config: Record<string, unknown>): void {
-    if (!config.output_dir) {
-      throw new Error("output_dir is required");
-    }
-
-    if (typeof config.output_dir !== "string") {
-      throw new Error("output_dir must be a string");
-    }
-
-    if (!config.format) {
-      throw new Error("format is required");
-    }
-
-    const format = config.format as string;
-    if (!["json", "jsonl", "csv"].includes(format)) {
-      throw new Error("format must be one of: json, jsonl, csv");
-    }
-
-    if (config.filename !== undefined && typeof config.filename !== "string") {
-      throw new Error("filename must be a string");
-    }
-
-    if (config.pretty !== undefined && typeof config.pretty !== "boolean") {
-      throw new Error("pretty must be a boolean");
-    }
+    // JSONL 파일은 ValidationNode에서 생성되므로 검증 불필요
+    logger.debug({ type: this.type }, "ResultWriterNode config 검증 생략");
   }
 }

@@ -4,218 +4,43 @@
  * SOLID 원칙:
  * - SRP: 화해 검증 및 비교만 담당
  * - DIP: HwahaeScanService에 의존
+ * - LSP: BaseValidationNode 대체 가능
  * - Strategy Pattern: INodeStrategy 구현
+ *
+ * 변경 사항:
+ * - BaseValidationNode 상속으로 코드 중복 제거
+ * - 플랫폼별 구현만 유지 (extractProductId, validateProductWithPage)
  */
 
 import {
-  INodeStrategy,
-  NodeContext,
-  NodeResult,
-} from "@/core/interfaces/INodeStrategy";
-import { HwahaeScanService } from "@/services/HwahaeScanService";
+  BaseValidationNode,
+  ProductValidationResult,
+  PlatformProductData,
+} from "./base/BaseValidationNode";
 import { ProductSetSearchResult } from "@/core/domain/ProductSet";
-import { getTimestampWithTimezone } from "@/utils/timestamp";
-import { ConfigLoader } from "@/config/ConfigLoader";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
-import { logImportant } from "@/utils/logger-context";
-
-/**
- * Hwahae Validation Node Config
- */
-interface HwahaeValidationConfig {
-  strategy_id?: string;
-  concurrency?: number;
-  timeout_ms?: number;
-}
-
-/**
- * 단일 상품 검증 결과
- */
-interface ProductValidationResult {
-  product_set_id: string;
-  product_id: string;
-  url: string | null; // 검증 시도한 link_url
-  db: {
-    product_name: string | null;
-    thumbnail?: string | null;
-    original_price?: number | null;
-    discounted_price?: number | null;
-    sale_status?: string | null;
-  };
-  fetch: {
-    product_name: string;
-    thumbnail: string;
-    original_price: number;
-    discounted_price: number;
-    sale_status: string;
-  } | null;
-  comparison: {
-    product_name: boolean;
-    thumbnail: boolean;
-    original_price: boolean;
-    discounted_price: boolean;
-    sale_status: boolean;
-  };
-  match: boolean;
-  status: "success" | "failed" | "not_found";
-  error?: string;
-  validated_at: string;
-}
+import type { Page } from "playwright";
+import { HwahaeScanService } from "@/services/HwahaeScanService";
 
 /**
  * Hwahae Validation Node Strategy
  */
-export class HwahaeValidationNode implements INodeStrategy {
+export class HwahaeValidationNode extends BaseValidationNode {
   public readonly type = "hwahae_validation";
   private service: HwahaeScanService;
-  private configLoader: ConfigLoader;
 
   constructor(service: HwahaeScanService = new HwahaeScanService()) {
+    super();
     // Dependency Injection (DIP 준수)
     this.service = service;
-    this.configLoader = ConfigLoader.getInstance();
   }
 
   /**
-   * 노드 실행
+   * Platform ID 추출
    */
-  async execute(context: NodeContext): Promise<NodeResult> {
-    const { input } = context;
-
-    // 이전 노드(SupabaseSearchNode)의 결과 가져오기
-    const supabaseResult = input.supabase_search as
-      | { products: ProductSetSearchResult[]; count: number }
-      | undefined;
-
-    if (!supabaseResult || !supabaseResult.products) {
-      return {
-        success: false,
-        data: {},
-        error: {
-          message: "No products found from previous node",
-          code: "MISSING_INPUT_DATA",
-        },
-      };
-    }
-
-    const products = supabaseResult.products;
-    logImportant(logger, `[${this.type}] 검증 시작`, {
-      product_count: products.length,
-    });
-
-    try {
-      // Platform Config에서 Rate Limit 설정 로드
-      const config: PlatformConfig = this.configLoader.loadConfig(
-        "hwahae",
-      ) as PlatformConfig;
-      const waitTimeMs = config.workflow?.rate_limit?.wait_time_ms || 1000;
-
-      // 순차 검증 (MVP) - Rate Limiting 적용
-      const validations: ProductValidationResult[] = [];
-
-      for (let i = 0; i < products.length; i++) {
-        const product = products[i];
-
-        // Rate Limiting: 첫 번째 요청이 아니면 대기
-        if (i > 0) {
-          logger.debug(
-            { wait_time_ms: waitTimeMs, index: i },
-            `[${this.type}] Rate limiting 대기`,
-          );
-          await this.sleep(waitTimeMs);
-        }
-
-        const validation = await this.validateProduct(product);
-        validations.push(validation);
-
-        // 상품별 검증 결과 즉시 출력
-        logImportant(logger, `[${this.type}] 상품 검증 완료`, {
-          product_set_id: product.product_set_id,
-          url: product.link_url,
-          status: validation.status,
-          ...(validation.status === "failed" && { error: validation.error }),
-          ...(validation.status === "success" && {
-            match: validation.match,
-          }),
-        });
-      }
-
-      // 요약 통계 계산
-      const summary = this.calculateSummary(validations);
-
-      logImportant(logger, `[${this.type}] 전체 검증 완료`, {
-        summary,
-      });
-
-      return {
-        success: true,
-        data: {
-          hwahae_validation: {
-            validations,
-            summary,
-          },
-        },
-      };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error({ error: message }, `[${this.type}] 검증 실패`);
-
-      return {
-        success: false,
-        data: {},
-        error: {
-          message,
-          code: "HWAHAE_VALIDATION_ERROR",
-        },
-      };
-    }
-  }
-
-  /**
-   * 단일 상품 검증
-   */
-  private async validateProduct(
-    product: ProductSetSearchResult,
-  ): Promise<ProductValidationResult> {
-    try {
-      // link_url에서 goodsId 추출
-      if (!product.link_url) {
-        return this.createFailedValidation(product, "link_url is null");
-      }
-
-      const goodsId = this.extractGoodsId(product.link_url);
-
-      if (!goodsId) {
-        return this.createFailedValidation(
-          product,
-          "Failed to extract goodsId from link_url",
-        );
-      }
-
-      logger.info(
-        {
-          product_set_id: product.product_set_id,
-          goods_id: goodsId,
-          url: product.link_url,
-        },
-        `[${this.type}] 상품 검증`,
-      );
-
-      // 화해 API로 상품 조회
-      const hwahaeProduct = await this.service.scanProduct(goodsId);
-
-      // 비교 결과 생성
-      return this.compareProducts(product, hwahaeProduct);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-
-      if (message.includes("not found")) {
-        return this.createNotFoundValidation(product);
-      }
-
-      return this.createFailedValidation(product, message);
-    }
+  protected extractPlatform(params: Record<string, unknown>): string {
+    return (params.platform as string) || "hwahae";
   }
 
   /**
@@ -232,7 +57,7 @@ export class HwahaeValidationNode implements INodeStrategy {
    * 1. Query parameter 제거 (? 이후)
    * 2. /goods/ 또는 /products/ 이후 경로에서 마지막 연속된 숫자 추출
    */
-  private extractGoodsId(linkUrl: string): string | null {
+  protected extractProductId(linkUrl: string): string | null {
     // hwahae URL인지 확인
     if (!linkUrl.includes("hwahae.co.kr")) {
       return null;
@@ -261,158 +86,58 @@ export class HwahaeValidationNode implements INodeStrategy {
   }
 
   /**
-   * 상품 비교
+   * 단일 상품 검증 (플랫폼별 구현)
    */
-  private compareProducts(
-    supabase: ProductSetSearchResult,
-    hwahae: {
-      productName: string;
-      thumbnail: string;
-      originalPrice: number;
-      discountedPrice: number;
-      saleStatus: string;
-    },
-  ): ProductValidationResult {
-    const comparison = {
-      product_name: supabase.product_name === hwahae.productName,
-      thumbnail: supabase.thumbnail === hwahae.thumbnail,
-      original_price: supabase.original_price === hwahae.originalPrice,
-      discounted_price: supabase.discounted_price === hwahae.discountedPrice,
-      sale_status: supabase.sale_status === hwahae.saleStatus,
-    };
-
-    // 모든 필드가 true인지 확인
-    const match = Object.values(comparison).every((value) => value === true);
-
-    return {
-      product_set_id: supabase.product_set_id,
-      product_id: supabase.product_id,
-      url: supabase.link_url,
-      db: {
-        product_name: supabase.product_name,
-        thumbnail: supabase.thumbnail,
-        original_price: supabase.original_price,
-        discounted_price: supabase.discounted_price,
-        sale_status: supabase.sale_status,
-      },
-      fetch: {
-        product_name: hwahae.productName,
-        thumbnail: hwahae.thumbnail,
-        original_price: hwahae.originalPrice,
-        discounted_price: hwahae.discountedPrice,
-        sale_status: hwahae.saleStatus,
-      },
-      comparison,
-      match,
-      status: "success",
-      validated_at: getTimestampWithTimezone(),
-    };
-  }
-
-  /**
-   * 실패 검증 결과 생성
-   */
-  private createFailedValidation(
+  protected async validateProductWithPage(
     product: ProductSetSearchResult,
-    errorMessage: string,
-  ): ProductValidationResult {
-    return {
-      product_set_id: product.product_set_id,
-      product_id: product.product_id,
-      url: product.link_url,
-      db: {
-        product_name: product.product_name,
-        thumbnail: product.thumbnail,
-        original_price: product.original_price,
-        discounted_price: product.discounted_price,
-        sale_status: product.sale_status,
-      },
-      fetch: null,
-      comparison: {
-        product_name: false,
-        thumbnail: false,
-        original_price: false,
-        discounted_price: false,
-        sale_status: false,
-      },
-      match: false,
-      status: "failed",
-      error: errorMessage,
-      validated_at: getTimestampWithTimezone(),
-    };
-  }
-
-  /**
-   * Not Found 검증 결과 생성
-   */
-  private createNotFoundValidation(
-    product: ProductSetSearchResult,
-  ): ProductValidationResult {
-    return {
-      ...this.createFailedValidation(product, "Product not found in Hwahae"),
-      status: "not_found",
-    };
-  }
-
-  /**
-   * 요약 통계 계산
-   */
-  private calculateSummary(validations: ProductValidationResult[]) {
-    const total = validations.length;
-    const success = validations.filter((v) => v.status === "success").length;
-    const failed = validations.filter((v) => v.status === "failed").length;
-    const notFound = validations.filter((v) => v.status === "not_found").length;
-
-    // 매칭된 상품 수 계산 (모든 필드가 true인 상품)
-    const totalMatched = validations.filter((v) => v.match === true).length;
-
-    // 매칭률 계산 (전체 상품 중 완전히 일치하는 상품 비율)
-    const matchRate = total > 0 ? (totalMatched / total) * 100 : 0;
-
-    return {
-      total,
-      success,
-      failed,
-      not_found: notFound,
-      total_matched: totalMatched,
-      match_rate: Math.round(matchRate * 100) / 100,
-    };
-  }
-
-  /**
-   * Sleep 유틸리티 (Rate Limiting용)
-   */
-  private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  /**
-   * Config 검증
-   */
-  validateConfig(config: Record<string, unknown>): void {
-    if (
-      config.strategy_id !== undefined &&
-      typeof config.strategy_id !== "string"
-    ) {
-      throw new Error("strategy_id must be a string");
-    }
-
-    if (config.concurrency !== undefined) {
-      const concurrency = config.concurrency as number;
-      if (
-        typeof concurrency !== "number" ||
-        concurrency <= 0 ||
-        concurrency > 10
-      ) {
-        throw new Error("concurrency must be a positive number <= 10");
+    page: Page,
+    platformConfig: PlatformConfig,
+  ): Promise<ProductValidationResult> {
+    try {
+      // link_url에서 goodsId 추출
+      if (!product.link_url) {
+        return this.createFailedValidation(product, "link_url is null");
       }
-    }
 
-    if (config.timeout_ms !== undefined) {
-      const timeoutMs = config.timeout_ms as number;
-      if (typeof timeoutMs !== "number" || timeoutMs <= 0) {
-        throw new Error("timeout_ms must be a positive number");
+      const goodsId = this.extractProductId(product.link_url);
+
+      if (!goodsId) {
+        return this.createFailedValidation(
+          product,
+          "Failed to extract goodsId from link_url",
+        );
       }
+
+      logger.info(
+        {
+          product_set_id: product.product_set_id,
+          goods_id: goodsId,
+          url: product.link_url,
+        },
+        `[${this.type}] 상품 검증`,
+      );
+
+      // 화해 API로 상품 조회
+      const hwahaeProduct = await this.service.scanProduct(goodsId);
+
+      // 비교 결과 생성
+      const platformData: PlatformProductData = {
+        productName: hwahaeProduct.productName,
+        thumbnail: hwahaeProduct.thumbnail,
+        originalPrice: hwahaeProduct.originalPrice,
+        discountedPrice: hwahaeProduct.discountedPrice,
+        saleStatus: hwahaeProduct.saleStatus,
+      };
+
+      return this.compareProducts(product, platformData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.includes("not found")) {
+        return this.createNotFoundValidation(product, "Hwahae");
+      }
+
+      return this.createFailedValidation(product, message);
     }
   }
 }
