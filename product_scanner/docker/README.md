@@ -24,7 +24,7 @@ Product Scanner 모듈의 Docker 기반 개발/배포 환경 설정 및 사용�
 - **개발 속도**: 로컬 IDE에서 편집 → 즉시 컨테이너 반영 → hot reload
 - **환경 일치**: 모든 실행이 Docker 컨테이너 내 → 배포 환경과 100% 동일
 - **타입 안전**: TypeScript strict mode가 컨테이너 내에서 검증
-- **팀 협업**: docker-compose.dev.yml 하나로 모든 팀원 동일 환경
+- **팀 협업**: docker compose.dev.yml 하나로 모든 팀원 동일 환경
 
 ### 핵심 개념
 
@@ -53,8 +53,8 @@ product_scanner/
 ├── docker/                       # Docker 설정 파일 디렉토리
 │   ├── Dockerfile                # 배포용 (Multi-stage build)
 │   ├── Dockerfile.dev            # 개발용 (Volume mount)
-│   ├── docker-compose.yml        # 배포 환경 설정
-│   └── docker-compose.dev.yml    # 개발 환경 설정
+│   ├── docker compose.yml        # 배포 환경 설정
+│   └── docker compose.dev.yml    # 개발 환경 설정
 ├── .dockerignore                 # 불필요한 파일 제외
 ├── Makefile                      # Docker 명령어 단축키
 └── package.json                  # npm 스크립트
@@ -65,7 +65,7 @@ product_scanner/
 | 항목             | 개발 환경                       | 배포 환경                   |
 | ---------------- | ------------------------------- | --------------------------- |
 | **Dockerfile**   | Dockerfile.dev                  | Dockerfile (Multi-stage)    |
-| **Compose 파일** | docker-compose.dev.yml          | docker-compose.yml          |
+| **Compose 파일** | docker compose.dev.yml          | docker compose.yml          |
 | **Volume Mount** | ✅ Yes (`./:/app`)              | ❌ No                       |
 | **Hot Reload**   | ✅ tsx watch                    | ❌ tsx (일반)               |
 | **node_modules** | 컨테이너 격리                   | 이미지 내장                 |
@@ -105,7 +105,7 @@ cd product_scanner
 make dev
 
 # 또는 수동 실행
-docker-compose -f docker-compose.dev.yml up --build
+docker compose -f docker compose.dev.yml up --build
 ```
 
 #### 3. 컨테이너 상태 확인
@@ -143,7 +143,7 @@ make dev-down
 make type-check
 
 # 또는 수동
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev npm run type-check
+docker compose -f docker compose.dev.yml exec product_scanner_dev npm run type-check
 ```
 
 **왜 컨테이너 내에서?**
@@ -159,7 +159,7 @@ docker-compose -f docker-compose.dev.yml exec product_scanner_dev npm run type-c
 make test
 
 # 또는 수동
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev npm test
+docker compose -f docker compose.dev.yml exec product_scanner_dev npm test
 ```
 
 ### 디버깅
@@ -174,14 +174,14 @@ make logs
 make logs-f
 
 # 수동
-docker-compose -f docker-compose.dev.yml logs -f product_scanner_dev
+docker compose -f docker compose.dev.yml logs -f product_scanner_dev
 ```
 
 #### 컨테이너 내부 접속
 
 ```bash
 # Shell 접속
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev sh
+docker compose -f docker compose.dev.yml exec product_scanner_dev sh
 
 # 컨테이너 내에서
 ls -la /app
@@ -219,7 +219,7 @@ cd product_scanner
 make prod
 
 # 또는 수동 실행
-docker-compose up --build -d
+docker compose up --build -d
 ```
 
 ### 상태 확인
@@ -227,13 +227,13 @@ docker-compose up --build -d
 ```bash
 # 컨테이너 상태
 make status
-# 또는: docker-compose ps
+# 또는: docker compose ps
 
 # 헬스 체크
 curl http://localhost:3989/health
 
 # 로그 확인
-docker-compose logs -f product_scanner
+docker compose logs -f product_scanner
 ```
 
 ---
@@ -292,8 +292,8 @@ make clean
 make dev
 
 # 또는 수동
-docker-compose -f docker-compose.dev.yml down -v
-docker-compose -f docker-compose.dev.yml up --build
+docker compose -f docker compose.dev.yml down -v
+docker compose -f docker compose.dev.yml up --build
 ```
 
 ### 4. 타입 체크 실패
@@ -307,7 +307,7 @@ docker-compose -f docker-compose.dev.yml up --build
 make logs
 
 # 컨테이너 내부 확인
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev sh
+docker compose -f docker compose.dev.yml exec product_scanner_dev sh
 npx tsc --noEmit
 
 # tsconfig.json 확인
@@ -322,8 +322,8 @@ cat tsconfig.json
 
 ```bash
 # Docker 빌드 캐시 무시
-docker-compose -f docker-compose.dev.yml build --no-cache
-docker-compose -f docker-compose.dev.yml up
+docker compose -f docker compose.dev.yml build --no-cache
+docker compose -f docker compose.dev.yml up
 
 # 또는 전체 이미지 재빌드
 make clean
@@ -345,9 +345,9 @@ make dev
 
 **A**:
 
-- 긴 docker-compose 명령어를 단축
+- 긴 docker compose 명령어를 단축
 - 팀원 간 일관된 명령어 사용
-- 실수 방지 (예: docker-compose.dev.yml 대신 docker-compose.yml 사용)
+- 실수 방지 (예: docker compose.dev.yml 대신 docker compose.yml 사용)
 
 ### Q3. Volume mount 대신 이미지에 코드를 포함하면 안되나요?
 

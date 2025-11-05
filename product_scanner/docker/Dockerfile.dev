@@ -14,7 +14,7 @@ COPY package.json package-lock.json tsconfig.json ./
 RUN npm install
 
 # 소스 코드는 volume mount로 연결됨
-# (docker-compose.dev.yml에서 ./:/app으로 마운트)
+# (docker compose.dev.yml에서 ./:/app으로 마운트)
 
 # 환경 변수 설정
 ENV NODE_ENV=development

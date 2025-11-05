@@ -1296,7 +1296,7 @@ export const WORKFLOW_CONFIG = {
 **Environment Variable Support**:
 
 ```bash
-# .env or docker-compose.yml
+# .env or docker compose.yml
 WORKFLOW_PLATFORMS=hwahae,oliveyoung,coupang  # Custom platform list
 WORKER_POLL_INTERVAL=3000                      # Custom polling interval
 ```
