@@ -12,8 +12,9 @@ import { ConfigLoader } from "@/config/ConfigLoader";
 import { ScannerRegistry } from "@/services/ScannerRegistry";
 
 const TEST_CASES = [
+  // Job에서 실패한 케이스들 (모바일 환경 테스트)
   {
-    name: "정상 판매 상품",
+    name: "[JOB 실패] 지베르니 파운데이션",
     goodsNo: "4350236",
     expected: {
       sale_status: "SELNG",
@@ -21,6 +22,43 @@ const TEST_CASES = [
       hasPrice: true,
     },
   },
+  {
+    name: "[JOB 실패] 네이처리퍼블릭 샴푸",
+    goodsNo: "3025352",
+    expected: {
+      sale_status: "SELNG",
+      hasName: true,
+      hasPrice: true,
+    },
+  },
+  {
+    name: "[JOB 실패] 잉가 립틴트",
+    goodsNo: "3491425",
+    expected: {
+      sale_status: "SELNG",
+      hasName: true,
+      hasPrice: true,
+    },
+  },
+  {
+    name: "[JOB 실패] 에스트라 크림",
+    goodsNo: "2172345",
+    expected: {
+      sale_status: "SLDOT",
+      hasName: true,
+      hasPrice: true,
+    },
+  },
+  {
+    name: "[JOB 실패] 닥터포헤어 토닉",
+    goodsNo: "1430803",
+    expected: {
+      sale_status: "SELNG",
+      hasName: true,
+      hasPrice: true,
+    },
+  },
+  // 기존 테스트 케이스
   {
     name: "품절 상품",
     goodsNo: "4359070",

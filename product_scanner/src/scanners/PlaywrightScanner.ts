@@ -220,6 +220,13 @@ export class PlaywrightScanner extends BaseScanner<
           }
           break;
 
+        case "evaluate":
+          if (step.script) {
+            logger.info({ strategy_id: this.strategy.id }, "JavaScript 실행");
+            await this.page.evaluate(step.script);
+          }
+          break;
+
         default:
           logger.warn(
             { strategy_id: this.strategy.id, action: step.action },

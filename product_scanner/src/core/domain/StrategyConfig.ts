@@ -53,6 +53,9 @@ export interface PlaywrightStrategyConfig extends BaseStrategyConfig {
       userAgent?: string;
       locale?: string;
       timezoneId?: string;
+      isMobile?: boolean;
+      hasTouch?: boolean;
+      deviceScaleFactor?: number;
     };
     navigationSteps: NavigationStep[];
     extraction: ExtractionConfig;
@@ -63,11 +66,19 @@ export interface PlaywrightStrategyConfig extends BaseStrategyConfig {
  * 네비게이션 스텝
  */
 export interface NavigationStep {
-  action: "navigate" | "wait" | "click" | "type" | "waitForSelector";
+  action:
+    | "navigate"
+    | "wait"
+    | "click"
+    | "type"
+    | "waitForSelector"
+    | "evaluate";
   selector?: string;
   value?: string;
   url?: string;
   timeout?: number;
+  script?: string; // evaluate 액션용 JavaScript 코드
+  description?: string; // 로깅용
 }
 
 /**

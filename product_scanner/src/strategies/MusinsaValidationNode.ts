@@ -86,6 +86,7 @@ export class MusinsaValidationNode implements INodeStrategy {
   public readonly type = "musinsa_validation";
   private configLoader: ConfigLoader;
   private browserPool: BrowserPool | null = null;
+  private platformConfig: PlatformConfig | null = null;
 
   constructor() {
     this.configLoader = ConfigLoader.getInstance();
@@ -119,19 +120,19 @@ export class MusinsaValidationNode implements INodeStrategy {
     const products = supabaseResult.products;
 
     // Platform Config에서 설정 로드
-    const platformConfig: PlatformConfig = this.configLoader.loadConfig(
+    this.platformConfig = this.configLoader.loadConfig(
       platform,
     ) as PlatformConfig;
     const waitTimeMs =
-      platformConfig.workflow?.rate_limit?.wait_time_ms || 3000;
+      this.platformConfig.workflow?.rate_limit?.wait_time_ms || 3000;
     const maxConcurrency =
-      platformConfig.workflow?.concurrency?.max ||
+      this.platformConfig.workflow?.concurrency?.max ||
       VALIDATION_CONFIG.DEFAULT_MAX_CONCURRENCY;
 
     // Concurrency 설정: config → YAML default → 1 (순차)
     const requestedConcurrency =
       (config.concurrency as number) ||
-      platformConfig.workflow?.concurrency?.default ||
+      this.platformConfig.workflow?.concurrency?.default ||
       1;
     const concurrency = Math.min(requestedConcurrency, maxConcurrency);
 
@@ -191,7 +192,7 @@ export class MusinsaValidationNode implements INodeStrategy {
           return this.validateBatchWithPool(
             batch,
             index,
-            platformConfig,
+            this.platformConfig!,
             waitTimeMs,
             jobId,
           );
@@ -431,12 +432,21 @@ export class MusinsaValidationNode implements INodeStrategy {
     context: BrowserContext;
     page: Page;
   }> {
+    // Platform Config에서 설정 가져오기
+    const pwStrategy = this.platformConfig?.strategies?.find(
+      (s: { type: string }) => s.type === "playwright",
+    );
+    const contextOptions = pwStrategy?.playwright?.contextOptions || {};
+
     // Context 생성
     const context = await browser.newContext({
-      viewport: SCRAPER_CONFIG.DEFAULT_VIEWPORT,
-      userAgent: SCRAPER_CONFIG.DEFAULT_USER_AGENT,
-      locale: "ko-KR",
-      timezoneId: "Asia/Seoul",
+      viewport: contextOptions.viewport || SCRAPER_CONFIG.DEFAULT_VIEWPORT,
+      userAgent: contextOptions.userAgent || SCRAPER_CONFIG.DEFAULT_USER_AGENT,
+      locale: contextOptions.locale || "ko-KR",
+      timezoneId: contextOptions.timezoneId || "Asia/Seoul",
+      isMobile: contextOptions.isMobile || false,
+      hasTouch: contextOptions.hasTouch || false,
+      deviceScaleFactor: contextOptions.deviceScaleFactor || 1,
     });
 
     // Anti-detection 설정
@@ -685,6 +695,9 @@ export class MusinsaValidationNode implements INodeStrategy {
     }
 
     try {
+      // 페이지 렌더링 완료 대기 (1초)
+      await page.waitForTimeout(1000);
+
       const platform = "musinsa";
       const outputDir = VALIDATION_CONFIG.SCREENSHOT_OUTPUT_DIR;
 
@@ -702,7 +715,6 @@ export class MusinsaValidationNode implements INodeStrategy {
       // 스크린샷 저장
       await page.screenshot({
         path: filepath,
-        fullPage: true,
       });
 
       logger.debug(

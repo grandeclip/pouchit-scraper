@@ -130,6 +130,28 @@ export class PlaywrightScriptExecutor {
           break;
         }
 
+        case "evaluate": {
+          // JavaScript 코드 실행 (팝업 제거 등)
+          const { script } = step;
+          if (script) {
+            try {
+              // eslint-disable-next-line no-new-func
+              const evaluateFn = new Function(`return ${script}`)();
+              await page.evaluate(evaluateFn);
+              logger.debug({ productId, description }, "evaluate 실행 완료");
+            } catch (error) {
+              logger.warn(
+                {
+                  productId,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+                "evaluate 실행 실패 - 계속 진행",
+              );
+            }
+          }
+          break;
+        }
+
         default:
           logger.warn({ action }, "알 수 없는 navigation action - 스킵");
       }

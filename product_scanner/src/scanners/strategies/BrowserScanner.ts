@@ -141,6 +141,9 @@ export class BrowserScanner<
       userAgent: contextOptions.userAgent || SCRAPER_CONFIG.DEFAULT_USER_AGENT,
       locale: contextOptions.locale || "ko-KR",
       timezoneId: contextOptions.timezoneId || "Asia/Seoul",
+      isMobile: contextOptions.isMobile || false,
+      hasTouch: contextOptions.hasTouch || false,
+      deviceScaleFactor: contextOptions.deviceScaleFactor || 1,
     });
 
     // 추가 anti-detection 설정
@@ -470,7 +473,6 @@ export class BrowserScanner<
       // 스크린샷 저장
       await this.page.screenshot({
         path: filepath,
-        fullPage: true,
       });
 
       logger.debug(
