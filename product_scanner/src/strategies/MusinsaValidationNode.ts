@@ -17,6 +17,7 @@ import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
+import { logImportant } from "@/utils/logger-context";
 import { BrowserPool } from "@/scanners/base/BrowserPool";
 import type { Browser, BrowserContext, Page } from "playwright";
 // MusinsaConfig는 별도로 정의하지 않고 PlatformConfig 사용
@@ -201,7 +202,7 @@ export class MusinsaValidationNode implements INodeStrategy {
       const validations = batchResults.flat();
       const summary = this.calculateSummary(validations);
 
-      logger.info({ type: this.type, summary }, "검증 완료");
+      logImportant(logger, `[${this.type}] 전체 검증 완료`, { summary });
 
       return {
         success: true,
@@ -302,6 +303,17 @@ export class MusinsaValidationNode implements INodeStrategy {
             platformConfig,
           );
           validations.push(validation);
+
+          // 상품별 검증 결과 즉시 출력
+          logImportant(logger, `[${this.type}] 상품 검증 완료`, {
+            product_set_id: product.product_set_id,
+            url: product.link_url,
+            status: validation.status,
+            ...(validation.status === "failed" && { error: validation.error }),
+            ...(validation.status === "success" && {
+              match: validation.match,
+            }),
+          });
 
           // 스크린샷 저장 (성공)
           if (jobId) {

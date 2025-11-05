@@ -71,9 +71,9 @@ export class HwahaeValidationNode implements INodeStrategy {
   private service: HwahaeScanService;
   private configLoader: ConfigLoader;
 
-  constructor(service?: HwahaeScanService) {
-    // Dependency Injection
-    this.service = service || new HwahaeScanService();
+  constructor(service: HwahaeScanService = new HwahaeScanService()) {
+    // Dependency Injection (DIP 준수)
+    this.service = service;
     this.configLoader = ConfigLoader.getInstance();
   }
 
@@ -128,12 +128,23 @@ export class HwahaeValidationNode implements INodeStrategy {
 
         const validation = await this.validateProduct(product);
         validations.push(validation);
+
+        // 상품별 검증 결과 즉시 출력
+        logImportant(logger, `[${this.type}] 상품 검증 완료`, {
+          product_set_id: product.product_set_id,
+          url: product.link_url,
+          status: validation.status,
+          ...(validation.status === "failed" && { error: validation.error }),
+          ...(validation.status === "success" && {
+            match: validation.match,
+          }),
+        });
       }
 
       // 요약 통계 계산
       const summary = this.calculateSummary(validations);
 
-      logImportant(logger, `[${this.type}] 검증 완료`, {
+      logImportant(logger, `[${this.type}] 전체 검증 완료`, {
         summary,
       });
 

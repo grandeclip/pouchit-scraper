@@ -12,6 +12,8 @@
  * 콘솔 출력:
  * - WARNING/ERROR 항상 출력
  * - important: true 인 INFO 출력
+ * - 개발 환경: pino-pretty 포맷
+ * - 프로덕션: JSON 포맷
  *
  * 파일 출력:
  * - 서비스별 파일: server-YYYYMMDD.log, worker-YYYYMMDD.log
@@ -36,17 +38,6 @@ const LOG_PRETTY = process.env.LOG_PRETTY === "true";
 // 로그 디렉토리 생성 (없으면)
 if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR, { recursive: true });
-}
-
-/**
- * 날짜가 포함된 로그 파일명 생성 (YYYYMMDD 형식)
- */
-function generateFilename(prefix: string): string {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${prefix}-${year}${month}${day}.log`;
 }
 
 /**
@@ -144,37 +135,129 @@ class ServiceRoutingStream implements DestinationStream {
 }
 
 /**
- * 콘솔 필터링 스트림
- * WARNING/ERROR 항상 출력, important: true인 INFO만 출력
+ * Pino 로그 레벨 상수
  */
-class ConsoleFilterStream implements DestinationStream {
-  constructor(private targetStream: any) {}
+const LOG_LEVELS = {
+  TRACE: 10,
+  DEBUG: 20,
+  INFO: 30,
+  WARN: 40,
+  ERROR: 50,
+  FATAL: 60,
+} as const;
 
-  write(chunk: string): boolean {
-    try {
-      const log = JSON.parse(chunk);
-      const level = log.level;
+/**
+ * 로그 필터 함수: WARNING/ERROR 항상 출력, important: true인 INFO만 출력
+ */
+const shouldLogToConsole = (level: number, important?: boolean): boolean => {
+  // WARNING(40) 이상 항상 출력
+  if (level >= LOG_LEVELS.WARN) return true;
+  // INFO(30)는 important: true일 때만 출력
+  if (level === LOG_LEVELS.INFO && important === true) return true;
+  return false;
+};
 
-      // WARNING(40) 이상 항상 출력
-      if (level >= 40) {
-        this.targetStream.write(chunk);
-        return true;
-      }
+/**
+ * 콘솔 출력 포맷터 타입
+ */
+type ConsoleFormatter = (logObj: Record<string, any>, level: number) => void;
 
-      // INFO(30)는 important: true일 때만 출력
-      if (level === 30 && log.important === true) {
-        this.targetStream.write(chunk);
-        return true;
-      }
+/**
+ * 개발 환경용 콘솔 포맷터 (색상 + 구조화)
+ */
+const formatConsolePretty: ConsoleFormatter = (logObj, level) => {
+  // msg 필드에서 메시지 추출
+  const msg = logObj.msg || "";
+  const important = Boolean(logObj.important);
+  const time = new Date().toLocaleTimeString("en-US", { hour12: false });
+  const levelColor =
+    level >= LOG_LEVELS.ERROR
+      ? "\x1b[31m"
+      : level >= LOG_LEVELS.WARN
+        ? "\x1b[33m"
+        : "\x1b[32m";
+  const levelText =
+    level >= LOG_LEVELS.ERROR
+      ? "ERROR"
+      : level >= LOG_LEVELS.WARN
+        ? "WARN"
+        : "INFO";
+  const star = important ? " ⭐" : "";
 
-      // 나머지는 스킵
-      return true;
-    } catch (err) {
-      // JSON 파싱 실패 시 그냥 출력
-      this.targetStream.write(chunk);
-      return true;
-    }
+  // 메시지가 있을 때만 출력
+  if (msg) {
+    console.error(
+      `[${time}] ${levelColor}${levelText}\x1b[0m${star} \x1b[36m${msg}\x1b[0m`,
+    );
+  } else {
+    console.error(`[${time}] ${levelColor}${levelText}\x1b[0m${star}`);
   }
+
+  // 추가 필드 출력
+  const excludedFields = [
+    "level",
+    "time",
+    "service",
+    "env",
+    "pid",
+    "hostname",
+    "msg",
+    "important",
+    "skip_file_log",
+  ];
+  const fields = Object.keys(logObj).filter((k) => !excludedFields.includes(k));
+
+  fields.forEach((field) => {
+    const value =
+      typeof logObj[field] === "object"
+        ? JSON.stringify(logObj[field], null, 2)
+            .split("\n")
+            .map((l) => "  " + l)
+            .join("\n")
+        : logObj[field];
+    console.error(`  ${field}: ${value}`);
+  });
+};
+
+/**
+ * 프로덕션 환경용 콘솔 포맷터 (JSON)
+ */
+const formatConsoleJson: ConsoleFormatter = (logObj, level) => {
+  console.log(JSON.stringify({ ...logObj, level }));
+};
+
+/**
+ * 콘솔 출력 Hook 생성 함수
+ */
+function createConsoleHook(
+  formatter: ConsoleFormatter,
+): pino.LoggerOptions["hooks"] {
+  return {
+    logMethod(inputArgs, method, level) {
+      // 파일 로그는 정상 처리
+      method.apply(this, inputArgs);
+
+      // 콘솔 출력 (필터링 적용)
+      // Pino 형식: logger.info(obj, msg) → inputArgs = [obj, msg, ...]
+      const [obj, msg] = inputArgs;
+      const logObj: Record<string, any> =
+        typeof obj === "object" && obj !== null
+          ? (obj as Record<string, any>)
+          : {};
+
+      // msg 파라미터가 있으면 logObj에 추가
+      if (msg && typeof msg === "string") {
+        logObj.msg = msg;
+      }
+
+      const important: boolean =
+        "important" in logObj ? Boolean(logObj.important) : false;
+
+      if (shouldLogToConsole(level, important)) {
+        formatter(logObj, level);
+      }
+    },
+  };
 }
 
 /**
@@ -182,49 +265,22 @@ class ConsoleFilterStream implements DestinationStream {
  */
 let logger: pino.Logger;
 
+// 서비스별 파일 라우팅 스트림 (공통)
+const streams: pino.StreamEntry[] = [
+  {
+    level: "debug" as const,
+    stream: new ServiceRoutingStream(),
+  },
+];
+
 if (NODE_ENV === "development" && LOG_PRETTY) {
-  // 개발 환경: 예쁜 콘솔 출력 + 서비스별 파일 저장
-  const prettyStream = pino.transport({
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "SYS:yyyy-mm-dd HH:MM:ss",
-      ignore: "pid,hostname,service,env",
-      messageFormat: "{if important}⭐ {end}{msg}",
-    },
-  });
-
-  const streams = [
-    // 서비스별 파일 라우팅 (모든 레벨)
-    {
-      level: "debug" as pino.LevelWithSilent,
-      stream: new ServiceRoutingStream(),
-    },
-    // 필터링된 콘솔 출력 (WARNING/ERROR + important INFO만)
-    {
-      level: "debug" as pino.LevelWithSilent,
-      stream: new ConsoleFilterStream(prettyStream),
-    },
-  ];
-  logger = pino(baseConfig, pino.multistream(streams));
+  // 개발 환경: 색상 포맷
+  const hooks = createConsoleHook(formatConsolePretty);
+  logger = pino({ ...baseConfig, hooks }, pino.multistream(streams));
 } else {
-  // 프로덕션: 서비스별 JSON 파일 저장 + 콘솔 경고
-  const streams: pino.StreamEntry[] = [
-    {
-      level: "debug",
-      stream: new ServiceRoutingStream(),
-    },
-  ];
-
-  // 프로덕션 환경에서 WARNING/ERROR만 콘솔 출력
-  if (NODE_ENV === "production") {
-    streams.push({
-      level: "warn",
-      stream: process.stdout,
-    });
-  }
-
-  logger = pino(baseConfig, pino.multistream(streams));
+  // 프로덕션: JSON 포맷
+  const hooks = createConsoleHook(formatConsoleJson);
+  logger = pino({ ...baseConfig, hooks }, pino.multistream(streams));
 }
 
 /**
