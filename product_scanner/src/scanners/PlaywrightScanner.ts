@@ -64,13 +64,20 @@ export class PlaywrightScanner extends BaseScanner<
       ],
     });
 
-    // 컨텍스트 생성
+    // 컨텍스트 생성 (YAML contextOptions 적용)
+    const contextOptions =
+      this.playwrightStrategy.playwright.contextOptions || {};
+
     this.context = await this.browser.newContext({
-      viewport: { width: 1920, height: 1080 },
+      viewport: contextOptions.viewport || { width: 1920, height: 1080 },
       userAgent:
+        contextOptions.userAgent ||
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      locale: "ko-KR",
-      timezoneId: "Asia/Seoul",
+      locale: contextOptions.locale || "ko-KR",
+      timezoneId: contextOptions.timezoneId || "Asia/Seoul",
+      isMobile: contextOptions.isMobile || false,
+      hasTouch: contextOptions.hasTouch || false,
+      deviceScaleFactor: contextOptions.deviceScaleFactor || 1,
     });
 
     // 추가 anti-detection 설정
@@ -171,10 +178,14 @@ export class PlaywrightScanner extends BaseScanner<
       switch (step.action) {
         case "navigate":
           if (url) {
-            logger.info({ strategy_id: this.strategy.id, url }, "페이지 이동");
+            const waitUntil = step.waitUntil || "networkidle";
+            logger.info(
+              { strategy_id: this.strategy.id, url, waitUntil },
+              "페이지 이동",
+            );
             await this.page.goto(url, {
-              waitUntil: "networkidle",
-              timeout: 30000,
+              waitUntil,
+              timeout: step.timeout || 30000,
             });
           }
           break;

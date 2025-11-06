@@ -79,6 +79,7 @@ export interface NavigationStep {
   timeout?: number;
   script?: string; // evaluate 액션용 JavaScript 코드
   description?: string; // 로깅용
+  waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit"; // navigate 액션용 waitUntil 옵션
 }
 
 /**

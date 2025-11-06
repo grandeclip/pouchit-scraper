@@ -8,6 +8,21 @@ baseUrl: "https://www.oliveyoung.co.kr"
 # 엔드포인트 (Playwright 전용이므로 빈 객체)
 endpoints: {}
 
+# 상수 정의 (Constants)
+constants:
+  # Timeout 설정
+  PAGE_LOAD_TIMEOUT_MS: 30000
+  RENDER_WAIT_MS: 3000
+  POPUP_REMOVAL_WAIT_MS: 1000
+
+  # 모바일 뷰포트 설정
+  MOBILE_VIEWPORT_WIDTH: 430
+  MOBILE_VIEWPORT_HEIGHT: 932
+  MOBILE_DEVICE_SCALE: 3
+
+  # User Agent
+  MOBILE_USER_AGENT: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+
 # 스캔 전략 (Strategy Pattern)
 strategies:
   # Playwright 브라우저 전략
@@ -24,21 +39,43 @@ strategies:
         args:
           - "--disable-blink-features=AutomationControlled"
 
-      # Context 설정
+      # Context 설정 (모바일)
       contextOptions:
         viewport:
-          width: 1920
-          height: 1080
-        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          width: 430
+          height: 932
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+        isMobile: true
+        hasTouch: true
+        deviceScaleFactor: 3
 
       # 네비게이션 전략
       navigationSteps:
         # Step 1: 상품 상세 페이지로 직접 이동
         - action: "navigate"
           url: "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=${goodsId}"
+          waitUntil: "domcontentloaded"
+          timeout: 30000
           description: "상품 상세 페이지 접속"
 
-        # Step 2: 페이지 로딩 대기
+        # Step 2: 앱 전환 팝업 제거 (모바일)
+        - action: "evaluate"
+          script: |
+            () => {
+              // 앱 전환 관련 요소 제거
+              const appBanners = document.querySelectorAll('[class*="app"], [class*="download"], [class*="encourage"]');
+              appBanners.forEach(el => el.remove());
+
+              // 오버레이 제거
+              const overlays = document.querySelectorAll('[class*="overlay"], [class*="modal"]');
+              overlays.forEach(el => el.remove());
+
+              // body overflow 복원
+              document.body.style.overflow = 'auto';
+            }
+          description: "앱 전환 팝업 제거"
+
+        # Step 3: 페이지 렌더링 충분히 대기
         - action: "wait"
           timeout: 3000
           description: "페이지 렌더링 대기"
@@ -46,97 +83,171 @@ strategies:
       # 데이터 추출 전략
       extraction:
         method: "evaluate"
-        description: "DOM에서 상품 정보 추출"
+        description: "모바일 DOM에서 상품 정보 추출"
         script: |
           () => {
-            // 상품명 추출
-            const productNameEl = document.querySelector('.prd_name');
-            const productName = productNameEl?.textContent?.trim() || '';
+            // ===== Helper Functions =====
 
-            // 1. 상품 정보 없음 체크 (삭제/리다이렉트된 상품)
-            if (!productName) {
+            /**
+             * Mobile/Desktop selector fallback
+             * @param {string} mobileSelector - Mobile용 CSS selector
+             * @param {string} desktopSelector - Desktop fallback selector
+             * @returns {Element|null}
+             */
+            const querySelector = (mobileSelector, desktopSelector) => {
+              return document.querySelector(mobileSelector) ||
+                     document.querySelector(desktopSelector);
+            };
+
+            /**
+             * 요소 가시성 체크
+             * @param {Element} el - 체크할 DOM 요소
+             * @returns {boolean}
+             */
+            const isVisible = (el) => {
+              if (!el) return false;
+              const style = window.getComputedStyle(el);
+              return style.display !== 'none' &&
+                     style.visibility !== 'hidden' &&
+                     style.opacity !== '0';
+            };
+
+            /**
+             * 가격 텍스트 파싱
+             * @param {string} text - 가격 텍스트 (예: "25,000원")
+             * @returns {number} - 정수형 가격
+             */
+            const parsePrice = (text) => {
+              const match = text.match(/(\d{1,3}(?:,\d{3})*)/);
+              return match ? parseInt(match[1].replace(/,/g, '')) : 0;
+            };
+
+            /**
+             * 버튼 텍스트 포함 여부 체크
+             * @param {string[]} keywords - 체크할 키워드 배열
+             * @returns {boolean}
+             */
+            const hasButtonWithText = (keywords) => {
+              const buttons = Array.from(document.querySelectorAll('button'));
+              return buttons.some(btn =>
+                keywords.some(keyword => btn.textContent?.includes(keyword)) &&
+                window.getComputedStyle(btn).display !== 'none'
+              );
+            };
+
+            // ===== Error Handling Wrapper =====
+
+            try {
+              // 모바일 페이지로 리다이렉트되었는지 확인
+              const isMobilePage = window.location.pathname.includes('/m/goods/');
+
+              // ===== Data Extraction =====
+
+              // 상품명 추출
+              const productNameEl = querySelector('.info-group__title', '.prd_name');
+              const productName = productNameEl?.textContent?.trim() || '';
+
+              // 상품 정보 없음 체크
+              if (!productName) {
+                return {
+                  name: '삭제된 상품',
+                  brand: '',
+                  title_images: ['https://via.placeholder.com/1x1'],
+                  consumer_price: 0,
+                  price: 0,
+                  sale_status: 'STSEL',
+                  _source: 'not_found',
+                  _redirected: true,
+                  _error: null
+                };
+              }
+
+              // 브랜드 추출
+              const brandEl = querySelector('.top-utils__brand-link', '.prd_brand');
+              const brand = brandEl?.textContent?.trim() || '';
+
+              // 이미지 추출
+              const imageEl = querySelector('img[src*="oliveyoung.co.kr"]', '.prd_img img');
+              const thumbnail = imageEl?.src || '';
+
+              // 가격 추출
+              const priceEl = querySelector('.info-group__price .price', '.price-2');
+              const priceText = priceEl?.textContent?.trim() || '';
+              const price = parsePrice(priceText);
+
+              // 정가 추출
+              const originalPriceEl = querySelector('.info-group__price .price', '.price-1');
+              const originalPriceText = originalPriceEl?.textContent?.trim() || '';
+              const consumerPrice = parsePrice(originalPriceText) || price;
+
+              // ===== Sale Status Detection =====
+
+              const detectSaleStatus = () => {
+                // 1. 페이지 에러 체크
+                const errorEl = document.querySelector('h1');
+                if (errorEl?.textContent?.includes('페이지를 찾을 수 없')) {
+                  return 'STSEL';
+                }
+
+                // 2. Desktop 구매 버튼 체크
+                const buyBtn = document.querySelector('.btnBuy');
+                const cartBtn = document.querySelector('.btnBasket');
+                if ((buyBtn && isVisible(buyBtn)) || (cartBtn && isVisible(cartBtn))) {
+                  return 'SELNG';
+                }
+
+                // 3. Mobile 구매 버튼 체크
+                if (hasButtonWithText(['장바구니', '바로구매', '구매'])) {
+                  return 'SELNG';
+                }
+
+                // 4. Desktop 품절 버튼 체크
+                const soldOutBtn = document.querySelector('.btnSoldout');
+                const restockBtn = document.querySelector('.btnReStock');
+                if ((soldOutBtn && isVisible(soldOutBtn)) || (restockBtn && isVisible(restockBtn))) {
+                  return 'SLDOT';
+                }
+
+                // 5. Mobile 품절 텍스트 체크
+                if (hasButtonWithText(['품절', '재입고'])) {
+                  return 'SLDOT';
+                }
+
+                // 6. 가격 존재 시 판매중으로 간주
+                if (price > 0) {
+                  return 'SELNG';
+                }
+
+                // 7. 기본값
+                return 'STSEL';
+              };
+
               return {
-                name: '삭제된 상품',
+                name: productName,
+                brand: brand,
+                title_images: thumbnail ? [thumbnail] : [],
+                consumer_price: consumerPrice,
+                price: price,
+                sale_status: detectSaleStatus(),
+                _source: 'mobile_dom',
+                _redirected: isMobilePage,
+                _error: null
+              };
+
+            } catch (error) {
+              // 추출 실패 시 에러 정보 포함하여 반환
+              return {
+                name: '추출 실패',
                 brand: '',
                 title_images: ['https://via.placeholder.com/1x1'],
                 consumer_price: 0,
                 price: 0,
                 sale_status: 'STSEL',
-                _source: 'not_found',
-                _redirected: true
+                _source: 'error',
+                _redirected: false,
+                _error: error.message || String(error)
               };
             }
-
-            // 브랜드 추출
-            const brandEl = document.querySelector('.prd_brand');
-            const brand = brandEl?.textContent?.trim() || '';
-
-            // 이미지 추출
-            const imageEl = document.querySelector('.prd_img img');
-            const thumbnail = imageEl?.src || '';
-
-            // 정가 추출 (price-1)
-            const originalPriceEl = document.querySelector('.price-1');
-            const originalPriceText = originalPriceEl?.textContent?.trim() || '';
-            const originalPriceMatch = originalPriceText.match(/(\d{1,3}(?:,\d{3})*)/);
-            const consumerPrice = originalPriceMatch ? parseInt(originalPriceMatch[1].replace(/,/g, '')) : 0;
-
-            // 판매가 추출 (price-2)
-            const priceEl = document.querySelector('.price-2');
-            const priceText = priceEl?.textContent?.trim() || '';
-            const priceMatch = priceText.match(/(\d{1,3}(?:,\d{3})*)/);
-            const price = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0;
-
-            // 판매 상태 판단 로직 (가시성 기반 체크)
-            const detectSaleStatus = () => {
-              // 1. 페이지 에러 체크
-              const errorEl = document.querySelector('h1');
-              if (errorEl?.textContent?.includes('페이지를 찾을 수 없')) {
-                return 'STSEL'; // 판매중지/삭제
-              }
-
-              // Helper: 요소가 실제로 보이는지 확인
-              const isVisible = (el) => {
-                if (!el) return false;
-                const style = window.getComputedStyle(el);
-                return style.display !== 'none' &&
-                       style.visibility !== 'hidden' &&
-                       style.opacity !== '0';
-              };
-
-              // 2. 품절 버튼 가시성 체크 (최우선)
-              const soldOutBtn = document.querySelector('.btnSoldout');
-              if (soldOutBtn && isVisible(soldOutBtn)) {
-                return 'SLDOT'; // 품절
-              }
-
-              // 3. 재입고 알림 버튼 가시성 체크
-              const restockBtn = document.querySelector('.btnReStock');
-              if (restockBtn && isVisible(restockBtn)) {
-                return 'SLDOT'; // 품절
-              }
-
-              // 4. 구매하기 버튼 가시성 체크
-              const buyBtn = document.querySelector('.btnBuy, .goods_buy');
-              const cartBtn = document.querySelector('.btnBasket, .goods_cart');
-              if ((buyBtn && isVisible(buyBtn)) || (cartBtn && isVisible(cartBtn))) {
-                return 'SELNG'; // 판매중
-              }
-
-              // 5. 기본값 (정보 부족)
-              return 'STSEL'; // 판매중지
-            };
-
-            return {
-              name: productName,
-              brand: brand,
-              title_images: thumbnail ? [thumbnail] : [],
-              consumer_price: consumerPrice,
-              price: price,
-              sale_status: detectSaleStatus(),
-              _source: 'dom',
-              _redirected: false
-            };
           }
 
 # 필드 매핑 규칙

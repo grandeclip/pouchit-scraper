@@ -66,9 +66,10 @@ export class ScreenshotService {
       const filename = `${productSetId}.png`;
       const filepath = path.join(jobDir, filename);
 
-      // 스크린샷 저장
+      // 스크린샷 저장 (viewport 크기만 캡처)
       await page.screenshot({
         path: filepath,
+        fullPage: false, // 화면 크기만 캡처 (전체 페이지 X)
       });
 
       logger.debug({ filepath, productSetId, platform }, "스크린샷 저장 완료");
