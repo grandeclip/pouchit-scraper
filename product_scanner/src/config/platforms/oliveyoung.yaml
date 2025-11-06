@@ -315,5 +315,5 @@ workflow:
   # Concurrency Settings (병렬 처리 설정)
   concurrency:
     max: 10        # 최대 병렬 개수 (리소스 제한)
-    default: 8     # 기본 병렬 개수 (점진적 증가 권장: 1 → 4 → 8)
+    default: 4     # 기본 병렬 개수 (점진적 증가 권장: 1 → 4 → 8)
     description: "배치 병렬 처리 설정 (예: 800개 기준 8병렬 → 8.3분, 리소스 모니터링 후 조정)"
