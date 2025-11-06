@@ -13,6 +13,7 @@ import type { Page } from "playwright";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { SCRAPER_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
+import { JsonLdSchemaExtractor } from "@/extractors/JsonLdSchemaExtractor";
 
 /**
  * Playwright Script 실행 결과 타입 (범용)
@@ -165,32 +166,44 @@ export class PlaywrightScriptExecutor {
     page: Page,
     extraction: any,
   ): Promise<ScriptExecutionResult> {
-    const { method, script } = extraction;
+    const { method, extractor, config, script } = extraction;
 
-    if (method !== "evaluate") {
-      throw new Error(`지원하지 않는 extraction method: ${method}`);
+    // JSON-LD Schema.org Extractor 사용
+    if (method === "json_ld_schema" && extractor === "JsonLdSchemaExtractor") {
+      const jsonLdExtractor = new JsonLdSchemaExtractor(config);
+      const result = await jsonLdExtractor.extract(page);
+
+      return {
+        ...result,
+        _redirected: false,
+      };
     }
 
-    if (!script) {
-      throw new Error("Extraction script가 정의되지 않음");
+    // Legacy: YAML script 방식 (하위 호환성)
+    if (method === "evaluate") {
+      if (!script) {
+        throw new Error("Extraction script가 정의되지 않음");
+      }
+
+      // YAML script를 함수로 변환 후 실행
+      try {
+        // script는 이미 함수 형태의 문자열: "() => { ... }"
+        // eslint-disable-next-line no-new-func
+        const extractionFn = new Function(`return ${script}`)();
+
+        // Page.evaluate()로 브라우저 컨텍스트에서 실행
+        const result = await page.evaluate(extractionFn);
+
+        logger.debug({ result }, "Extraction script 실행 완료");
+
+        return result as ScriptExecutionResult;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        logger.error({ error: message }, "Extraction script 실행 실패");
+        throw new Error(`Extraction script 실행 실패: ${message}`);
+      }
     }
 
-    // YAML script를 함수로 변환 후 실행
-    try {
-      // script는 이미 함수 형태의 문자열: "() => { ... }"
-      // eslint-disable-next-line no-new-func
-      const extractionFn = new Function(`return ${script}`)();
-
-      // Page.evaluate()로 브라우저 컨텍스트에서 실행
-      const result = await page.evaluate(extractionFn);
-
-      logger.debug({ result }, "Extraction script 실행 완료");
-
-      return result as ScriptExecutionResult;
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.error({ error: message }, "Extraction script 실행 실패");
-      throw new Error(`Extraction script 실행 실패: ${message}`);
-    }
+    throw new Error(`지원하지 않는 extraction method: ${method}`);
   }
 }

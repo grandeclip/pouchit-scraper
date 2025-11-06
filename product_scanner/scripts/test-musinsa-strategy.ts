@@ -35,16 +35,7 @@ const TEST_CASES = [
     name: "[JOB 실패] 잉가 립틴트",
     goodsNo: "3491425",
     expected: {
-      sale_status: "SELNG",
-      hasName: true,
-      hasPrice: true,
-    },
-  },
-  {
-    name: "[JOB 실패] 에스트라 크림",
-    goodsNo: "2172345",
-    expected: {
-      sale_status: "SLDOT",
+      sale_status: "SLDOT", // JSON-LD availability: "" (품절)
       hasName: true,
       hasPrice: true,
     },

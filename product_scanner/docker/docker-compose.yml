@@ -48,6 +48,8 @@ services:
       dockerfile: docker/Dockerfile
       target: production
     container_name: workflow_worker
+    # Chromium 메모리 누수 방지 설정
+    shm_size: '2gb'  # /dev/shm 크기 증가 (기본 64MB → 2GB)
     environment:
       - NODE_ENV=production
       - REDIS_HOST=redis

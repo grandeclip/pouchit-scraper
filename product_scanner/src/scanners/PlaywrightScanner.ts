@@ -20,6 +20,7 @@ import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { PlaywrightStrategyConfig } from "@/core/domain/StrategyConfig";
 import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
 import { logger } from "@/config/logger";
+import { JsonLdSchemaExtractor } from "@/extractors/JsonLdSchemaExtractor";
 
 // Stealth 플러그인 적용
 chromium.use(StealthPlugin());
@@ -256,6 +257,28 @@ export class PlaywrightScanner extends BaseScanner<
     }
 
     const extractionConfig = this.playwrightStrategy.playwright.extraction;
+
+    // JSON-LD Schema.org Extractor 사용
+    if (
+      extractionConfig.method === "json_ld_schema" &&
+      extractionConfig.extractor === "JsonLdSchemaExtractor"
+    ) {
+      logger.info({ strategy_id: this.strategy.id }, "JSON-LD Schema.org 추출");
+      const jsonLdExtractor = new JsonLdSchemaExtractor(
+        extractionConfig.config,
+      );
+      const result = await jsonLdExtractor.extract(this.page);
+
+      logger.info(
+        { strategy_id: this.strategy.id, data: JSON.stringify(result) },
+        "JSON-LD 추출 완료",
+      );
+
+      return {
+        ...result,
+        _redirected: false,
+      };
+    }
 
     if (extractionConfig.method === "evaluate" && extractionConfig.script) {
       // page.evaluate 방식

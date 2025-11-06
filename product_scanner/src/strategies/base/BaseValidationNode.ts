@@ -33,6 +33,7 @@ import { SCRAPER_CONFIG } from "@/config/constants";
 import { StreamingResultWriter } from "@/utils/StreamingResultWriter";
 import { RateLimiter } from "@/utils/RateLimiter";
 import { ScreenshotService } from "@/utils/ScreenshotService";
+import { BROWSER_ARGS } from "@/config/BrowserArgs";
 
 /**
  * Validation Config (공통)
@@ -400,12 +401,7 @@ export abstract class BaseValidationNode implements INodeStrategy {
       poolSize: concurrency,
       browserOptions: {
         headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-blink-features=AutomationControlled",
-        ],
+        args: BROWSER_ARGS.DEFAULT,
       },
     });
 
@@ -454,6 +450,10 @@ export abstract class BaseValidationNode implements INodeStrategy {
 
   /**
    * Browser Pool을 사용한 단일 배치 검증 (Session Recovery 포함)
+   *
+   * 메모리 누수 방지:
+   * - Page Rotation: 10개마다 Page 재생성 (메모리 정리)
+   * - Context 유지: Context는 배치당 1개 유지 (성능 최적화)
    */
   private async validateBatchWithPool(
     products: ProductSetSearchResult[],
@@ -472,8 +472,21 @@ export abstract class BaseValidationNode implements INodeStrategy {
     let context: BrowserContext | null = null;
     let page: Page | null = null;
 
+    // Memory Management 설정 (YAML에서 로드)
+    const memoryConfig = this.platformConfig?.workflow?.memory_management;
+    const PAGE_ROTATION_INTERVAL = memoryConfig?.page_rotation_interval || 10;
+    const CONTEXT_ROTATION_INTERVAL =
+      memoryConfig?.context_rotation_interval || 50;
+    const ENABLE_GC_HINTS = memoryConfig?.enable_gc_hints ?? true;
+
     logger.debug(
-      { type: this.type, batchIndex, count: products.length },
+      {
+        type: this.type,
+        batchIndex,
+        count: products.length,
+        pageRotation: PAGE_ROTATION_INTERVAL,
+        contextRotation: CONTEXT_ROTATION_INTERVAL,
+      },
       "배치 검증 시작 (Browser Pool 사용)",
     );
 
@@ -481,11 +494,66 @@ export abstract class BaseValidationNode implements INodeStrategy {
       // Browser 획득
       browser = await this.browserPool.acquireBrowser();
 
-      // Context/Page 생성
+      // Context 생성 (배치당 1개 유지)
       ({ context, page } = await this.createBrowserContext(browser));
 
       for (let i = 0; i < products.length; i++) {
         const product = products[i];
+
+        // Context Rotation: N개마다 Context 재생성 (장기 실행 메모리 누수 방지)
+        if (i > 0 && i % CONTEXT_ROTATION_INTERVAL === 0) {
+          logger.debug(
+            { type: this.type, batchIndex, productIndex: i },
+            `Context Rotation: ${CONTEXT_ROTATION_INTERVAL}개 처리 완료 - Context 재생성`,
+          );
+
+          // 기존 Context/Page 정리
+          if (page) {
+            await page.close().catch(() => {});
+            page = null;
+          }
+          if (context) {
+            await context.close().catch(() => {});
+            context = null;
+          }
+
+          // V8 GC 힌트 (메모리 정리 유도)
+          if (ENABLE_GC_HINTS && global.gc) {
+            global.gc();
+            logger.debug(
+              { type: this.type, batchIndex, productIndex: i },
+              "V8 GC 힌트 실행",
+            );
+          }
+
+          // 새 Context/Page 생성
+          ({ context, page } = await this.createBrowserContext(browser));
+
+          logger.debug(
+            { type: this.type, batchIndex, productIndex: i },
+            "Context 재생성 완료",
+          );
+        }
+        // Page Rotation: N개마다 Page 재생성 (메모리 정리)
+        else if (i > 0 && i % PAGE_ROTATION_INTERVAL === 0) {
+          logger.debug(
+            { type: this.type, batchIndex, productIndex: i },
+            `Page Rotation: ${PAGE_ROTATION_INTERVAL}개 처리 완료 - Page 재생성`,
+          );
+
+          // 기존 Page 정리
+          if (page) {
+            await page.close().catch(() => {});
+          }
+
+          // 새 Page 생성 (Context는 유지)
+          page = await context.newPage();
+
+          logger.debug(
+            { type: this.type, batchIndex, productIndex: i },
+            "Page 재생성 완료",
+          );
+        }
 
         // Rate Limiting
         if (i > 0 && this.rateLimiter) {

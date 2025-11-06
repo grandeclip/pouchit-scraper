@@ -63,125 +63,18 @@ strategies:
           timeout: 2000
           description: "페이지 렌더링 대기"
 
-      # 데이터 추출 전략 (모바일 - SCRIPT 태그 JSON 파싱)
+      # 데이터 추출 전략 (JSON-LD Schema.org 기반)
       extraction:
-        method: "evaluate"
-        description: "SCRIPT 태그에서 window.__MSS__ JSON 파싱"
-        script: |
-          () => {
-            // Helper: 알람창(dialog) 체크
-            const hasInvalidDialog = () => {
-              const dialogTexts = ['유효하지 않은 상품', '존재하지 않는', '찾을 수 없'];
-              const allText = document.body.innerText;
-              return dialogTexts.some(text => allText.includes(text));
-            };
-
-            // 1. 삭제된 상품 체크 (알람창 또는 리다이렉트)
-            if (hasInvalidDialog() || window.location.pathname === '/') {
-              return {
-                name: '삭제된 상품',
-                title_images: ['https://via.placeholder.com/1x1'],
-                consumer_price: 0,
-                price: 0,
-                sale_status: 'STSEL',
-                _source: 'not_found',
-                _redirected: true
-              };
-            }
-
-            // 2. SCRIPT 태그에서 window.__MSS__.product.state 추출
-            let productData = null;
-
-            try {
-              // SCRIPT 태그 검색
-              const scripts = Array.from(document.querySelectorAll('script'));
-              const mssScript = scripts.find(s => s.textContent?.includes('window.__MSS__.product.state'));
-
-              if (mssScript) {
-                const scriptText = mssScript.textContent || '';
-
-                // "window.__MSS__.product.state = " 이후 JSON 추출
-                const match = scriptText.match(/window\.__MSS__\.product\.state\s*=\s*(\{[\s\S]*?\});/);
-
-                if (match && match[1]) {
-                  try {
-                    productData = JSON.parse(match[1]);
-                  } catch (parseError) {
-                    console.warn('JSON 파싱 실패:', parseError);
-                  }
-                }
-              }
-            } catch (error) {
-              console.warn('SCRIPT 태그 파싱 실패:', error);
-            }
-
-            if (!productData) {
-              return {
-                name: '삭제된 상품',
-                title_images: ['https://via.placeholder.com/1x1'],
-                consumer_price: 0,
-                price: 0,
-                sale_status: 'STSEL',
-                _source: 'script_not_found',
-                _redirected: false
-              };
-            }
-
-            // 3. 상품명
-            const productName = productData.goodsNm || '';
-
-            // 4. 썸네일 (URL 정규화)
-            const thumbnailUrl = productData.thumbnailImageUrl || '';
-            const thumbnail = thumbnailUrl.startsWith('//')
-              ? 'https:' + thumbnailUrl
-              : thumbnailUrl.startsWith('/')
-                ? 'https://image.msscdn.net' + thumbnailUrl
-                : thumbnailUrl;
-
-            // 5. 가격 정보
-            const goodsPrice = productData.goodsPrice || {};
-            const salePrice = goodsPrice.salePrice || 0;
-            const normalPrice = goodsPrice.normalPrice || salePrice;
-
-            // 6. 판매 상태
-            const detectSaleStatus = () => {
-              // productData.isOutOfStock 체크
-              if (productData.isOutOfStock === true) {
-                return 'SLDOT';
-              }
-
-              // 구매하기 버튼 체크 (DOM)
-              const buyButtons = Array.from(document.querySelectorAll('button'));
-              const buyBtn = buyButtons.find(btn => btn.textContent?.includes('구매하기'));
-
-              if (buyBtn) {
-                const isVisible = (el) => {
-                  if (!el) return false;
-                  const style = window.getComputedStyle(el);
-                  return style.display !== 'none' &&
-                         style.visibility !== 'hidden' &&
-                         style.opacity !== '0';
-                };
-
-                if (buyBtn.disabled || !isVisible(buyBtn)) {
-                  return 'SLDOT';
-                }
-                return 'SELNG';
-              }
-
-              return 'SLDOT';
-            };
-
-            return {
-              name: productName,
-              title_images: thumbnail ? [thumbnail] : [],
-              consumer_price: normalPrice,
-              price: salePrice,
-              sale_status: detectSaleStatus(),
-              _source: 'script_json',
-              _redirected: false
-            };
-          }
+        method: "json_ld_schema"
+        description: "JSON-LD Schema.org 구조화 데이터 추출"
+        extractor: "JsonLdSchemaExtractor"
+        config:
+          selector: 'script[type="application/ld+json"]'
+          fallback:
+            name: "삭제된 상품"
+            thumbnail: "https://via.placeholder.com/1x1"
+            price: 0
+            sale_status: "STSEL"
 
 # 필드 매핑 규칙
 fieldMapping:
@@ -236,11 +129,18 @@ errorHandling:
 workflow:
   rate_limit:
     enabled: true
-    wait_time_ms: 2000
+    wait_time_ms: 3000
     description: "무신사 플랫폼 rate limiting"
 
   # Concurrency Settings (병렬 처리 설정)
   concurrency:
     max: 10        # 최대 병렬 개수
-    default: 8     # 기본 병렬 개수
+    default: 5     # 기본 병렬 개수
     description: "배치 병렬 처리 설정"
+
+  # Memory Management (메모리 누수 방지)
+  memory_management:
+    page_rotation_interval: 10     # N개마다 Page 재생성 (메모리 정리)
+    context_rotation_interval: 50  # N개마다 Context 재생성 (장기 실행 대비)
+    enable_gc_hints: true           # V8 GC 힌트 활성화
+    description: "메모리 최적화 설정"

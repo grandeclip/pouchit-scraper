@@ -26,11 +26,22 @@ export interface WorkflowConcurrencyConfig {
 }
 
 /**
+ * Memory Management 설정 (메모리 최적화)
+ */
+export interface WorkflowMemoryManagementConfig {
+  page_rotation_interval: number; // N개마다 Page 재생성
+  context_rotation_interval: number; // N개마다 Context 재생성
+  enable_gc_hints: boolean; // V8 GC 힌트 활성화
+  description?: string;
+}
+
+/**
  * Workflow 설정
  */
 export interface WorkflowConfig {
   rate_limit?: WorkflowRateLimitConfig;
   concurrency?: WorkflowConcurrencyConfig;
+  memory_management?: WorkflowMemoryManagementConfig;
 }
 
 /**
