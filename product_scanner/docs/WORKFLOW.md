@@ -24,7 +24,7 @@ make dev
 
 # 또는 직접 실행
 cd product_scanner
-docker compose -f docker/docker compose.dev.yml up -d
+docker compose -f docker/docker-compose.dev.yml up -d
 ```
 
 ### 2. Job 등록 및 자동 처리
@@ -448,7 +448,7 @@ GET /api/v1/workflows/health
 make dev
 
 # 또는 수동 시작
-docker compose -f docker/docker compose.dev.yml up -d workflow_worker_dev
+docker compose -f docker/docker-compose.dev.yml up -d workflow_worker_dev
 ```
 
 ### Worker 로그 확인
@@ -482,7 +482,7 @@ docker exec product_scanner_dev npm run script:process-job
 
 ### Worker 설정
 
-**환경변수** (`docker compose.dev.yml`):
+**환경변수** (`docker-compose.dev.yml`):
 
 ```yaml
 environment:

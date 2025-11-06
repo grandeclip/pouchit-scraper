@@ -185,8 +185,8 @@ product_scanner/
 │   ├── README.md
 │   ├── Dockerfile
 │   ├── Dockerfile.dev
-│   ├── docker compose.yml
-│   └── docker compose.dev.yml
+│   ├── docker-compose.yml
+│   └── docker-compose.dev.yml
 ├── jest.config.js                 # Jest 설정
 ├── tsconfig.json                  # TypeScript 설정
 ├── tsconfig.test.json             # 테스트용 tsconfig
@@ -228,7 +228,7 @@ Docker compose dev 환경에서 실행 시 자동으로 설치됩니다:
 make dev
 
 # 또는
-docker compose -f docker/docker compose.dev.yml up
+docker compose -f docker/docker-compose.dev.yml up
 ```
 
 로컬 개발 시:
@@ -521,7 +521,7 @@ Supabase Client (Singleton)
 ```bash
 # 1. 개발 환경 시작
 make dev
-# 또는: docker compose -f docker compose.dev.yml up
+# 또는: docker compose -f docker-compose.dev.yml up
 
 # 2. 로컬에서 파일 수정
 #    → 자동으로 tsx watch가 감지하여 재시작
@@ -566,7 +566,7 @@ make down
 | 항목         | 개발 환경              | 배포 환경                   |
 | ------------ | ---------------------- | --------------------------- |
 | Dockerfile   | Dockerfile.dev         | Dockerfile (Multi-stage)    |
-| Compose      | docker compose.dev.yml | docker compose.yml          |
+| Compose      | docker-compose.dev.yml | docker-compose.yml          |
 | Volume Mount | ✅ Yes (./:/app)       | ❌ No                       |
 | Hot Reload   | ✅ tsx watch           | ❌ tsx (일반)               |
 | Image Size   | ~800MB                 | ~600MB (최적화)             |
