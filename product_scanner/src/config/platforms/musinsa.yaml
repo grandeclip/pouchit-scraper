@@ -135,7 +135,7 @@ workflow:
   # Concurrency Settings (병렬 처리 설정)
   concurrency:
     max: 10        # 최대 병렬 개수
-    default: 5     # 기본 병렬 개수
+    default: 4     # 기본 병렬 개수
     description: "배치 병렬 처리 설정"
 
   # Memory Management (메모리 누수 방지)
