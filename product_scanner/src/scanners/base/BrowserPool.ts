@@ -53,6 +53,7 @@ export class BrowserPool implements IBrowserPool {
   private pool: PooledBrowser[] = [];
   private options: BrowserPoolOptions;
   private initialized = false;
+  private acquireLock = false; // Race condition 방지용 lock
 
   private constructor(options: BrowserPoolOptions) {
     this.options = options;
@@ -130,7 +131,7 @@ export class BrowserPool implements IBrowserPool {
   }
 
   /**
-   * Browser 인스턴스 획득
+   * Browser 인스턴스 획득 (Race condition safe)
    */
   public async acquireBrowser(): Promise<Browser> {
     if (!this.initialized) {
@@ -139,33 +140,45 @@ export class BrowserPool implements IBrowserPool {
       );
     }
 
-    // 사용 가능한 Browser 찾기
-    const available = this.pool.find((p) => !p.inUse);
-
-    if (!available) {
-      throw new Error(
-        `사용 가능한 Browser 없음 (pool size: ${this.pool.length})`,
-      );
+    // Lock 획득 대기 (Race condition 방지)
+    while (this.acquireLock) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
     }
 
-    // Browser 연결 확인 (크래시 감지)
-    if (!available.browser.isConnected()) {
-      logger.warn(
-        { createdAt: available.createdAt },
-        "Browser 연결 끊김 감지 - 재생성",
+    this.acquireLock = true;
+
+    try {
+      // 사용 가능한 Browser 찾기
+      const available = this.pool.find((p) => !p.inUse);
+
+      if (!available) {
+        throw new Error(
+          `사용 가능한 Browser 없음 (pool size: ${this.pool.length})`,
+        );
+      }
+
+      // Browser 연결 확인 (크래시 감지)
+      if (!available.browser.isConnected()) {
+        logger.warn(
+          { createdAt: available.createdAt },
+          "Browser 연결 끊김 감지 - 재생성",
+        );
+        available.browser = await this.recreateBrowser();
+        available.createdAt = Date.now();
+      }
+
+      available.inUse = true;
+
+      logger.debug(
+        { available: this.getStatus().available },
+        "Browser 획득 완료",
       );
-      available.browser = await this.recreateBrowser();
-      available.createdAt = Date.now();
+
+      return available.browser;
+    } finally {
+      // Lock 해제
+      this.acquireLock = false;
     }
-
-    available.inUse = true;
-
-    logger.debug(
-      { available: this.getStatus().available },
-      "Browser 획득 완료",
-    );
-
-    return available.browser;
   }
 
   /**
