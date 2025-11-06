@@ -32,6 +32,10 @@ services:
       - redis
     command: npm run dev
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
@@ -66,13 +70,21 @@ services:
       - redis
     command: npm run worker
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 16G
 
   redis:
     image: redis:8.2-alpine
     container_name: product_scanner_redis_dev
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
     volumes:
       - redis_dev_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 1G
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
