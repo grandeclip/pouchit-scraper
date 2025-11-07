@@ -60,7 +60,7 @@ export class ScreenshotService {
 
       // 디렉토리 생성: outputDir/YYYY-MM-DD/platform/jobId/
       const jobDir = path.join(outputDir, today, platform, jobId);
-      await fs.mkdir(jobDir, { recursive: true });
+      await fs.mkdir(jobDir, { recursive: true, mode: 0o775 });
 
       // 파일명: {product_set_id}.png
       const filename = `${productSetId}.png`;
@@ -71,6 +71,9 @@ export class ScreenshotService {
         path: filepath,
         fullPage: false, // 화면 크기만 캡처 (전체 페이지 X)
       });
+
+      // 파일 권한 설정 (664)
+      await fs.chmod(filepath, 0o664);
 
       logger.debug({ filepath, productSetId, platform }, "스크린샷 저장 완료");
     } catch (error) {

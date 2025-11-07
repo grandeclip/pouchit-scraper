@@ -459,7 +459,7 @@ export class BrowserScanner<
 
       // 디렉토리 생성: outputDir/platform/
       const platformDir = path.join(outputDir, platform);
-      await fs.mkdir(platformDir, { recursive: true });
+      await fs.mkdir(platformDir, { recursive: true, mode: 0o775 });
 
       // 파일명 생성: {jobId}_{product_set_id}_{status}.png
       const status = isError ? "error" : "success";

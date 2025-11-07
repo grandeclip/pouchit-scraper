@@ -92,10 +92,13 @@ export class StreamingResultWriter {
     try {
       // 디렉토리 생성
       const dir = path.dirname(this.filePath);
-      await fs.mkdir(dir, { recursive: true });
+      await fs.mkdir(dir, { recursive: true, mode: 0o775 });
 
       // 파일 열기 (append mode)
       this.fileHandle = await fs.open(this.filePath, "a");
+
+      // 파일 권한 설정 (664)
+      await fs.chmod(this.filePath, 0o664);
 
       // 메타데이터 헤더 작성 (첫 줄)
       const metaHeader = {

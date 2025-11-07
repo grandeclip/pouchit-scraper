@@ -37,14 +37,21 @@ const LOG_PRETTY = process.env.LOG_PRETTY === "true";
 
 // 로그 디렉토리 생성 (없으면)
 if (!fs.existsSync(LOG_DIR)) {
-  fs.mkdirSync(LOG_DIR, { recursive: true });
+  fs.mkdirSync(LOG_DIR, { recursive: true, mode: 0o2775 }); // setgid bit
+}
+
+// 로그 디렉토리 권한 강제 설정 (이미 존재하는 경우)
+try {
+  fs.chmodSync(LOG_DIR, 0o2775); // setgid bit: 생성되는 파일이 디렉토리 그룹 상속
+} catch (error) {
+  // 권한 설정 실패 무시 (Docker 환경에서는 보통 성공)
 }
 
 /**
  * 일일 로테이션 파일 스트림 생성
  */
 function createRotatingStream(prefix: string) {
-  return createStream(
+  const stream = createStream(
     (time: Date | number | null) => {
       if (!time) {
         time = new Date();
@@ -65,6 +72,41 @@ function createRotatingStream(prefix: string) {
       maxSize: "100M", // 100MB마다 로테이션
     },
   );
+
+  // 파일 생성/로테이션 이벤트 감지 → 권한 변경 (664)
+  stream.on("rotated", (filename: string | undefined) => {
+    if (filename) {
+      const filepath = path.join(LOG_DIR, filename);
+      try {
+        fs.chmodSync(filepath, 0o664);
+      } catch (error) {
+        // 권한 변경 실패 무시
+      }
+    }
+  });
+
+  // 초기 파일 생성시 권한 설정 (스트림 생성 후 첫 쓰기 전)
+  setImmediate(() => {
+    try {
+      const files = fs.readdirSync(LOG_DIR);
+      files
+        .filter(
+          (f) =>
+            f.startsWith(prefix) && f.endsWith(".log") && !f.endsWith(".gz"),
+        )
+        .forEach((f) => {
+          try {
+            fs.chmodSync(path.join(LOG_DIR, f), 0o664);
+          } catch (error) {
+            // 권한 변경 실패 무시
+          }
+        });
+    } catch (error) {
+      // 디렉토리 읽기 실패 무시
+    }
+  });
+
+  return stream;
 }
 
 /**
