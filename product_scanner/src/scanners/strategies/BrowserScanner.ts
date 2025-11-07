@@ -459,7 +459,7 @@ export class BrowserScanner<
 
       // 디렉토리 생성: outputDir/platform/
       const platformDir = path.join(outputDir, platform);
-      await fs.mkdir(platformDir, { recursive: true, mode: 0o775 });
+      await fs.mkdir(platformDir, { recursive: true, mode: 0o777 });
 
       // 파일명 생성: {jobId}_{product_set_id}_{status}.png
       const status = isError ? "error" : "success";
@@ -473,6 +473,9 @@ export class BrowserScanner<
       await this.page.screenshot({
         path: filepath,
       });
+
+      // 파일 권한 설정 (666)
+      await fs.chmod(filepath, 0o666);
 
       logger.debug(
         { strategyId: this.strategy.id, filepath, status },

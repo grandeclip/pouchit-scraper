@@ -38,12 +38,12 @@ const SERVICE_NAME = process.env.SERVICE_NAME || "server"; // 기본값: server
 
 // 로그 디렉토리 생성 (없으면)
 if (!fs.existsSync(LOG_DIR)) {
-  fs.mkdirSync(LOG_DIR, { recursive: true, mode: 0o2775 }); // setgid bit
+  fs.mkdirSync(LOG_DIR, { recursive: true, mode: 0o2777 });
 }
 
 // 로그 디렉토리 권한 강제 설정 (이미 존재하는 경우)
 try {
-  fs.chmodSync(LOG_DIR, 0o2775); // setgid bit: 생성되는 파일이 디렉토리 그룹 상속
+  fs.chmodSync(LOG_DIR, 0o2777);
 } catch (error) {
   // 권한 설정 실패 무시 (Docker 환경에서는 보통 성공)
 }
@@ -76,12 +76,12 @@ function createRotatingStream(prefix: string) {
     },
   );
 
-  // 파일 생성/로테이션 이벤트 감지 → 권한 변경 (664)
+  // 파일 생성/로테이션 이벤트 감지 → 권한 변경 (666)
   stream.on("rotated", (filename: string | undefined) => {
     if (filename) {
       const filepath = path.join(LOG_DIR, filename);
       try {
-        fs.chmodSync(filepath, 0o664);
+        fs.chmodSync(filepath, 0o666);
       } catch (error) {
         // 권한 변경 실패 무시
       }
@@ -99,7 +99,7 @@ function createRotatingStream(prefix: string) {
         )
         .forEach((f) => {
           try {
-            fs.chmodSync(path.join(LOG_DIR, f), 0o664);
+            fs.chmodSync(path.join(LOG_DIR, f), 0o666);
           } catch (error) {
             // 권한 변경 실패 무시
           }

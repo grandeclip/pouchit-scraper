@@ -89,7 +89,7 @@ export class ScannerFactory {
       case PLATFORM_IDS.HWAHAE: {
         const {
           HwahaeScannerFactory,
-        } = require("../platforms/hwahae/HwahaeScannerFactory");
+        } = require("@/scanners/platforms/hwahae/HwahaeScannerFactory");
         const factory = new HwahaeScannerFactory(config);
         return factory.create(strategy);
       }
@@ -97,7 +97,7 @@ export class ScannerFactory {
       case PLATFORM_IDS.OLIVEYOUNG: {
         const {
           OliveyoungScannerFactory,
-        } = require("../platforms/oliveyoung/OliveyoungScannerFactory");
+        } = require("@/scanners/platforms/oliveyoung/OliveyoungScannerFactory");
         const factory = new OliveyoungScannerFactory(config);
         return factory.create(strategy);
       }
@@ -105,7 +105,7 @@ export class ScannerFactory {
       case PLATFORM_IDS.ZIGZAG: {
         const {
           ZigzagScannerFactory,
-        } = require("../platforms/zigzag/ZigzagScannerFactory");
+        } = require("@/scanners/platforms/zigzag/ZigzagScannerFactory");
         const factory = new ZigzagScannerFactory(config);
         return factory.create(strategy);
       }
