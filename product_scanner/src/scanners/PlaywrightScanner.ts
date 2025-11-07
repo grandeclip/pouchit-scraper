@@ -263,8 +263,11 @@ export class PlaywrightScanner extends BaseScanner<
       extractionConfig.extractor === "JsonLdSchemaExtractor"
     ) {
       logger.info({ strategy_id: this.strategy.id }, "JSON-LD Schema.org 추출");
+      if (!extractionConfig.config) {
+        throw new Error("JsonLdSchemaExtractor requires config");
+      }
       const jsonLdExtractor = new JsonLdSchemaExtractor(
-        extractionConfig.config,
+        extractionConfig.config as unknown as import("@/extractors/JsonLdSchemaExtractor").JsonLdConfig,
       );
       const result = await jsonLdExtractor.extract(this.page);
 

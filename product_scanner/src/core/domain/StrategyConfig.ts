@@ -10,7 +10,7 @@
 /**
  * 전략 타입
  */
-export type StrategyType = "http" | "playwright";
+export type StrategyType = "http" | "graphql" | "playwright";
 
 /**
  * 공통 전략 설정
@@ -30,6 +30,27 @@ export interface HttpStrategyConfig extends BaseStrategyConfig {
   http: {
     method: string;
     headers: Record<string, string>;
+    timeout: number;
+    retryCount: number;
+    retryDelay: number;
+    requestDelay?: number; // Rate limiting 방지: 각 요청 사이 대기 시간 (ms)
+  };
+}
+
+/**
+ * GraphQL 전략 설정
+ */
+export interface GraphQLStrategyConfig extends BaseStrategyConfig {
+  type: "graphql";
+  graphql: {
+    endpoint: string;
+    method: string;
+    headers: Record<string, string>;
+    query: string;
+    variables: Record<
+      string,
+      string | number | boolean | null | Record<string, unknown>
+    >;
     timeout: number;
     retryCount: number;
     retryDelay: number;
@@ -91,25 +112,13 @@ export interface ExtractionConfig {
   script?: string;
   selectors?: Record<string, string>;
   extractor?: string; // Extractor 클래스명 ("JsonLdSchemaExtractor", "NextDataSchemaExtractor")
-  config?: any; // Extractor별 설정
+  config?: Record<string, unknown>; // Extractor별 설정
 }
 
 /**
  * 전략 설정 Union Type
  */
-export type StrategyConfig = HttpStrategyConfig | PlaywrightStrategyConfig;
-
-/**
- * 전략 타입 가드
- */
-export function isHttpStrategy(
-  config: StrategyConfig,
-): config is HttpStrategyConfig {
-  return config.type === "http";
-}
-
-export function isPlaywrightStrategy(
-  config: StrategyConfig,
-): config is PlaywrightStrategyConfig {
-  return config.type === "playwright";
-}
+export type StrategyConfig =
+  | HttpStrategyConfig
+  | GraphQLStrategyConfig
+  | PlaywrightStrategyConfig;

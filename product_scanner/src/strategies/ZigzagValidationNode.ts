@@ -19,12 +19,20 @@ import { logger } from "@/config/logger";
 import type { Page } from "playwright";
 import { NextDataSchemaExtractor } from "@/extractors/NextDataSchemaExtractor";
 import { ZigzagProduct } from "@/core/domain/ZigzagProduct";
+import { ZigzagScanService } from "@/services/ZigzagScanService";
 
 /**
  * ZigZag Validation Node Strategy
  */
 export class ZigzagValidationNode extends BaseValidationNode {
   public readonly type = "zigzag_validation";
+  private service: ZigzagScanService;
+
+  constructor(service: ZigzagScanService = new ZigzagScanService()) {
+    super();
+    // Dependency Injection (DIP 준수)
+    this.service = service;
+  }
 
   /**
    * Platform ID 추출
@@ -59,7 +67,7 @@ export class ZigzagValidationNode extends BaseValidationNode {
   }
 
   /**
-   * Page를 사용한 단일 상품 검증 (플랫폼별 구현)
+   * 단일 상품 검증 (플랫폼별 구현)
    */
   protected async validateProductWithPage(
     product: ProductSetSearchResult,
@@ -81,122 +89,36 @@ export class ZigzagValidationNode extends BaseValidationNode {
         );
       }
 
-      logger.debug(
-        { type: this.type, productSetId: product.product_set_id, productId },
-        "상품 검증 중",
+      logger.info(
+        {
+          product_set_id: product.product_set_id,
+          product_id: productId,
+          url: product.link_url,
+        },
+        `[${this.type}] 상품 검증`,
       );
 
-      // YAML 설정 로드
-      const zigzagConfig = platformConfig as ZigzagConfig;
-      const validationConfig = zigzagConfig.validationConfig;
-
-      if (!validationConfig) {
-        throw new Error("ZigZag validationConfig not found in YAML");
-      }
-
-      // 1. zigzag.kr 홈페이지로 이동 (anti-detection)
-      await page.goto(validationConfig.homeUrl, {
-        waitUntil: "networkidle",
-        timeout: 30000,
-      });
-      await page.waitForTimeout(1000);
-
-      // 2. 상품 페이지로 이동
-      const productUrl = validationConfig.productUrlTemplate.replace(
-        "${productId}",
-        productId,
-      );
-      await page.goto(productUrl, {
-        waitUntil: "networkidle",
-        timeout: 30000,
-      });
-
-      // 3. __NEXT_DATA__ 추출
-      const extractor = new NextDataSchemaExtractor(
-        validationConfig.nextDataConfig,
-      );
-      const nextData = await extractor.extract(page);
-
-      // "삭제된 상품" 체크 (not_found 처리)
-      if (
-        nextData.name === "삭제된 상품" ||
-        nextData._source === "no_next_data" ||
-        nextData._source === "no_product_data"
-      ) {
-        return this.createNotFoundValidation(product, "ZigZag");
-      }
-
-      // ZigzagProduct 도메인 객체로 변환
-      const zigzagProduct = ZigzagProduct.fromNextData(nextData);
-      const plainObject = zigzagProduct.toPlainObject();
+      // ZigZag GraphQL API로 상품 조회
+      const zigzagProductDTO = await this.service.scanProduct(productId);
 
       // 비교 결과 생성
       const platformData: PlatformProductData = {
-        productName: plainObject.productName as string,
-        thumbnail: plainObject.thumbnail as string,
-        originalPrice: plainObject.originalPrice as number,
-        discountedPrice: plainObject.discountedPrice as number,
-        saleStatus: plainObject.saleStatus as string,
+        productName: zigzagProductDTO.productName,
+        thumbnail: zigzagProductDTO.thumbnail,
+        originalPrice: zigzagProductDTO.originalPrice,
+        discountedPrice: zigzagProductDTO.discountedPrice,
+        saleStatus: zigzagProductDTO.saleStatus,
       };
 
       return this.compareProducts(product, platformData);
     } catch (error) {
-      const errorType =
-        error instanceof Error ? error.constructor.name : "UnknownError";
       const message = error instanceof Error ? error.message : String(error);
 
-      // Timeout errors
-      if (
-        errorType === "TimeoutError" ||
-        message.includes("timeout") ||
-        message.includes("Timeout")
-      ) {
-        logger.warn(
-          {
-            type: this.type,
-            productSetId: product.product_set_id,
-            errorType,
-            error: message,
-          },
-          "검증 타임아웃",
-        );
-        return this.createFailedValidation(product, `Timeout: ${message}`);
-      }
-
-      // Network errors
-      if (
-        message.includes("net::") ||
-        message.includes("ERR_") ||
-        errorType === "NetworkError"
-      ) {
-        logger.warn(
-          {
-            type: this.type,
-            productSetId: product.product_set_id,
-            errorType,
-            error: message,
-          },
-          "네트워크 오류",
-        );
-        return this.createFailedValidation(product, `Network: ${message}`);
-      }
-
-      // Not found
-      if (message.includes("not found") || message.includes("삭제된 상품")) {
+      if (message.includes("not found")) {
         return this.createNotFoundValidation(product, "ZigZag");
       }
 
-      // Unknown errors
-      logger.error(
-        {
-          type: this.type,
-          productSetId: product.product_set_id,
-          errorType,
-          error: message,
-        },
-        "검증 실패",
-      );
-      return this.createFailedValidation(product, `${errorType}: ${message}`);
+      return this.createFailedValidation(product, message);
     }
   }
 }

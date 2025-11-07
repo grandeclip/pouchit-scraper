@@ -261,8 +261,11 @@ export class ZigzagPlaywrightScanner extends BaseScanner<
         { strategy_id: this.strategy.id },
         "__NEXT_DATA__ Schema 추출",
       );
+      if (!extractionConfig.config) {
+        throw new Error("NextDataSchemaExtractor requires config");
+      }
       const nextDataExtractor = new NextDataSchemaExtractor(
-        extractionConfig.config,
+        extractionConfig.config as unknown as import("@/extractors/NextDataSchemaExtractor").NextDataConfig,
       );
       const result = await nextDataExtractor.extract(this.page);
 

@@ -10,73 +10,124 @@ endpoints: {}
 
 # 스캔 전략 (Strategy Pattern)
 strategies:
-  # Playwright 브라우저 전략
-  - id: "browser"
-    type: "playwright"
+  # 전략 1: GraphQL API (빠르고 효율적)
+  - id: "graphql"
+    type: "graphql"
     priority: 1
-    description: "브라우저 기반 __NEXT_DATA__ 추출"
-    playwright:
-      headless: true
-      timeout: 30000
+    description: "GraphQL API 기반 데이터 페칭 (권장)"
+    graphql:
+      endpoint: "https://api.zigzag.kr/api/2/graphql/GetCatalogProductDetailPageOption"
+      method: POST
+      headers:
+        Content-Type: "application/json"
+        Accept: "*/*"
+        Origin: "https://zigzag.kr"
+        Referer: "https://zigzag.kr/"
+        User-Agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+      query: |
+        query GetCatalogProductDetailPageOption($catalog_product_id: ID!, $input: PdpBaseInfoInput) {
+          pdp_option_info(catalog_product_id: $catalog_product_id, input: $input) {
+            catalog_product {
+              id
+              name
+              shop_name
+              product_price {
+                max_price_info { price }
+                final_discount_info { discount_price }
+              }
+              matched_item_list {
+                sales_status
+                display_status
+              }
+              product_image_list {
+                image_type
+                pdp_thumbnail_url
+              }
+            }
+          }
+        }
+      variables:
+        catalog_product_id: "${productId}"
+        input:
+          catalog_product_id: "${productId}"
+          entry_source_type: ""
+      timeout: 10000
+      retryCount: 3
+      retryDelay: 1000
+      requestDelay: 1000  # 각 요청 사이 1초 대기
 
-      # 브라우저 설정
-      browserOptions:
-        args:
-          - "--disable-blink-features=AutomationControlled"
-          - "--no-sandbox"
-          - "--disable-setuid-sandbox"
-
-      # Context 설정 (모바일)
-      contextOptions:
-        viewport:
-          width: 375
-          height: 812
-        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
-        isMobile: true
-        hasTouch: true
-        deviceScaleFactor: 3
-        extraHTTPHeaders:
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
-          Accept-Language: "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
-          Accept-Encoding: "gzip, deflate, br"
-          Origin: "https://zigzag.kr"
-          Referer: "https://zigzag.kr/"
-
-      # 네비게이션 전략
-      navigationSteps:
-        # Step 1: 홈 페이지 접속 (쿠키 획득)
-        - action: "navigate"
-          url: "https://zigzag.kr"
-          description: "홈 페이지 접속 (세션 초기화)"
-
-        # Step 2: 초기 대기
-        - action: "wait"
-          timeout: 1000
-          description: "페이지 로딩 대기"
-
-        # Step 3: 상품 상세 페이지로 이동
-        - action: "navigate"
-          url: "https://zigzag.kr/catalog/products/${productId}"
-          description: "상품 상세 페이지 접속"
-
-        # Step 4: 페이지 렌더링 대기
-        - action: "wait"
-          timeout: 2000
-          description: "페이지 렌더링 대기"
-
-      # 데이터 추출 전략 (__NEXT_DATA__ 기반)
-      extraction:
-        method: "next_data_schema"
-        description: "Next.js __NEXT_DATA__ SSR 데이터 추출"
-        extractor: "NextDataSchemaExtractor"
-        config:
-          selector: 'script#__NEXT_DATA__'
-          dataPath: "props.pageProps"
-          fallback:
-            name: "판매중단 상품"
-            thumbnail: "https://via.placeholder.com/1x1"
-            price: 0
-            sale_status: "SUSPENDED"
+  # TODO: Playwright 전략 재활성화 필요
+  # 📄 비활성화 사유: GraphQL API로 대부분의 상품 정보 조회 가능 (판매중단 제외)
+  # 🔧 활용 시점: GraphQL에서 null 반환 시 fallback 전략으로 사용
+  # ✅ 현재 상태: GraphQL 전략으로 모든 요구사항 충족
+  #
+  # 전략 2: Playwright 브라우저 (INACTIVE - Fallback 전용)
+  # - id: "browser"
+  #   type: "playwright"
+  #   priority: 2
+  #   description: "브라우저 기반 __NEXT_DATA__ 추출"
+  #   playwright:
+  #     headless: true
+  #     timeout: 30000
+  #
+  #     # 브라우저 설정
+  #     browserOptions:
+  #       args:
+  #         - "--disable-blink-features=AutomationControlled"
+  #         - "--no-sandbox"
+  #         - "--disable-setuid-sandbox"
+  #
+  #     # Context 설정 (모바일)
+  #     contextOptions:
+  #       viewport:
+  #         width: 375
+  #         height: 812
+  #       userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+  #       isMobile: true
+  #       hasTouch: true
+  #       deviceScaleFactor: 3
+  #       extraHTTPHeaders:
+  #         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+  #         Accept-Language: "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+  #         Accept-Encoding: "gzip, deflate, br"
+  #         Origin: "https://zigzag.kr"
+  #         Referer: "https://zigzag.kr/"
+  #
+  #     # 네비게이션 전략
+  #     navigationSteps:
+  #       # Step 1: 홈 페이지 접속 (쿠키 획득)
+  #       - action: "navigate"
+  #         url: "https://zigzag.kr"
+  #         description: "홈 페이지 접속 (세션 초기화)"
+  #
+  #       # Step 2: 초기 대기
+  #       - action: "wait"
+  #         timeout: 1000
+  #         description: "페이지 로딩 대기"
+  #
+  #       # Step 3: 상품 상세 페이지로 이동
+  #       - action: "navigate"
+  #         url: "https://zigzag.kr/catalog/products/${productId}"
+  #         description: "상품 상세 페이지 접속"
+  #
+  #       # Step 4: 페이지 렌더링 대기
+  #       - action: "wait"
+  #         timeout: 2000
+  #         description: "페이지 렌더링 대기"
+  #
+  #     # 데이터 추출 전략 (__NEXT_DATA__ 기반)
+  #     extraction:
+  #       method: "next_data_schema"
+  #       description: "Next.js __NEXT_DATA__ SSR 데이터 추출"
+  #       extractor: "NextDataSchemaExtractor"
+  #       config:
+  #         selector: 'script#__NEXT_DATA__'
+  #         dataPath: "props.pageProps"
+  #         fallback:
+  #           name: "판매중단 상품"
+  #           thumbnail: "https://via.placeholder.com/1x1"
+  #           price: 0
+  #           sale_status: "SUSPENDED"
 
 # 필드 매핑 규칙
 fieldMapping:
@@ -162,18 +213,11 @@ validationConfig:
 workflow:
   rate_limit:
     enabled: true
-    wait_time_ms: 3000
-    description: "ZigZag 플랫폼 rate limiting"
+    wait_time_ms: 2500  # 각 상품 스캔 간 대기 시간 (Hwahae 참고)
+    description: "ZigZag GraphQL API rate limiting"
 
   # Concurrency Settings (병렬 처리 설정)
   concurrency:
-    max: 8        # 최대 병렬 개수
-    default: 4     # 기본 병렬 개수
-    description: "배치 병렬 처리 설정"
-
-  # Memory Management (메모리 누수 방지)
-  memory_management:
-    page_rotation_interval: 10     # N개마다 Page 재생성 (메모리 정리)
-    context_rotation_interval: 50  # N개마다 Context 재생성 (장기 실행 대비)
-    enable_gc_hints: true           # V8 GC 힌트 활성화
-    description: "메모리 최적화 설정"
+    max: 1        # 최대 병렬 개수 (Hwahae 참고: 순차 처리)
+    default: 1    # 기본 병렬 개수
+    description: "순차 처리 (CloudFront 403 방지)"

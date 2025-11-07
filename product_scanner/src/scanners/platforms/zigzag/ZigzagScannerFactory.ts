@@ -13,9 +13,14 @@ import { ZigzagProduct } from "@/core/domain/ZigzagProduct";
 import { ZigzagConfig } from "@/core/domain/ZigzagConfig";
 import {
   StrategyConfig,
+  GraphQLStrategyConfig,
   PlaywrightStrategyConfig,
 } from "@/core/domain/StrategyConfig";
-import { isPlaywrightStrategy } from "@/core/domain/StrategyConfig.guards";
+import {
+  isGraphQLStrategy,
+  isPlaywrightStrategy,
+} from "@/core/domain/StrategyConfig.guards";
+import { ZigzagGraphQLScanner } from "@/scanners/ZigzagGraphQLScanner";
 import { ZigzagPlaywrightScanner } from "@/scanners/ZigzagPlaywrightScanner";
 
 /**
@@ -28,13 +33,26 @@ export class ZigzagScannerFactory {
    * 전략에 맞는 Scanner 생성 (Type Guard 사용)
    */
   create(strategy: StrategyConfig): IScanner<ZigzagProduct> {
+    if (isGraphQLStrategy(strategy)) {
+      return this.createGraphQLScanner(strategy);
+    }
+
     if (isPlaywrightStrategy(strategy)) {
       return this.createBrowserScanner(strategy);
     }
 
     throw new Error(
-      `지원하지 않는 strategy 타입: ${strategy.type}. ZigZag는 Playwright만 지원합니다.`,
+      `지원하지 않는 strategy 타입: ${strategy.type}. ZigZag는 GraphQL, Playwright를 지원합니다.`,
     );
+  }
+
+  /**
+   * GraphQL Scanner 생성
+   */
+  private createGraphQLScanner(
+    strategy: GraphQLStrategyConfig,
+  ): IScanner<ZigzagProduct> {
+    return new ZigzagGraphQLScanner(this.config, strategy);
   }
 
   /**

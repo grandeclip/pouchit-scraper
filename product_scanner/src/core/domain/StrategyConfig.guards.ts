@@ -13,6 +13,7 @@
 import type {
   StrategyConfig,
   HttpStrategyConfig,
+  GraphQLStrategyConfig,
   PlaywrightStrategyConfig,
 } from "./StrategyConfig";
 
@@ -31,6 +32,23 @@ export function isHttpStrategy(
   strategy: StrategyConfig,
 ): strategy is HttpStrategyConfig {
   return strategy.type === "http";
+}
+
+/**
+ * GraphQL 전략 여부 확인
+ *
+ * @param strategy - 검증할 전략 설정
+ * @returns GraphQL 전략이면 true
+ *
+ * @example
+ * if (isGraphQLStrategy(strategy)) {
+ *   // strategy.graphql 사용 가능 (타입 안전)
+ * }
+ */
+export function isGraphQLStrategy(
+  strategy: StrategyConfig,
+): strategy is GraphQLStrategyConfig {
+  return strategy.type === "graphql";
 }
 
 /**

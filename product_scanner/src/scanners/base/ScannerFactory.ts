@@ -14,11 +14,7 @@
 
 import { IScanner } from "@/core/interfaces/IScanner";
 import { PlatformConfig } from "@/core/domain/PlatformConfig";
-import {
-  StrategyConfig,
-  isHttpStrategy,
-  isPlaywrightStrategy,
-} from "@/core/domain/StrategyConfig";
+import { StrategyConfig } from "@/core/domain/StrategyConfig";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import { PLATFORM_IDS } from "@/core/domain/PlatformId";
 
