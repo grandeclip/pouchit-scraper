@@ -13,13 +13,14 @@
  */
 
 import { IScanner } from "@/core/interfaces/IScanner";
-import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
+import { PlatformConfig } from "@/core/domain/PlatformConfig";
 import {
   StrategyConfig,
   isHttpStrategy,
   isPlaywrightStrategy,
 } from "@/core/domain/StrategyConfig";
 import { ConfigLoader } from "@/config/ConfigLoader";
+import { PLATFORM_IDS } from "@/core/domain/PlatformId";
 
 /**
  * 스캐너 팩토리
@@ -49,7 +50,7 @@ export class ScannerFactory {
    * @returns 선택된 전략 설정
    */
   private static selectStrategy(
-    config: HwahaeConfig,
+    config: PlatformConfig,
     strategyId?: string,
   ): StrategyConfig {
     if (!config.strategies || config.strategies.length === 0) {
@@ -58,7 +59,9 @@ export class ScannerFactory {
 
     // 전략 ID가 지정된 경우
     if (strategyId) {
-      const strategy = config.strategies.find((s) => s.id === strategyId);
+      const strategy = config.strategies.find(
+        (s: StrategyConfig) => s.id === strategyId,
+      );
       if (!strategy) {
         throw new Error(
           `Strategy not found: ${strategyId} in platform ${config.platform}`,
@@ -69,7 +72,7 @@ export class ScannerFactory {
 
     // 전략 ID가 없으면 priority 기반 선택 (낮은 숫자가 우선)
     const sortedStrategies = [...config.strategies].sort(
-      (a, b) => a.priority - b.priority,
+      (a: StrategyConfig, b: StrategyConfig) => a.priority - b.priority,
     );
 
     return sortedStrategies[0];
@@ -82,24 +85,38 @@ export class ScannerFactory {
    * @returns 스캐너 인스턴스
    */
   private static createScannerByType(
-    config: HwahaeConfig,
+    config: PlatformConfig,
     strategy: StrategyConfig,
   ): IScanner {
-    if (isHttpStrategy(strategy)) {
-      // Dynamic import to avoid circular dependency
-      const { HttpScanner } = require("../HttpScanner");
-      return new HttpScanner(config, strategy);
-    }
+    // 플랫폼별 Factory 사용
+    switch (config.platform) {
+      case PLATFORM_IDS.HWAHAE: {
+        const {
+          HwahaeScannerFactory,
+        } = require("../platforms/hwahae/HwahaeScannerFactory");
+        const factory = new HwahaeScannerFactory(config);
+        return factory.create(strategy);
+      }
 
-    if (isPlaywrightStrategy(strategy)) {
-      // Dynamic import to avoid circular dependency
-      const { PlaywrightScanner } = require("../PlaywrightScanner");
-      return new PlaywrightScanner(config, strategy);
-    }
+      case PLATFORM_IDS.OLIVEYOUNG: {
+        const {
+          OliveyoungScannerFactory,
+        } = require("../platforms/oliveyoung/OliveyoungScannerFactory");
+        const factory = new OliveyoungScannerFactory(config);
+        return factory.create(strategy);
+      }
 
-    // TypeScript exhaustiveness check
-    const _exhaustiveCheck: never = strategy;
-    throw new Error(`Unknown strategy type: ${(_exhaustiveCheck as any).type}`);
+      case PLATFORM_IDS.ZIGZAG: {
+        const {
+          ZigzagScannerFactory,
+        } = require("../platforms/zigzag/ZigzagScannerFactory");
+        const factory = new ZigzagScannerFactory(config);
+        return factory.create(strategy);
+      }
+
+      default:
+        throw new Error(`Unsupported platform: ${config.platform}`);
+    }
   }
 
   /**
@@ -109,7 +126,7 @@ export class ScannerFactory {
    */
   static getAvailableStrategies(platform: string): string[] {
     const config = ConfigLoader.getInstance().loadConfig(platform);
-    return config.strategies.map((s) => s.id);
+    return config.strategies.map((s: StrategyConfig) => s.id);
   }
 
   /**

@@ -15,6 +15,7 @@
 
 import type { IScanner } from "@/core/interfaces/IScanner";
 import type { OliveyoungProduct } from "@/core/domain/OliveyoungProduct";
+import { StrategyConfig } from "@/core/domain/StrategyConfig";
 import { ScannerRegistry } from "./ScannerRegistry";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import {
@@ -66,7 +67,7 @@ export class OliveyoungScanService {
    */
   getAvailableStrategies(): string[] {
     const config = ConfigLoader.getInstance().loadConfig(this.platform);
-    return config.strategies.map((s) => s.id);
+    return config.strategies.map((s: StrategyConfig) => s.id);
   }
 
   /**

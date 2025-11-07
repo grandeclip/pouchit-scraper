@@ -725,7 +725,6 @@ export abstract class BaseValidationNode implements INodeStrategy {
 
     // Anti-detection 설정
     await context.addInitScript(() => {
-      // @ts-expect-error - Browser context에서 실행되는 코드
       Object.defineProperty(navigator, "webdriver", {
         get: () => false,
       });

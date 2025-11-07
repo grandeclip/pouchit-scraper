@@ -1,0 +1,179 @@
+# ZigZag(지그재그) 플랫폼 설정
+# 전략: Playwright 브라우저 기반 스크래핑 (__NEXT_DATA__ 추출)
+
+platform: zigzag
+name: "지그재그"
+baseUrl: "https://zigzag.kr"
+
+# 엔드포인트 (Playwright 전용이므로 빈 객체)
+endpoints: {}
+
+# 스캔 전략 (Strategy Pattern)
+strategies:
+  # Playwright 브라우저 전략
+  - id: "browser"
+    type: "playwright"
+    priority: 1
+    description: "브라우저 기반 __NEXT_DATA__ 추출"
+    playwright:
+      headless: true
+      timeout: 30000
+
+      # 브라우저 설정
+      browserOptions:
+        args:
+          - "--disable-blink-features=AutomationControlled"
+          - "--no-sandbox"
+          - "--disable-setuid-sandbox"
+
+      # Context 설정 (모바일)
+      contextOptions:
+        viewport:
+          width: 375
+          height: 812
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+        isMobile: true
+        hasTouch: true
+        deviceScaleFactor: 3
+        extraHTTPHeaders:
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+          Accept-Language: "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+          Accept-Encoding: "gzip, deflate, br"
+          Origin: "https://zigzag.kr"
+          Referer: "https://zigzag.kr/"
+
+      # 네비게이션 전략
+      navigationSteps:
+        # Step 1: 홈 페이지 접속 (쿠키 획득)
+        - action: "navigate"
+          url: "https://zigzag.kr"
+          description: "홈 페이지 접속 (세션 초기화)"
+
+        # Step 2: 초기 대기
+        - action: "wait"
+          timeout: 1000
+          description: "페이지 로딩 대기"
+
+        # Step 3: 상품 상세 페이지로 이동
+        - action: "navigate"
+          url: "https://zigzag.kr/catalog/products/${productId}"
+          description: "상품 상세 페이지 접속"
+
+        # Step 4: 페이지 렌더링 대기
+        - action: "wait"
+          timeout: 2000
+          description: "페이지 렌더링 대기"
+
+      # 데이터 추출 전략 (__NEXT_DATA__ 기반)
+      extraction:
+        method: "next_data_schema"
+        description: "Next.js __NEXT_DATA__ SSR 데이터 추출"
+        extractor: "NextDataSchemaExtractor"
+        config:
+          selector: 'script#__NEXT_DATA__'
+          dataPath: "props.pageProps"
+          fallback:
+            name: "판매중단 상품"
+            thumbnail: "https://via.placeholder.com/1x1"
+            price: 0
+            sale_status: "SUSPENDED"
+
+# 필드 매핑 규칙
+fieldMapping:
+  # 상품명
+  productName:
+    source: "product.name"
+    type: "string"
+    required: true
+
+  # 브랜드
+  brand:
+    source: "shop.name"
+    type: "string"
+    required: true
+
+  # 썸네일
+  thumbnail:
+    source: "product.product_image_list[?image_type==MAIN].pdp_thumbnail_url"
+    type: "string"
+    required: true
+    normalize: true
+
+  # 정가
+  originalPrice:
+    source: "product.product_price.max_price_info.price"
+    type: "number"
+    required: true
+
+  # 판매가
+  discountedPrice:
+    source: "product.product_price.final_discount_info.discount_price"
+    type: "number"
+    required: true
+
+  # 판매 상태
+  saleStatus:
+    source: "product.sales_status"
+    type: "enum"
+    required: true
+    mapping:
+      ON_SALE: "on_sale"       # 판매중
+      SOLD_OUT: "sold_out"     # 품절
+      SUSPENDED: "off_sale"    # 판매중단
+
+  # 구매 가능 여부
+  isPurchasable:
+    source: "product.is_purchasable"
+    type: "boolean"
+    required: true
+
+  # 노출 상태
+  displayStatus:
+    source: "product.display_status"
+    type: "enum"
+    required: true
+
+# 검증 규칙
+validation:
+  priceThreshold: 0.10
+  normalizeUrls: true
+  strictMode: false
+
+# 에러 처리
+errorHandling:
+  notFound: "product_deleted"
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+
+# Validation Node 설정 (Workflow 전용)
+validationConfig:
+  homeUrl: "https://zigzag.kr"
+  productUrlTemplate: "https://zigzag.kr/catalog/products/${productId}"
+  nextDataConfig:
+    selector: "#__NEXT_DATA__"
+    dataPath: "props.pageProps"
+    fallback:
+      name: "삭제된 상품"
+      thumbnail: ""
+      price: 0
+      sale_status: "off_sale"
+
+# Workflow Rate Limiting
+workflow:
+  rate_limit:
+    enabled: true
+    wait_time_ms: 3000
+    description: "ZigZag 플랫폼 rate limiting"
+
+  # Concurrency Settings (병렬 처리 설정)
+  concurrency:
+    max: 8        # 최대 병렬 개수
+    default: 4     # 기본 병렬 개수
+    description: "배치 병렬 처리 설정"
+
+  # Memory Management (메모리 누수 방지)
+  memory_management:
+    page_rotation_interval: 10     # N개마다 Page 재생성 (메모리 정리)
+    context_rotation_interval: 50  # N개마다 Context 재생성 (장기 실행 대비)
+    enable_gc_hints: true           # V8 GC 힌트 활성화
+    description: "메모리 최적화 설정"

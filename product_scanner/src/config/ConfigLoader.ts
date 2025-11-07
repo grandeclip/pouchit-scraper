@@ -10,7 +10,12 @@
 import * as fs from "fs";
 import * as path from "path";
 import * as yaml from "js-yaml";
-import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
+import { PlatformConfig } from "@/core/domain/PlatformConfig";
+import {
+  StrategyConfig,
+  HttpStrategyConfig,
+  PlaywrightStrategyConfig,
+} from "@/core/domain/StrategyConfig";
 import { PATH_CONFIG } from "./constants";
 import { logger } from "./logger";
 
@@ -19,7 +24,7 @@ import { logger } from "./logger";
  */
 export class ConfigLoader {
   private static instance: ConfigLoader;
-  private configCache: Map<string, HwahaeConfig> = new Map();
+  private configCache: Map<string, PlatformConfig> = new Map();
 
   private constructor() {}
 
@@ -36,7 +41,7 @@ export class ConfigLoader {
   /**
    * YAML 설정 파일 로드
    */
-  loadConfig(platform: string): HwahaeConfig {
+  loadConfig(platform: string): PlatformConfig {
     // 캐시 확인
     if (this.configCache.has(platform)) {
       return this.configCache.get(platform)!;
@@ -56,7 +61,7 @@ export class ConfigLoader {
 
     // YAML 파싱
     const fileContent = fs.readFileSync(configPath, "utf8");
-    const config = yaml.load(fileContent) as HwahaeConfig;
+    const config = yaml.load(fileContent) as PlatformConfig;
 
     // 검증
     this.validateConfig(config);
@@ -70,7 +75,7 @@ export class ConfigLoader {
   /**
    * 설정 유효성 검증
    */
-  private validateConfig(config: HwahaeConfig): void {
+  private validateConfig(config: PlatformConfig): void {
     if (!config.platform) throw new Error("platform is required");
     if (!config.baseUrl) throw new Error("baseUrl is required");
     if (!config.endpoints) throw new Error("endpoints is required");
@@ -82,7 +87,7 @@ export class ConfigLoader {
     }
 
     // 전략 ID 중복 체크
-    const strategyIds = config.strategies.map((s) => s.id);
+    const strategyIds = config.strategies.map((s: StrategyConfig) => s.id);
     const uniqueIds = new Set(strategyIds);
     if (strategyIds.length !== uniqueIds.size) {
       throw new Error("Duplicate strategy IDs found");
@@ -98,7 +103,7 @@ export class ConfigLoader {
 
       // HTTP 전략 검증
       if (strategy.type === "http") {
-        const httpStrategy = strategy as any;
+        const httpStrategy = strategy as HttpStrategyConfig;
         if (!httpStrategy.http) {
           throw new Error(
             `HTTP configuration missing for strategy: ${strategy.id}`,
@@ -108,7 +113,7 @@ export class ConfigLoader {
 
       // Playwright 전략 검증
       if (strategy.type === "playwright") {
-        const playwrightStrategy = strategy as any;
+        const playwrightStrategy = strategy as PlaywrightStrategyConfig;
         if (!playwrightStrategy.playwright) {
           throw new Error(
             `Playwright configuration missing for strategy: ${strategy.id}`,

@@ -56,6 +56,7 @@ export interface PlaywrightStrategyConfig extends BaseStrategyConfig {
       isMobile?: boolean;
       hasTouch?: boolean;
       deviceScaleFactor?: number;
+      extraHTTPHeaders?: Record<string, string>;
     };
     navigationSteps: NavigationStep[];
     extraction: ExtractionConfig;
@@ -86,9 +87,11 @@ export interface NavigationStep {
  * 추출 설정
  */
 export interface ExtractionConfig {
-  method: "evaluate" | "selector";
+  method: "evaluate" | "selector" | "json_ld_schema" | "next_data_schema";
   script?: string;
   selectors?: Record<string, string>;
+  extractor?: string; // Extractor 클래스명 ("JsonLdSchemaExtractor", "NextDataSchemaExtractor")
+  config?: any; // Extractor별 설정
 }
 
 /**

@@ -18,8 +18,10 @@ import type { IValidator } from "@/core/interfaces/IValidator";
 import type {
   ValidationRequest,
   ValidationResult,
+  HwahaeConfig,
 } from "@/core/domain/HwahaeConfig";
 import type { HwahaeProduct } from "@/core/domain/HwahaeProduct";
+import { StrategyConfig } from "@/core/domain/StrategyConfig";
 import { ScannerRegistry } from "./ScannerRegistry";
 import { HwahaeValidator } from "@/validators/HwahaeValidator";
 import { ConfigLoader } from "@/config/ConfigLoader";
@@ -37,7 +39,7 @@ export class HwahaeScanService {
     this.platform = platform;
     // Validator 초기화
     const config = ConfigLoader.getInstance().loadConfig(this.platform);
-    this.validator = new HwahaeValidator(config);
+    this.validator = new HwahaeValidator(config as HwahaeConfig);
   }
 
   /**
@@ -133,7 +135,7 @@ export class HwahaeScanService {
    */
   getAvailableStrategies(): string[] {
     const config = ConfigLoader.getInstance().loadConfig(this.platform);
-    return config.strategies.map((s) => s.id);
+    return config.strategies.map((s: StrategyConfig) => s.id);
   }
 
   /**

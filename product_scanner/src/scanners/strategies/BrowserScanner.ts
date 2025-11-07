@@ -149,7 +149,6 @@ export class BrowserScanner<
     // 추가 anti-detection 설정
     await this.context.addInitScript(() => {
       // webdriver 속성 제거
-      // @ts-expect-error - Browser context에서 실행되는 코드
       Object.defineProperty(navigator, "webdriver", {
         get: () => false,
       });

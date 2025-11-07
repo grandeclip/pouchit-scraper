@@ -13,6 +13,7 @@ import { SupabaseSearchNode } from "@/strategies/SupabaseSearchNode";
 import { HwahaeValidationNode } from "@/strategies/HwahaeValidationNode";
 import { OliveyoungValidationNode } from "@/strategies/OliveyoungValidationNode";
 import { MusinsaValidationNode } from "@/strategies/MusinsaValidationNode";
+import { ZigzagValidationNode } from "@/strategies/ZigzagValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
 import { logger } from "@/config/logger";
 
@@ -29,6 +30,7 @@ export class NodeStrategyFactory {
     this.registerStrategy(new HwahaeValidationNode());
     this.registerStrategy(new OliveyoungValidationNode());
     this.registerStrategy(new MusinsaValidationNode());
+    this.registerStrategy(new ZigzagValidationNode());
     this.registerStrategy(new ResultWriterNode());
   }
 

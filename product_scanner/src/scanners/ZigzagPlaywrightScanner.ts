@@ -1,13 +1,15 @@
 /**
- * Playwright 스캐너
- * 브라우저 기반 상품 정보 스크래핑
- *
- * product_search 패턴 참조
+ * ZigZag Playwright 스캐너
+ * __NEXT_DATA__ 기반 상품 정보 스크래핑
  *
  * SOLID 원칙:
- * - SRP: 브라우저 스크래핑만 담당
+ * - SRP: ZigZag 브라우저 스크래핑만 담당
  * - LSP: BaseScanner를 대체 가능
- * - DIP: 설정에 의존
+ * - DIP: 추상 인터페이스에 의존
+ *
+ * Design Pattern:
+ * - Template Method: BaseScanner의 템플릿 메소드 패턴 따름
+ * - Strategy: NextDataSchemaExtractor로 추출 전략 분리
  */
 
 import { chromium as playwrightChromium } from "playwright";
@@ -16,28 +18,29 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import type { Browser, BrowserContext, Page } from "playwright";
 
 import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
-import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
+import { ZigzagConfig } from "@/core/domain/ZigzagConfig";
 import { PlaywrightStrategyConfig } from "@/core/domain/StrategyConfig";
-import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
+import { ZigzagProduct } from "@/core/domain/ZigzagProduct";
 import { logger } from "@/config/logger";
-import { JsonLdSchemaExtractor } from "@/extractors/JsonLdSchemaExtractor";
+import { NextDataSchemaExtractor } from "@/extractors/NextDataSchemaExtractor";
+import type { NextDataProductData } from "@/core/domain/NextDataProductData";
 
 // Stealth 플러그인 적용
 chromium.use(StealthPlugin());
 
 /**
- * Playwright 스캐너
+ * ZigZag Playwright 스캐너
  */
-export class PlaywrightScanner extends BaseScanner<
-  HwahaeApiResponse,
-  HwahaeProduct,
-  HwahaeConfig
+export class ZigzagPlaywrightScanner extends BaseScanner<
+  NextDataProductData,
+  ZigzagProduct,
+  ZigzagConfig
 > {
   private browser: Browser | null = null;
   private context: BrowserContext | null = null;
   private page: Page | null = null;
 
-  constructor(config: HwahaeConfig, strategy: PlaywrightStrategyConfig) {
+  constructor(config: ZigzagConfig, strategy: PlaywrightStrategyConfig) {
     super(config, strategy);
   }
 
@@ -70,15 +73,16 @@ export class PlaywrightScanner extends BaseScanner<
       this.playwrightStrategy.playwright.contextOptions || {};
 
     this.context = await this.browser.newContext({
-      viewport: contextOptions.viewport || { width: 1920, height: 1080 },
+      viewport: contextOptions.viewport || { width: 375, height: 812 },
       userAgent:
         contextOptions.userAgent ||
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
       locale: contextOptions.locale || "ko-KR",
       timezoneId: contextOptions.timezoneId || "Asia/Seoul",
-      isMobile: contextOptions.isMobile || false,
-      hasTouch: contextOptions.hasTouch || false,
-      deviceScaleFactor: contextOptions.deviceScaleFactor || 1,
+      isMobile: contextOptions.isMobile ?? true,
+      hasTouch: contextOptions.hasTouch ?? true,
+      deviceScaleFactor: contextOptions.deviceScaleFactor || 2,
+      extraHTTPHeaders: contextOptions.extraHTTPHeaders || {},
     });
 
     // 추가 anti-detection 설정
@@ -98,44 +102,35 @@ export class PlaywrightScanner extends BaseScanner<
   /**
    * 데이터 추출 (브라우저 스크래핑)
    */
-  protected async extractData(goodsId: string): Promise<any> {
+  protected async extractData(productId: string): Promise<NextDataProductData> {
     if (!this.page) {
       throw new Error("Browser not initialized");
     }
 
     // 네비게이션 스텝 실행
-    await this.executeNavigationSteps(goodsId);
+    await this.executeNavigationSteps(productId);
 
     // 데이터 추출
     const rawData = await this.extractFromPage();
 
     /**
-     * goodsId를 rawData에 추가
+     * productId를 rawData에 추가
      * 이유: BaseScanner.scan() 흐름에서 extractData() → parseData() 순서로 진행되며,
      *       parseData()에서 도메인 모델 생성 시 id가 필요하므로 여기서 주입
-     * 책임: extractData()는 '원시 데이터 추출 + 메타데이터 보강' 담당
      */
     return {
       ...rawData,
-      id: goodsId,
+      id: productId,
     };
   }
 
   /**
    * 데이터 파싱 (원시 데이터 → 도메인 모델)
    */
-  protected async parseData(rawData: any): Promise<HwahaeProduct> {
-    // 브라우저에서 추출한 데이터를 API 응답 형식으로 변환
-    const apiResponse: HwahaeApiResponse = {
-      id: rawData.id || 0,
-      name: rawData.name || "",
-      title_images: rawData.title_images || [],
-      consumer_price: rawData.consumer_price || 0,
-      price: rawData.price || 0,
-      sale_status: rawData.sale_status || "SELNG",
-    };
-
-    return HwahaeProduct.fromApiResponse(apiResponse);
+  protected async parseData(
+    rawData: NextDataProductData,
+  ): Promise<ZigzagProduct> {
+    return ZigzagProduct.fromNextData(rawData);
   }
 
   /**
@@ -165,7 +160,7 @@ export class PlaywrightScanner extends BaseScanner<
   /**
    * 네비게이션 스텝 실행
    */
-  private async executeNavigationSteps(goodsId: string): Promise<void> {
+  private async executeNavigationSteps(productId: string): Promise<void> {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
@@ -173,7 +168,7 @@ export class PlaywrightScanner extends BaseScanner<
     const steps = this.playwrightStrategy.playwright.navigationSteps;
 
     for (const step of steps) {
-      const url = step.url?.replace("${goodsId}", goodsId);
+      const url = step.url?.replace("${productId}", productId);
 
       switch (step.action) {
         case "navigate":
@@ -250,71 +245,37 @@ export class PlaywrightScanner extends BaseScanner<
   /**
    * 페이지에서 데이터 추출
    */
-  private async extractFromPage(): Promise<any> {
+  private async extractFromPage(): Promise<NextDataProductData> {
     if (!this.page) {
       throw new Error("Page not initialized");
     }
 
     const extractionConfig = this.playwrightStrategy.playwright.extraction;
 
-    // JSON-LD Schema.org Extractor 사용
+    // NextDataSchemaExtractor 사용
     if (
-      extractionConfig.method === "json_ld_schema" &&
-      extractionConfig.extractor === "JsonLdSchemaExtractor"
+      extractionConfig.method === "next_data_schema" &&
+      extractionConfig.extractor === "NextDataSchemaExtractor"
     ) {
-      logger.info({ strategy_id: this.strategy.id }, "JSON-LD Schema.org 추출");
-      const jsonLdExtractor = new JsonLdSchemaExtractor(
+      logger.info(
+        { strategy_id: this.strategy.id },
+        "__NEXT_DATA__ Schema 추출",
+      );
+      const nextDataExtractor = new NextDataSchemaExtractor(
         extractionConfig.config,
       );
-      const result = await jsonLdExtractor.extract(this.page);
+      const result = await nextDataExtractor.extract(this.page);
 
       logger.info(
         { strategy_id: this.strategy.id, data: JSON.stringify(result) },
-        "JSON-LD 추출 완료",
+        "__NEXT_DATA__ 추출 완료",
       );
-
-      return {
-        ...result,
-        _redirected: false,
-      };
-    }
-
-    if (extractionConfig.method === "evaluate" && extractionConfig.script) {
-      // page.evaluate 방식
-      logger.info({ strategy_id: this.strategy.id }, "evaluate로 데이터 추출");
-      const evalFunction = new Function(
-        `return (${extractionConfig.script})`,
-      )();
-      // Debug: Check page title before extraction
-      const pageTitle = await this.page.title();
-      logger.info(
-        { strategy_id: this.strategy.id, page_title: pageTitle },
-        "페이지 제목",
-      );
-
-      const result = await this.page.evaluate(evalFunction);
-      logger.info(
-        { strategy_id: this.strategy.id, data: JSON.stringify(result) },
-        "추출 완료",
-      );
-      return result;
-    }
-
-    if (extractionConfig.method === "selector" && extractionConfig.selectors) {
-      // Playwright selector 방식
-      logger.info({ strategy_id: this.strategy.id }, "셀렉터로 데이터 추출");
-      const result: any = {};
-
-      for (const [key, selector] of Object.entries(
-        extractionConfig.selectors,
-      )) {
-        const element = await this.page.$(selector);
-        result[key] = element ? await element.textContent() : null;
-      }
 
       return result;
     }
 
-    throw new Error("Invalid extraction configuration");
+    throw new Error(
+      "Invalid extraction configuration - NextDataSchemaExtractor required",
+    );
   }
 }
