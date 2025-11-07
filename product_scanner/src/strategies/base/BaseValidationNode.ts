@@ -112,6 +112,14 @@ export abstract class BaseValidationNode implements INodeStrategy {
   }
 
   /**
+   * 스크린샷 저장 여부 (플랫폼별 오버라이드 가능)
+   * @returns true면 스크린샷 저장, false면 스킵
+   */
+  protected shouldSaveScreenshot(): boolean {
+    return true; // 기본값: 저장
+  }
+
+  /**
    * 노드 실행 (Template Method)
    * 공통 워크플로우 정의, 플랫폼별 구현 위임
    */
@@ -581,8 +589,8 @@ export abstract class BaseValidationNode implements INodeStrategy {
             }),
           });
 
-          // 스크린샷 저장
-          if (jobId && this.screenshotService) {
+          // 스크린샷 저장 (플랫폼별 제어)
+          if (jobId && this.screenshotService && this.shouldSaveScreenshot()) {
             await this.screenshotService.capture(page, {
               platform,
               jobId,

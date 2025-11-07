@@ -35,6 +35,13 @@ export class ZigzagValidationNode extends BaseValidationNode {
   }
 
   /**
+   * 지그재그는 API 기반 검증이므로 스크린샷 불필요
+   */
+  protected shouldSaveScreenshot(): boolean {
+    return false;
+  }
+
+  /**
    * Platform ID 추출
    */
   protected extractPlatform(params: Record<string, unknown>): string {
