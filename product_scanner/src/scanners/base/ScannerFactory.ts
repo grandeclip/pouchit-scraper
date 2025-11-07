@@ -17,6 +17,12 @@ import { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { StrategyConfig } from "@/core/domain/StrategyConfig";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import { PLATFORM_IDS } from "@/core/domain/PlatformId";
+import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
+import { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
+import { ZigzagConfig } from "@/core/domain/ZigzagConfig";
+import { HwahaeScannerFactory } from "@/scanners/platforms/hwahae/HwahaeScannerFactory";
+import { OliveyoungScannerFactory } from "@/scanners/platforms/oliveyoung/OliveyoungScannerFactory";
+import { ZigzagScannerFactory } from "@/scanners/platforms/zigzag/ZigzagScannerFactory";
 
 /**
  * 스캐너 팩토리
@@ -87,27 +93,20 @@ export class ScannerFactory {
     // 플랫폼별 Factory 사용
     switch (config.platform) {
       case PLATFORM_IDS.HWAHAE: {
-        const {
-          HwahaeScannerFactory,
-        } = require("@/scanners/platforms/hwahae/HwahaeScannerFactory");
-        const factory = new HwahaeScannerFactory(config);
-        return factory.create(strategy);
+        const factory = new HwahaeScannerFactory(config as HwahaeConfig);
+        return factory.create(strategy) as unknown as IScanner;
       }
 
       case PLATFORM_IDS.OLIVEYOUNG: {
-        const {
-          OliveyoungScannerFactory,
-        } = require("@/scanners/platforms/oliveyoung/OliveyoungScannerFactory");
-        const factory = new OliveyoungScannerFactory(config);
-        return factory.create(strategy);
+        const factory = new OliveyoungScannerFactory(
+          config as OliveyoungConfig,
+        );
+        return factory.create(strategy) as unknown as IScanner;
       }
 
       case PLATFORM_IDS.ZIGZAG: {
-        const {
-          ZigzagScannerFactory,
-        } = require("@/scanners/platforms/zigzag/ZigzagScannerFactory");
-        const factory = new ZigzagScannerFactory(config);
-        return factory.create(strategy);
+        const factory = new ZigzagScannerFactory(config as ZigzagConfig);
+        return factory.create(strategy) as unknown as IScanner;
       }
 
       default:
