@@ -17,6 +17,7 @@ import {
   NodeResult,
 } from "@/core/interfaces/INodeStrategy";
 import { logger } from "@/config/logger";
+import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
  * Result Writer Node Strategy
@@ -87,7 +88,7 @@ export class ResultWriterNode implements INodeStrategy {
             file_size: fileSize,
             record_count: validationResult.record_count,
             summary: validationResult.summary,
-            written_at: new Date().toISOString(),
+            written_at: getTimestampWithTimezone(),
           },
         },
       };

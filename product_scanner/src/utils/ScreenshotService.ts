@@ -14,6 +14,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import type { Page } from "playwright";
 import { logger } from "@/config/logger";
+import { getDateStringWithDash } from "@/utils/timestamp";
 
 /**
  * 스크린샷 메타데이터
@@ -55,8 +56,8 @@ export class ScreenshotService {
       const { platform, jobId, productSetId } = metadata;
       const outputDir = metadata.outputDir || this.outputDir;
 
-      // 오늘 날짜 폴더명 (YYYY-MM-DD)
-      const today = new Date().toISOString().split("T")[0];
+      // 오늘 날짜 폴더명 (YYYY-MM-DD, Asia/Seoul 기준)
+      const today = getDateStringWithDash();
 
       // 디렉토리 생성: outputDir/YYYY-MM-DD/platform/jobId/
       const jobDir = path.join(outputDir, today, platform, jobId);

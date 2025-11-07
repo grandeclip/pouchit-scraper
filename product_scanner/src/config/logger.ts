@@ -49,19 +49,21 @@ try {
 
 /**
  * 일일 로테이션 파일 스트림 생성
+ * 로컬 타임존(Asia/Seoul) 기준으로 날짜 파일명 생성
  */
 function createRotatingStream(prefix: string) {
   const stream = createStream(
     (time: Date | number | null) => {
-      if (!time) {
-        time = new Date();
-      }
-      if (typeof time === "number") {
-        time = new Date(time);
-      }
-      const year = time.getFullYear();
-      const month = String(time.getMonth() + 1).padStart(2, "0");
-      const day = String(time.getDate()).padStart(2, "0");
+      // 현재 로컬 시간 기준 (TZ 환경변수 반영)
+      const now = time
+        ? typeof time === "number"
+          ? new Date(time)
+          : time
+        : new Date();
+
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
       return `${prefix}-${year}${month}${day}.log`;
     },
     {

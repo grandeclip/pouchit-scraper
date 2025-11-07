@@ -14,6 +14,7 @@
 import * as fs from "fs/promises";
 import * as path from "path";
 import { logger } from "@/config/logger";
+import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
  * Summary 통계 (증분 계산용)
@@ -56,7 +57,7 @@ export class StreamingResultWriter {
 
   constructor(private options: StreamingResultWriterOptions) {
     this.filePath = this.generateFilePath();
-    this.startedAt = new Date().toISOString();
+    this.startedAt = getTimestampWithTimezone();
     this.summary = {
       total: 0,
       success: 0,
@@ -64,6 +65,17 @@ export class StreamingResultWriter {
       not_found: 0,
       match_rate: 0,
     };
+  }
+
+  /**
+   * 로컬 타임존 기준 날짜 문자열 반환 (YYYY-MM-DD)
+   */
+  private getLocalDateString(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
   }
 
   /**
@@ -76,7 +88,7 @@ export class StreamingResultWriter {
 
     // 날짜별 서브디렉토리 사용
     if (useDateSubdir) {
-      const date = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
+      const date = this.getLocalDateString(); // YYYY-MM-DD (Asia/Seoul 기준)
       baseDir = path.join(baseDir, date);
     }
 
@@ -191,7 +203,7 @@ export class StreamingResultWriter {
           Math.round((this.summary.success / this.summary.total) * 10000) / 100;
       }
 
-      const completedAt = new Date().toISOString();
+      const completedAt = getTimestampWithTimezone();
 
       // Summary 메타데이터 푸터 작성 (마지막 줄)
       if (this.fileHandle) {
