@@ -34,6 +34,7 @@ const LOG_LEVEL =
   process.env.LOG_LEVEL || (NODE_ENV === "production" ? "info" : "debug");
 const LOG_DIR = process.env.LOG_DIR || path.join(process.cwd(), "logs");
 const LOG_PRETTY = process.env.LOG_PRETTY === "true";
+const SERVICE_NAME = process.env.SERVICE_NAME || "server"; // 기본값: server
 
 // 로그 디렉토리 생성 (없으면)
 if (!fs.existsSync(LOG_DIR)) {
@@ -113,6 +114,7 @@ function createRotatingStream(prefix: string) {
 
 /**
  * 기본 로거 설정
+ * SERVICE_NAME 환경변수로 서비스별 로그 파일 라우팅 제어
  */
 const baseConfig: pino.LoggerOptions = {
   level: LOG_LEVEL,
@@ -123,6 +125,7 @@ const baseConfig: pino.LoggerOptions = {
   base: {
     service: "product_scanner",
     env: NODE_ENV,
+    service_name: SERVICE_NAME, // 서비스별 로그 파일 라우팅용
   },
 };
 

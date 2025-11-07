@@ -11,7 +11,7 @@
 import { Request, Response } from "express";
 import { HwahaeScanService } from "@/services/HwahaeScanService";
 import { ValidationRequest } from "@/core/domain/HwahaeConfig";
-import { createRequestLogger } from "@/utils/logger-context";
+import { createRequestLogger } from "@/utils/LoggerContext";
 
 /**
  * 스캔 컨트롤러 (플랫폼별)

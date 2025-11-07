@@ -11,7 +11,7 @@ import { Request, Response } from "express";
 import { IWorkflowService } from "@/core/interfaces/IWorkflowService";
 import { WorkflowExecutionService } from "@/services/WorkflowExecutionService";
 import { JobPriority } from "@/core/domain/Workflow";
-import { createRequestLogger } from "@/utils/logger-context";
+import { createRequestLogger } from "@/utils/LoggerContext";
 
 /**
  * Workflow 컨트롤러

@@ -12,7 +12,7 @@
 
 import { Request, Response, NextFunction } from "express";
 import { v4 as uuidv4 } from "uuid";
-import { createRequestLogger } from "@/utils/logger-context";
+import { createRequestLogger } from "@/utils/LoggerContext";
 
 /**
  * 파일 로그에서 제외할 경로 목록

@@ -11,10 +11,7 @@
 import Redis from "ioredis";
 import { IWorkflowRepository } from "@/core/interfaces/IWorkflowRepository";
 import { Job, JobStatus } from "@/core/domain/Workflow";
-import { createServiceLogger } from "@/utils/logger-context";
-import { SERVICE_NAMES } from "@/config/constants";
-
-const logger = createServiceLogger(SERVICE_NAMES.REDIS_REPOSITORY);
+import { logger } from "@/config/logger";
 
 /**
  * Redis 키 패턴

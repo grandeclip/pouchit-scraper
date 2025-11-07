@@ -12,7 +12,7 @@ import { IProductSearchService } from "@/core/interfaces/IProductSearchService";
 import { ProductSearchService } from "@/services/ProductSearchService";
 import { ProductSetSearchRequest } from "@/core/domain/ProductSet";
 import { API_CONFIG } from "@/config/constants";
-import { createRequestLogger } from "@/utils/logger-context";
+import { createRequestLogger } from "@/utils/LoggerContext";
 
 /**
  * Product Search 컨트롤러

@@ -8,12 +8,11 @@ import express from "express";
 import v1Router from "@/routes/v1";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
 import { requestLogger } from "@/middleware/requestLogger";
-import { createServiceLogger, logImportant } from "@/utils/logger-context";
-import { SERVICE_NAMES, APP_METADATA } from "@/config/constants";
+import { logImportant } from "@/utils/LoggerContext";
+import { APP_METADATA } from "@/config/constants";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import { ScannerRegistry } from "@/services/ScannerRegistry";
-
-const logger = createServiceLogger(SERVICE_NAMES.SERVER);
+import { logger } from "@/config/logger";
 
 const app = express();
 const PORT = process.env.PORT || 3000;

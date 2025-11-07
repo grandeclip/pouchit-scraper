@@ -14,6 +14,7 @@ services:
       # Timezone configuration
       - TZ=Asia/Seoul
       # Logging configuration
+      - SERVICE_NAME=server
       - LOG_LEVEL=debug
       - LOG_PRETTY=true
       - LOG_DIR=/app/logs
@@ -58,6 +59,7 @@ services:
       # Timezone configuration
       - TZ=Asia/Seoul
       # Logging configuration
+      - SERVICE_NAME=worker
       - LOG_LEVEL=debug
       - LOG_PRETTY=true
       - LOG_DIR=/app/logs

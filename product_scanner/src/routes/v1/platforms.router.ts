@@ -9,11 +9,9 @@
 
 import { Router } from "express";
 import { ConfigLoader } from "@/config/ConfigLoader";
-import { createServiceLogger } from "@/utils/logger-context";
-import { SERVICE_NAMES } from "@/config/constants";
+import { logger } from "@/config/logger";
 
 const router = Router();
-const logger = createServiceLogger(SERVICE_NAMES.SERVER);
 
 /**
  * GET /api/v1/platforms

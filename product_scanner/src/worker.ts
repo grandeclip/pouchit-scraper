@@ -6,12 +6,10 @@
 import "dotenv/config";
 import { WorkflowExecutionService } from "@/services/WorkflowExecutionService";
 import { RedisWorkflowRepository } from "@/repositories/RedisWorkflowRepository";
-import { createServiceLogger, logImportant } from "@/utils/logger-context";
-import { SERVICE_NAMES, WORKFLOW_CONFIG } from "@/config/constants";
-import type { Logger } from "@/config/logger";
+import { logImportant } from "@/utils/LoggerContext";
+import { WORKFLOW_CONFIG } from "@/config/constants";
+import { logger } from "@/config/logger";
 import type { Job } from "@/core/domain/Workflow";
-
-const logger = createServiceLogger(SERVICE_NAMES.WORKER);
 
 const POLL_INTERVAL_MS = WORKFLOW_CONFIG.POLL_INTERVAL_MS;
 const PLATFORMS = WORKFLOW_CONFIG.PLATFORMS;

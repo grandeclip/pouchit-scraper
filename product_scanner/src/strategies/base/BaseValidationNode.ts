@@ -26,7 +26,7 @@ import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
-import { logImportant } from "@/utils/logger-context";
+import { logImportant } from "@/utils/LoggerContext";
 import { BrowserPool } from "@/scanners/base/BrowserPool";
 import type { Browser, BrowserContext, Page } from "playwright";
 import { SCRAPER_CONFIG } from "@/config/constants";

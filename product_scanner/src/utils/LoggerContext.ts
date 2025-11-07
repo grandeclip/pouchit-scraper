@@ -8,15 +8,6 @@
 import { logger, Logger } from "@/config/logger";
 
 /**
- * 서비스별 로거 생성
- * @param serviceName - 서비스 이름 (예: "worker", "server")
- * @returns 서비스 컨텍스트가 포함된 자식 로거
- */
-export function createServiceLogger(serviceName: string): Logger {
-  return logger.child({ service_name: serviceName });
-}
-
-/**
  * Job 전용 로거 생성 (Workflow 컨텍스트 포함)
  * @param jobId - Job ID
  * @param workflowId - Workflow ID

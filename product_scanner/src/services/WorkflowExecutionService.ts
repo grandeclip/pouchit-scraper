@@ -35,7 +35,7 @@ import { RedisWorkflowRepository } from "@/repositories/RedisWorkflowRepository"
 import { WorkflowLoaderService } from "./WorkflowLoaderService";
 import { NodeStrategyFactory } from "./NodeStrategyFactory";
 import { logger } from "@/config/logger";
-import { createJobLogger, logImportant } from "@/utils/logger-context";
+import { createJobLogger, logImportant } from "@/utils/LoggerContext";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
@@ -301,7 +301,6 @@ export class WorkflowExecutionService implements IWorkflowService {
           {
             job_id: job.job_id,
             status: job.status,
-            progress: job.progress,
             current_node: job.current_node,
           },
           "Updating job status in Redis",
@@ -314,7 +313,6 @@ export class WorkflowExecutionService implements IWorkflowService {
             next_nodes: nextNodes,
             executed_count: executedNodes.size,
             total_nodes: totalNodes,
-            progress: job.progress,
           },
           "Node completed",
         );

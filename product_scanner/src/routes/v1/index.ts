@@ -13,15 +13,13 @@
 
 import { Router } from "express";
 import { ConfigLoader } from "@/config/ConfigLoader";
-import { createServiceLogger } from "@/utils/logger-context";
-import { SERVICE_NAMES } from "@/config/constants";
+import { logger } from "@/config/logger";
 import platformsRouter from "./platforms.router";
 import { createPlatformScanRouter } from "./platform-scan.router";
 import productsRouter from "./products.router";
 import workflowsRouter from "./workflows.router";
 
 const router = Router();
-const logger = createServiceLogger(SERVICE_NAMES.SERVER);
 
 // 1. 플랫폼 목록 API
 router.use("/platforms", platformsRouter);
