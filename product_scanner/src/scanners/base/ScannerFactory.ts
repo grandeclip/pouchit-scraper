@@ -23,6 +23,7 @@ import { ZigzagConfig } from "@/core/domain/ZigzagConfig";
 import { HwahaeScannerFactory } from "@/scanners/platforms/hwahae/HwahaeScannerFactory";
 import { OliveyoungScannerFactory } from "@/scanners/platforms/oliveyoung/OliveyoungScannerFactory";
 import { ZigzagScannerFactory } from "@/scanners/platforms/zigzag/ZigzagScannerFactory";
+import { MusinsaScannerFactory } from "@/scanners/platforms/musinsa/MusinsaScannerFactory";
 
 /**
  * 스캐너 팩토리
@@ -106,6 +107,11 @@ export class ScannerFactory {
 
       case PLATFORM_IDS.ZIGZAG: {
         const factory = new ZigzagScannerFactory(config as ZigzagConfig);
+        return factory.create(strategy) as unknown as IScanner;
+      }
+
+      case PLATFORM_IDS.MUSINSA: {
+        const factory = new MusinsaScannerFactory(config);
         return factory.create(strategy) as unknown as IScanner;
       }
 
