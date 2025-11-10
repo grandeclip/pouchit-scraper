@@ -515,32 +515,91 @@ export abstract class BaseValidationNode implements INodeStrategy {
             `Context Rotation: ${CONTEXT_ROTATION_INTERVAL}개 처리 완료 - Context 재생성`,
           );
 
-          // 기존 Context/Page 정리
-          if (page) {
-            await page.close().catch(() => {});
-            page = null;
-          }
-          if (context) {
-            await context.close().catch(() => {});
-            context = null;
-          }
+          try {
+            // 기존 Context/Page 정리
+            if (page) {
+              await page.close().catch(() => {});
+              page = null;
+            }
+            if (context) {
+              await context.close().catch(() => {});
+              context = null;
+            }
 
-          // V8 GC 힌트 (메모리 정리 유도)
-          if (ENABLE_GC_HINTS && global.gc) {
-            global.gc();
+            // V8 GC 힌트 (메모리 정리 유도)
+            if (ENABLE_GC_HINTS && global.gc) {
+              global.gc();
+              logger.debug(
+                { type: this.type, batchIndex, productIndex: i },
+                "V8 GC 힌트 실행",
+              );
+            }
+
+            // 새 Context/Page 생성 (타임아웃 30초)
+            const CONTEXT_CREATION_TIMEOUT = 30000;
+            ({ context, page } = await Promise.race([
+              this.createBrowserContext(browser),
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("Context creation timeout")),
+                  CONTEXT_CREATION_TIMEOUT,
+                ),
+              ),
+            ]));
+
             logger.debug(
               { type: this.type, batchIndex, productIndex: i },
-              "V8 GC 힌트 실행",
+              "Context 재생성 완료",
             );
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            logger.error(
+              {
+                type: this.type,
+                batchIndex,
+                productIndex: i,
+                error: message,
+              },
+              "Context 재생성 실패 - 재시도",
+            );
+
+            // 실패 시 정리 후 재시도
+            if (page) {
+              await page.close().catch(() => {});
+              page = null;
+            }
+            if (context) {
+              await context.close().catch(() => {});
+              context = null;
+            }
+
+            // 재시도 (타임아웃 없이 한 번만)
+            try {
+              ({ context, page } = await this.createBrowserContext(browser));
+              logger.info(
+                { type: this.type, batchIndex, productIndex: i },
+                "Context 재생성 재시도 성공",
+              );
+            } catch (retryError) {
+              const retryMessage =
+                retryError instanceof Error
+                  ? retryError.message
+                  : String(retryError);
+              logger.error(
+                {
+                  type: this.type,
+                  batchIndex,
+                  productIndex: i,
+                  error: retryMessage,
+                },
+                "Context 재생성 재시도 실패 - 배치 중단",
+              );
+              throw new Error(
+                `Context 재생성 실패 (productIndex: ${i}): ${retryMessage}`,
+              );
+            }
           }
-
-          // 새 Context/Page 생성
-          ({ context, page } = await this.createBrowserContext(browser));
-
-          logger.debug(
-            { type: this.type, batchIndex, productIndex: i },
-            "Context 재생성 완료",
-          );
         }
         // Page Rotation: N개마다 Page 재생성 (메모리 정리)
         else if (i > 0 && i % PAGE_ROTATION_INTERVAL === 0) {
@@ -549,18 +608,77 @@ export abstract class BaseValidationNode implements INodeStrategy {
             `Page Rotation: ${PAGE_ROTATION_INTERVAL}개 처리 완료 - Page 재생성`,
           );
 
-          // 기존 Page 정리
-          if (page) {
-            await page.close().catch(() => {});
+          try {
+            // 기존 Page 정리
+            if (page) {
+              await page.close().catch(() => {});
+            }
+
+            // 새 Page 생성 (Context는 유지) - 타임아웃 30초
+            const PAGE_CREATION_TIMEOUT = 30000;
+            page = await Promise.race([
+              context.newPage(),
+              new Promise<never>((_, reject) =>
+                setTimeout(
+                  () => reject(new Error("Page creation timeout")),
+                  PAGE_CREATION_TIMEOUT,
+                ),
+              ),
+            ]);
+
+            logger.debug(
+              { type: this.type, batchIndex, productIndex: i },
+              "Page 재생성 완료",
+            );
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            logger.error(
+              {
+                type: this.type,
+                batchIndex,
+                productIndex: i,
+                error: message,
+              },
+              "Page 재생성 실패 - Context 전체 재생성",
+            );
+
+            // Page 재생성 실패 시 Context 전체 재생성
+            try {
+              if (page) {
+                await page.close().catch(() => {});
+                page = null;
+              }
+              if (context) {
+                await context.close().catch(() => {});
+                context = null;
+              }
+
+              ({ context, page } = await this.createBrowserContext(browser));
+
+              logger.info(
+                { type: this.type, batchIndex, productIndex: i },
+                "Context 전체 재생성 완료",
+              );
+            } catch (recoveryError) {
+              const recoveryMessage =
+                recoveryError instanceof Error
+                  ? recoveryError.message
+                  : String(recoveryError);
+              logger.error(
+                {
+                  type: this.type,
+                  batchIndex,
+                  productIndex: i,
+                  error: recoveryMessage,
+                },
+                "Context 재생성 실패 - 배치 중단",
+              );
+              throw new Error(
+                `Page/Context 재생성 실패 (productIndex: ${i}): ${recoveryMessage}`,
+              );
+            }
           }
-
-          // 새 Page 생성 (Context는 유지)
-          page = await context.newPage();
-
-          logger.debug(
-            { type: this.type, batchIndex, productIndex: i },
-            "Page 재생성 완료",
-          );
         }
 
         // Rate Limiting
