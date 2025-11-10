@@ -93,7 +93,7 @@ Icon
 # temp
 .playwright/
 .playwright-mcp/
-hwahae/
+**/hwahae-analysis/
 **/oliveyoung-analysis/
 **/musinsa-analysis/
 **/zigzag-analysis/samples
