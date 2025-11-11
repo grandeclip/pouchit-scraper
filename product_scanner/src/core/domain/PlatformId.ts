@@ -15,6 +15,7 @@ export const PLATFORM_IDS = {
   OLIVEYOUNG: "oliveyoung",
   MUSINSA: "musinsa",
   ZIGZAG: "zigzag",
+  ABLY: "ably",
 } as const;
 
 /**

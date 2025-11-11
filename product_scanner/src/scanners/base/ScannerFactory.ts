@@ -24,6 +24,8 @@ import { HwahaeScannerFactory } from "@/scanners/platforms/hwahae/HwahaeScannerF
 import { OliveyoungScannerFactory } from "@/scanners/platforms/oliveyoung/OliveyoungScannerFactory";
 import { ZigzagScannerFactory } from "@/scanners/platforms/zigzag/ZigzagScannerFactory";
 import { MusinsaScannerFactory } from "@/scanners/platforms/musinsa/MusinsaScannerFactory";
+import { AblyScannerFactory } from "@/scanners/platforms/ably/AblyScannerFactory";
+import { AblyConfig } from "@/core/domain/AblyConfig";
 
 /**
  * 스캐너 팩토리
@@ -112,6 +114,11 @@ export class ScannerFactory {
 
       case PLATFORM_IDS.MUSINSA: {
         const factory = new MusinsaScannerFactory(config);
+        return factory.create(strategy) as unknown as IScanner;
+      }
+
+      case PLATFORM_IDS.ABLY: {
+        const factory = new AblyScannerFactory(config as AblyConfig);
         return factory.create(strategy) as unknown as IScanner;
       }
 

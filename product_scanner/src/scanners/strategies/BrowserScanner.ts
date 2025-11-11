@@ -305,8 +305,8 @@ export class BrowserScanner<
           if (url) {
             logger.info({ strategyId: this.strategy.id, url }, "페이지 이동");
             await this.page.goto(url, {
-              waitUntil: "networkidle",
-              timeout: SCRAPER_CONFIG.NAVIGATION_TIMEOUT_MS,
+              waitUntil: (step.waitUntil as any) || "networkidle",
+              timeout: step.timeout || SCRAPER_CONFIG.NAVIGATION_TIMEOUT_MS,
             });
           }
           break;
