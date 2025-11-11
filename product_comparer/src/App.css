@@ -1,0 +1,380 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: white;
+  color: #333;
+}
+
+.app {
+  max-width: 98vw;
+  margin: 0 auto;
+  padding: 10px;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: white;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+h1 {
+  margin: 0;
+  color: #333;
+}
+
+h2 {
+  color: #555;
+  margin-top: 0;
+  margin-bottom: 15px;
+}
+
+/* 선택 섹션 */
+.selector-section {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+}
+
+.selector-group {
+  margin-bottom: 15px;
+}
+
+.selector-group:last-child {
+  margin-bottom: 0;
+}
+
+.selector-group label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #444;
+}
+
+.selector-group select {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+}
+
+.selector-group select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 업로드 섹션 */
+.upload-section {
+  background: #fff4e6;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  border: 2px dashed #ffa726;
+}
+
+.upload-label {
+  display: block;
+  font-weight: 600;
+  color: #444;
+  cursor: pointer;
+}
+
+.upload-label input[type="file"] {
+  margin-left: 10px;
+}
+
+/* 상태 메시지 */
+.error {
+  background: #fee;
+  color: #c33;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+  font-size: 18px;
+  color: #666;
+}
+
+.warning {
+  background: #fff3cd;
+  color: #856404;
+  padding: 15px;
+  border-radius: 4px;
+  margin-top: 15px;
+}
+
+/* 메타 정보 섹션 */
+.meta-section {
+  background: white;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.meta-info {
+  background: #f8f9fa;
+  padding: 15px;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.meta-info:last-child {
+  margin-bottom: 0;
+}
+
+.meta-info > div {
+  margin-bottom: 8px;
+}
+
+.meta-info > div:last-child {
+  margin-bottom: 0;
+}
+
+.summary {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.summary span {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: #e9ecef;
+}
+
+.summary .success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.summary .failed {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* 상품 섹션 */
+.products-section {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.products-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.filter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.filter-checkbox input {
+  cursor: pointer;
+}
+
+.total-info {
+  color: #666;
+  font-size: 14px;
+}
+
+/* 테이블 */
+.table-container {
+  overflow-x: auto;
+  margin-bottom: 20px;
+}
+
+.comparison-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.comparison-table thead {
+  background: #f8f9fa;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.comparison-table th {
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.comparison-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e9ecef;
+  vertical-align: top;
+}
+
+.comparison-table tbody tr:hover {
+  background: #f8f9fa;
+}
+
+.match-row {
+  background: #f1f8f4;
+}
+
+.mismatch-row {
+  background: #fef5f5;
+}
+
+.status-cell {
+  text-align: center;
+  font-size: 18px;
+  width: 50px;
+}
+
+.product-name-cell {
+  min-width: 200px;
+  white-space: nowrap;
+}
+
+.thumbnail-cell {
+  text-align: center;
+  width: 100px;
+}
+
+.price-cell {
+  text-align: right;
+  min-width: 100px;
+}
+
+.status-value-cell {
+  text-align: center;
+  width: 100px;
+}
+
+.link-cell {
+  text-align: center;
+  width: 50px;
+}
+
+.link-cell a {
+  text-decoration: none;
+  font-size: 18px;
+}
+
+/* 차이 표시 */
+.diff {
+  background: #fff3cd;
+  padding: 4px;
+  border-radius: 3px;
+}
+
+.db-value {
+  color: #1976d2;
+  margin-bottom: 4px;
+}
+
+.fetch-value {
+  color: #ff9800;
+  font-weight: 600;
+}
+
+.url-value {
+  cursor: help;
+}
+
+/* 페이지네이션 */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.pagination button {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.pagination button:hover:not(:disabled) {
+  background: #f0f0f0;
+  border-color: #999;
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-info {
+  padding: 8px 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .products-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .filter-controls {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .comparison-table {
+    font-size: 12px;
+  }
+
+  .comparison-table th,
+  .comparison-table td {
+    padding: 8px 4px;
+  }
+
+  .product-name-cell {
+    max-width: 200px;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+
+  .pagination button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+}
