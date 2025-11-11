@@ -175,6 +175,18 @@ function App() {
       : `${remainingSeconds}초`;
   };
 
+  // product_set_id 복사
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert(`복사됨: ${text}`);
+    });
+  };
+
+  // 썸네일 차이 표시
+  const showThumbnailDiff = (dbUrl: string, fetchUrl: string) => {
+    alert(`DB: ${dbUrl}\n\nFetch: ${fetchUrl}`);
+  };
+
   return (
     <div className="app">
       <header>
@@ -337,6 +349,8 @@ function App() {
                     <th>할인가</th>
                     <th>판매상태</th>
                     <th>링크</th>
+                    <th>바로가기</th>
+                    <th>product_set_id</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -383,14 +397,22 @@ function App() {
                               product.comparison.thumbnail ? "" : "diff"
                             }
                           >
-                            <div
-                              className="url-value"
-                              title={product.db.thumbnail}
-                            >
-                              {product.db.thumbnail === product.fetch.thumbnail
-                                ? "✅ 동일"
-                                : "⚠️ 다름"}
-                            </div>
+                            {product.db.thumbnail ===
+                            product.fetch.thumbnail ? (
+                              <div>✅ 동일</div>
+                            ) : (
+                              <div
+                                className="clickable"
+                                onClick={() =>
+                                  showThumbnailDiff(
+                                    product.db.thumbnail,
+                                    product.fetch.thumbnail,
+                                  )
+                                }
+                              >
+                                ⚠️ 다름
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
@@ -479,6 +501,21 @@ function App() {
                         >
                           🔗
                         </a>
+                      </td>
+                      <td className="link-cell">
+                        <a
+                          href={`https://magpie.scoob.beauty/admin/products/${product.product_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          🏠
+                        </a>
+                      </td>
+                      <td
+                        className="product-set-id-cell clickable"
+                        onClick={() => copyToClipboard(product.product_set_id)}
+                      >
+                        {product.product_set_id}
                       </td>
                     </tr>
                   ))}
