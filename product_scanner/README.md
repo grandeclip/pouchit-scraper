@@ -8,6 +8,9 @@
 
 - **화해**: API + Playwright 이중 전략
 - **올리브영**: Playwright 브라우저 기반 스크래핑
+- **무신사**: Playwright (JSON-LD Schema.org 추출)
+- **지그재그**: GraphQL API (우선) + Playwright 대체
+- **에이블리**: Playwright (Network API 캡처 + Meta Tag fallback)
 - **제네릭 아키텍처**: 새 플랫폼 추가 시 YAML 설정만으로 확장
 - CSV 데이터와 실시간 데이터 검증
 
@@ -19,18 +22,79 @@
 
 ## 🔄 작동 방식
 
-### 화해 상품 스캔
+### 멀티 플랫폼 스캔 전략
+
+각 플랫폼은 최적화된 데이터 추출 전략을 사용합니다:
+
+#### 1. 화해 (이중 전략)
 
 ```mermaid
 graph LR
     A[Scan Request] --> B{전략 선택}
-    B -->|Priority 1| C[화해 API]
-    B -->|Priority 2| D[Playwright]
+    B -->|Priority 1| C[화해 REST API]
+    B -->|Priority 2| D[Playwright DOM]
     C --> E[상품 정보 추출]
     D --> E
-    E --> F[CSV 데이터 검증]
+    E --> F[결과 반환]
+```
+
+- **1차**: REST API (빠름, 안정적)
+- **2차**: Playwright DOM (API 실패 시)
+
+#### 2. 올리브영 (브라우저 전용)
+
+```mermaid
+graph LR
+    A[Scan Request] --> B[Playwright 브라우저]
+    B --> C[DOM Selector]
+    C --> D[상품 정보 추출]
+    D --> E[결과 반환]
+```
+
+- **단일 전략**: Playwright DOM Selector
+
+#### 3. 무신사 (구조화 데이터)
+
+```mermaid
+graph LR
+    A[Scan Request] --> B[Playwright 브라우저]
+    B --> C[JSON-LD Schema.org]
+    C --> D[상품 정보 추출]
+    D --> E[결과 반환]
+```
+
+- **단일 전략**: JSON-LD Schema.org 구조화 데이터
+
+#### 4. 지그재그 (이중 전략)
+
+```mermaid
+graph LR
+    A[Scan Request] --> B{전략 선택}
+    B -->|Priority 1| C[GraphQL API]
+    B -->|Priority 2| D[Playwright __NEXT_DATA__]
+    C --> E[상품 정보 추출]
+    D --> E
+    E --> F[결과 반환]
+```
+
+- **1차**: GraphQL API (빠름, 정확)
+- **2차**: Playwright `__NEXT_DATA__` (API 실패 시)
+
+#### 5. 에이블리 (Network API 캡처)
+
+```mermaid
+graph LR
+    A[Scan Request] --> B[Playwright 브라우저]
+    B --> C{Network API 캡처}
+    C -->|성공| D[API 응답 데이터]
+    C -->|실패| E[Meta Tag Fallback]
+    D --> F[상품 정보 추출]
+    E --> F
     F --> G[결과 반환]
 ```
+
+- **1차**: Network API 캡처 (`/api/v3/goods/{id}/basic/`)
+- **2차**: Meta Tag Fallback (API 타임아웃 시)
 
 ### Supabase 상품 검색
 
@@ -43,11 +107,11 @@ graph LR
     E --> F[JSON Response]
 ```
 
-### 스크래핑 전략
+### 공통 아키텍처 패턴
 
-1. **API 전략**: 화해 공식 API 호출 (우선순위 1)
-2. **Playwright 전략**: 브라우저 자동화로 데이터 추출 (우선순위 2)
-3. **자동 대체**: API 실패 시 Playwright로 자동 전환
+- **Strategy Pattern**: 플랫폼별 최적 전략 자동 선택
+- **Fallback Chain**: 1차 전략 실패 시 2차 전략으로 자동 전환
+- **YAML 설정**: 코드 수정 없이 전략 추가/변경 가능
 
 ## 🏗️ 아키텍처
 
@@ -111,7 +175,10 @@ product_scanner/
 │   │   ├── ConfigLoader.ts        # YAML 설정 로더 (Singleton)
 │   │   └── platforms/             # 플랫폼별 YAML 설정
 │   │       ├── hwahae.yaml        # 화해 설정
-│   │       └── oliveyoung.yaml    # 올리브영 설정 (max_concurrency)
+│   │       ├── oliveyoung.yaml    # 올리브영 설정
+│   │       ├── musinsa.yaml       # 무신사 설정
+│   │       ├── zigzag.yaml        # 지그재그 설정
+│   │       └── ably.yaml          # 에이블리 설정
 │   ├── core/                      # 도메인 & 인터페이스
 │   │   ├── domain/                # 도메인 모델
 │   │   │   ├── PlatformId.ts     # 플랫폼 ID 타입 (hwahae | oliveyoung)
@@ -141,8 +208,11 @@ product_scanner/
 │   │   │   ├── ApiScanner.ts      # API 기반 스캐너
 │   │   │   └── BrowserScanner.ts  # Playwright 기반 스캐너 (풀 통합)
 │   │   ├── platforms/             # 플랫폼별 팩토리
-│   │   │   └── oliveyoung/
-│   │   │       └── OliveyoungScannerFactory.ts
+│   │   │   ├── hwahae/            # 화해 팩토리
+│   │   │   ├── oliveyoung/        # 올리브영 팩토리
+│   │   │   ├── musinsa/           # 무신사 팩토리
+│   │   │   ├── zigzag/            # 지그재그 팩토리
+│   │   │   └── ably/              # 에이블리 팩토리
 │   │   ├── HttpScanner.ts         # 레거시 (화해 전용)
 │   │   └── PlaywrightScraper.ts   # 레거시 (화해 전용)
 │   ├── strategies/                # Workflow 노드 전략
@@ -176,6 +246,9 @@ product_scanner/
 ├── workflows/                     # Workflow 정의 (JSON)
 │   ├── hwahae-validation-v1.json    # 화해 검증 워크플로우
 │   ├── oliveyoung-validation-v1.json  # 올영 검증 워크플로우
+│   ├── musinsa-validation-v1.json   # 무신사 검증 워크플로우
+│   ├── zigzag-validation-v1.json    # 지그재그 검증 워크플로우
+│   ├── ably-validation-v1.json      # 에이블리 검증 워크플로우
 │   └── dag-example-v1.json          # DAG 구조 예제
 ├── docs/                          # 문서
 │   ├── hwahae-validator.md
@@ -285,10 +358,13 @@ npx tsc --project tsconfig.scripts.json --noEmit
 
 ### 지원 플랫폼
 
-| 플랫폼   | Platform ID  | 전략                          | 비고          |
-| -------- | ------------ | ----------------------------- | ------------- |
-| 화해     | `hwahae`     | API (우선), Playwright (대체) | 완전 지원     |
-| 올리브영 | `oliveyoung` | Playwright                    | 브라우저 전용 |
+| 플랫폼   | Platform ID  | 전략                              | 추출 방식                            |
+| -------- | ------------ | --------------------------------- | ------------------------------------ |
+| 화해     | `hwahae`     | API (우선), Playwright (대체)     | REST API / DOM                       |
+| 올리브영 | `oliveyoung` | Playwright                        | DOM Selector                         |
+| 무신사   | `musinsa`    | Playwright                        | JSON-LD Schema.org                   |
+| 지그재그 | `zigzag`     | GraphQL (우선), Playwright (대체) | GraphQL API / `__NEXT_DATA__`        |
+| 에이블리 | `ably`       | Playwright                        | Network API 캡처 + Meta Tag Fallback |
 
 ### API 엔드포인트 (v2.1.0)
 
@@ -314,7 +390,7 @@ GET /api/v1/platforms
 
 #### 3. 플랫폼별 상품 스캔
 
-**화해 상품 스캔**
+##### 화해
 
 ```bash
 # 기본 스캔 (API 우선, Playwright 대체)
@@ -327,7 +403,7 @@ POST /api/v1/platforms/hwahae/scan/:goodsId?strategyId=http-api
 GET /api/v1/platforms/hwahae/scan/strategies
 ```
 
-**올리브영 상품 스캔**
+##### 올리브영
 
 ```bash
 # 브라우저 스캔
@@ -337,7 +413,37 @@ POST /api/v1/platforms/oliveyoung/scan/:goodsId
 GET /api/v1/platforms/oliveyoung/scan/strategies
 ```
 
-**검증 (CSV vs API) - 화해 전용**
+##### 무신사
+
+```bash
+# 브라우저 스캔 (JSON-LD Schema.org)
+POST /api/v1/platforms/musinsa/scan/:goodsId
+
+# 전략 목록
+GET /api/v1/platforms/musinsa/scan/strategies
+```
+
+##### 지그재그
+
+```bash
+# GraphQL API 스캔 (우선)
+POST /api/v1/platforms/zigzag/scan/:productId
+
+# 전략 목록
+GET /api/v1/platforms/zigzag/scan/strategies
+```
+
+##### 에이블리
+
+```bash
+# 브라우저 스캔 (Network API 캡처)
+POST /api/v1/platforms/ably/scan/:goodsId
+
+# 전략 목록
+GET /api/v1/platforms/ably/scan/strategies
+```
+
+##### 검증 (CSV vs API) - 화해 전용
 
 ```bash
 POST /api/v1/platforms/hwahae/scan/validate

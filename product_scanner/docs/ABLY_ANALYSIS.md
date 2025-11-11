@@ -2,22 +2,23 @@
 
 ## 📊 분석 결과
 
-### ✅ 성공: NextJS SSR 데이터 추출
+### ✅ 성공: Network API 캡처 방식 (최종 솔루션)
 
-**방법**: `document.getElementById('__NEXT_DATA__')` → JSON 파싱
+**방법**: Playwright `page.on('response')` → `/api/v3/goods/{id}/basic/` API 응답 캡처
 
 **판매중 상품 (20787714)** ⭐
 
-- SSR 데이터 완벽 추출
-- 참고: `product-20787714-ssr-data.json`
+- Network API 응답 캡처 성공
+- `__NEXT_DATA__` SSR 데이터에서도 동일 정보 존재 (백업)
+- 참고: `test-ably.ts` 스크립트
 
-### ⚠️ 품절 상품: SSR 데이터 없음 → DOM 파싱
+### ⚠️ 품절 상품: Network API 실패 → Meta Tag Fallback
 
 **품절 상품 (32438971, 3092743)**
 
-- `__NEXT_DATA__` 내 `queries` 배열 비어있음
-- DOM 스냅샷 파싱으로 대체
-- 참고: `product-32438971-dom-fallback.json`
+- Network API 캡처 타임아웃
+- Meta Tag (`og:title`, `og:image`) 기반 추출로 대체
+- 판매 상태는 DOM 텍스트 분석으로 판단
 
 ### ❌ 판매중지 상품: 접근 차단
 
@@ -47,44 +48,66 @@ sale_type: "ON_SALE" | "SOLD_OUT" | 기타;
 - `SOLD_OUT`: 품절 (페이지 접근 가능, SSR 데이터 없음)
 - 판매중지: 페이지 접근 차단 (Alert)
 
-## 🚀 스크래핑 전략
+## 🚀 스크래핑 전략 (최종)
 
-### 1차: SSR 데이터 추출 (권장)
+### 1차: Network API 응답 캡처 (권장) ⭐
 
 ```typescript
-const script = document.getElementById("__NEXT_DATA__");
-const data = JSON.parse(script.textContent);
-const goods =
-  data.props.pageProps.serverQueryClient.queries[0]?.state?.data?.goods;
+// BEFORE navigation - API 리스너 설정
+let apiResponse: any = null;
+const apiPromise = new Promise<any>((resolve) => {
+  page.on("response", async (response) => {
+    if (response.url().includes(`/api/v3/goods/${productId}/basic/`)) {
+      try {
+        const data = await response.json();
+        resolve(data);
+      } catch (e) {
+        console.error(`JSON 파싱 실패`);
+      }
+    }
+  });
+});
 
-if (goods) {
-  // ✅ 판매중 상품
-  return {
-    name: goods.name,
-    sale_type: goods.sale_type,
-    price_info: goods.price_info,
-    cover_images: goods.cover_images,
-  };
-}
+// Navigation
+await page.goto(`https://m.a-bly.com/goods/${productId}`);
+
+// API 응답 대기 (최대 5초)
+apiResponse = await Promise.race([
+  apiPromise,
+  new Promise((_, reject) =>
+    setTimeout(() => reject(new Error("API timeout")), 5000),
+  ),
+]);
+
+const goods = apiResponse.goods;
+// ✅ 판매중 상품 - API 캡처 성공
 ```
 
-### 2차: DOM 파싱 (fallback)
+### 2차: Meta Tag Fallback
 
 ```typescript
-// SSR 데이터 없을 때
-if (!goods) {
-  // DOM snapshot 또는 selectors 사용
-  // Playwright browser_snapshot 활용
-}
+// API 캡처 실패 시 (품절, 판매중지)
+const metaData = await page.evaluate(() => {
+  const metaTitle = document
+    .querySelector('meta[property="og:title"]')
+    ?.getAttribute("content");
+  const metaImage = document
+    .querySelector('meta[property="og:image"]')
+    ?.getAttribute("content");
+
+  return { metaTitle, metaImage };
+});
 ```
 
-### 3차: 판매중지 감지
+### 3차: 판매 상태 판단 (DOM 분석)
 
 ```typescript
-// Modal dialog 감지
-if (dialog_message === "판매 중인 상품이 아닙니다") {
-  return { sale_type: "DISCONTINUED", error: true };
-}
+const bodyText = document.body.textContent || "";
+const isOffSale =
+  bodyText.includes("판매 중인 상품이 아닙니다") ||
+  window.location.href.includes("/today");
+const isSoldOut = bodyText.includes("품절") || bodyText.includes("재입고");
+const isOnSale = bodyText.includes("구매하기");
 ```
 
 ## 📁 참고 파일
@@ -186,7 +209,7 @@ chromium.use(StealthPlugin());
 
 ### 📋 스크래핑 전략 (최종)
 
-**권장 방식: Stealth Plugin 사용**
+**권장 방식: Stealth Plugin + Network API 캡처**
 
 1. **Stealth Plugin 적용** (필수)
 
@@ -208,14 +231,15 @@ const browser = await chromium.launch({ headless: true });
 
 3. **데이터 추출 우선순위**
 
-- 1순위: SSR 데이터 (`__NEXT_DATA__`)
-- 2순위: Meta 태그 (`og:title`, `og:image`)
-- 3순위: DOM 파싱
+- 1순위: **Network API 캡처** (`/api/v3/goods/{id}/basic/`)
+- 2순위: Meta 태그 Fallback (`og:title`, `og:image`)
+- 3순위: DOM 텍스트 분석 (판매 상태 판단)
 
-~~4. **User-Agent 다양화** (선택)~~
+4. **중요 사항**
 
-- ~~iPhone Safari 17.x - 18.x~~
-- ~~불필요 (Stealth Plugin이 처리)~~
+- API 리스너는 **navigation 전에** 설정 (타이밍 중요!)
+- API 타임아웃: 5초 (이후 Meta Tag fallback)
+- `__NEXT_DATA__` SSR 데이터는 백업용으로만 활용
 
 ### 🎯 권장 아키텍처
 
@@ -235,12 +259,54 @@ const context = await browser.newContext({
 const page = await context.newPage();
 
 // ✅ 세션 재사용 가능 - 연속 스크래핑
-for (const id of productIds) {
-  await page.goto(`https://m.a-bly.com/goods/${id}`);
-  await page.waitForTimeout(1500); // 짧은 대기
+for (const [index, id] of productIds.entries()) {
+  // 1. API 리스너 설정 (BEFORE navigation!)
+  let apiResponse: any = null;
+  const apiPromise = new Promise<any>((resolve) => {
+    page.on("response", async (response) => {
+      if (response.url().includes(`/api/v3/goods/${id}/basic/`)) {
+        try {
+          const data = await response.json();
+          resolve(data);
+        } catch (e) {
+          // JSON 파싱 실패 무시
+        }
+      }
+    });
+  });
 
-  // 데이터 추출
-  const data = await extractProductData(page);
+  // 2. Navigation
+  await page.goto(`https://m.a-bly.com/goods/${id}`);
+  await page.waitForTimeout(2000);
+
+  // 3. API 캡처 시도
+  try {
+    apiResponse = await Promise.race([
+      apiPromise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("API timeout")), 5000),
+      ),
+    ]);
+
+    // API 캡처 성공
+    const goods = apiResponse.goods;
+    const data = {
+      name: goods.name,
+      saleType: goods.sale_type,
+      price: goods.price_info?.thumbnail_price,
+      images: goods.cover_images,
+    };
+  } catch (e) {
+    // 4. Meta Tag Fallback
+    const metaData = await page.evaluate(() => ({
+      metaTitle: document
+        .querySelector('meta[property="og:title"]')
+        ?.getAttribute("content"),
+      metaImage: document
+        .querySelector('meta[property="og:image"]')
+        ?.getAttribute("content"),
+    }));
+  }
 
   // 10-20개마다 브라우저 재시작 권장
   if (index % 15 === 0) {
@@ -284,16 +350,17 @@ await browser.close();
 **Stealth Plugin**: ✅ 사용
 **결과**: 4/4 성공 (100%)
 
-| 상품 ID  | 분류     | Cloudflare | 추출 방법 | 상태 구분             | 결과 |
-| -------- | -------- | ---------- | --------- | --------------------- | ---- |
-| 20787714 | 판매중   | ✅ 통과    | DOM       | 버튼: "구매하기"      | ✅   |
-| 32438971 | 품절 1   | ✅ 통과    | DOM       | 버튼: "품절"          | ✅   |
-| 3092743  | 품절 2   | ✅ 통과    | DOM       | 버튼: "품절"          | ✅   |
-| 32438042 | 판매중지 | ✅ 통과    | DOM       | 리다이렉트 → `/today` | ✅   |
+| 상품 ID  | 분류     | Cloudflare | 추출 방법       | 상태 구분             | 결과 |
+| -------- | -------- | ---------- | --------------- | --------------------- | ---- |
+| 20787714 | 판매중   | ✅ 통과    | **Network API** | API: `sale_type`      | ✅   |
+| 32438971 | 품절 1   | ✅ 통과    | Meta Fallback   | DOM: "품절"           | ✅   |
+| 3092743  | 품절 2   | ✅ 통과    | Meta Fallback   | DOM: "품절"           | ✅   |
+| 32438042 | 판매중지 | ✅ 통과    | Meta Fallback   | 리다이렉트 → `/today` | ✅   |
 
 **핵심 발견**:
 
-1. ✅ SSR 데이터 없어도 Meta 태그로 충분
-2. ✅ 버튼 텍스트로 판매 상태 구분 가능
-3. ✅ URL 변경으로 판매중지 상품 감지
+1. ✅ **Network API 캡처**가 가장 정확 (판매중 상품)
+2. ✅ API 실패 시 Meta 태그로 충분 (품절/판매중지)
+3. ✅ DOM 텍스트로 판매 상태 구분 가능
 4. ✅ Stealth Plugin으로 연속 스크래핑 안정적
+5. ✅ `__NEXT_DATA__` SSR은 API 캡처와 동일 정보 (백업용)
