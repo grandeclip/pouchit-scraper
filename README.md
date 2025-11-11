@@ -10,19 +10,28 @@ YAML 설정 기반으로 코드 수정 없이 새로운 스크래퍼를 추가�
 
 ```text
 scoob-scraper/
-├── product_search/    # 상품 검색 스크래퍼 (완성)
+├── product_scanner/   # 상품 검증 스크래퍼
+├── product_comparer/  # 검증 결과 비교 GUI
 └── README.md
 ```
 
-## 스크래퍼 모듈
+## 모듈
 
-### [product_search](./product_search/)
+### [product_scanner](./product_scanner/)
 
-쇼핑몰별 상품 검색 스크래퍼 서버
+5개 쇼핑몰 상품 검증 스크래퍼 (DAG 워크플로우 기반)
 
-- **지원 쇼핑몰**: 올리브영, 무신사, 지그재그, 에이블리, 컬리, 화해
-- **기술 스택**: TypeScript, Playwright, Express, Docker
-- **특징**: YAML 설정만으로 새 쇼핑몰 추가 가능
+- **플랫폼**: 화해, 올리브영, 무신사, 지그재그, 에이블리
+- **기술**: TypeScript, Playwright, Express, Redis, Supabase, Docker
+- **특징**: DAG 워크플로우, 병렬 처리, JSONL 결과 출력
+
+### [product_comparer](./product_comparer/)
+
+검증 결과 비교 GUI 도구
+
+- **기능**: JSONL 파일 시각화, DB vs Fetch 비교, 날짜별 탐색
+- **기술**: React 19, TypeScript, Vite, Express
+- **특징**: 단일 명령 실행 (concurrently), 페이지네이션, 필터링
 
 ## 기술 스택
 
@@ -33,26 +42,13 @@ scoob-scraper/
 
 ## 빠른 시작
 
-### 상품 검색 스크래퍼 실행
+### product_comparer (비교 GUI)
 
 ```bash
-cd product_search
+cd product_comparer
 npm install
-npm start
-```
-
-### Docker로 실행
-
-```bash
-cd product_search
-docker-compose up -d
-```
-
-### CLI 사용 예시
-
-```bash
-cd product_search
-npx tsx product-search-cli.ts oliveyoung "라운드랩" "선크림"
+npm run dev  # Frontend + Backend 동시 실행
+# http://localhost:5173
 ```
 
 ## 아키텍처 특징
@@ -66,7 +62,8 @@ npx tsx product-search-cli.ts oliveyoung "라운드랩" "선크림"
 
 각 모듈의 자세한 문서는 해당 디렉토리의 README.md를 참고하세요.
 
-- [product_search/README.md](./product_search/README.md)
+- [product_scanner/README.md](./product_scanner/README.md) - 검증 스크래퍼 아키텍처 및 워크플로우
+- [product_comparer/README.md](./product_comparer/README.md) - GUI 도구 사용법 및 API
 
 ## 라이선스
 

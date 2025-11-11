@@ -43,18 +43,23 @@ npm install
 
 ### 2. 개발 서버 실행
 
-**터미널 1 - 백엔드 API 서버:**
-
-```bash
-npm run dev:server
-# http://localhost:3200
-```
-
-**터미널 2 - 프론트엔드 서버:**
+**단일 명령 실행 (권장):**
 
 ```bash
 npm run dev
-# http://localhost:5173
+# Frontend + Backend 동시 실행
+# API: http://localhost:3200
+# Web: http://localhost:5173
+```
+
+**개별 실행 (선택):**
+
+```bash
+# 터미널 1 - 백엔드만
+npm run dev:server
+
+# 터미널 2 - 프론트엔드만
+npm run dev:gui
 ```
 
 ### 3. 브라우저 접속
@@ -62,6 +67,8 @@ npm run dev
 ```
 http://localhost:5173
 ```
+
+**종료**: `Ctrl+C` 누르면 Frontend + Backend 모두 정상 종료
 
 ## 📖 사용법
 
@@ -250,9 +257,10 @@ const __dirname = dirname(__filename);
 
 ## 🚨 주의사항
 
-- 백엔드 서버(3200)와 프론트엔드 서버(5173) 모두 실행 필요
+- `npm run dev` 명령으로 Frontend + Backend 자동 실행 (concurrently 사용)
 - `../product_scanner/results` 디렉토리 접근 권한 필요
 - JSONL 파일 형식: 첫 줄 header meta, 마지막 줄 footer meta
+- Ctrl+C로 종료 시 모든 프로세스 정상 종료
 
 ## 🎯 향후 개선 사항
 
