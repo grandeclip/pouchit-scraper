@@ -54,13 +54,9 @@ try {
  */
 function createRotatingStream(prefix: string) {
   const stream = createStream(
-    (time: Date | number | null) => {
-      // 현재 로컬 시간 기준 (TZ 환경변수 반영)
-      const now = time
-        ? typeof time === "number"
-          ? new Date(time)
-          : time
-        : new Date();
+    () => {
+      // 현재 시각 기준 파일명 생성
+      const now = new Date();
 
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -69,9 +65,12 @@ function createRotatingStream(prefix: string) {
     },
     {
       interval: "1d", // 일일 로테이션
+      intervalBoundary: true, // 자정(00:00) 기준 정렬
+      initialRotation: true, // 시작 시 정확한 날짜 파일 생성
+      immutable: true, // 과거 파일 수정 방지
       path: LOG_DIR,
-      maxFiles: 30, // 30일 보관
-      compress: "gzip", // 1일 후 압축
+      maxFiles: 90, // 30일 보관
+      compress: false, // 압축 비활성화
       maxSize: "100M", // 100MB마다 로테이션
     },
   );
