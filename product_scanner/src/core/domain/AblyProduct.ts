@@ -40,20 +40,19 @@ export class AblyProduct implements IProduct {
 
   /**
    * DOM 데이터로부터 AblyProduct 생성
+   * YAML 필드명 (name, consumer_price, price, title_images, _source) 지원
    */
-  static fromDOMData(
-    data: AblyDOMResponse & { id: string; goodsNo: string },
-  ): AblyProduct {
+  static fromDOMData(data: any): AblyProduct {
     return new AblyProduct(
-      data.id,
-      data.goodsNo,
-      data.productName,
-      data.thumbnail,
-      data.originalPrice,
-      data.discountedPrice,
-      data.saleStatus,
-      data.dataSource,
-      data.additionalImages,
+      data.id || data.goodsNo || "",
+      data.goodsNo || data.id || "",
+      data.productName || data.name || "",
+      data.thumbnail || data.title_images?.[0] || "",
+      Number(data.originalPrice || data.consumer_price || 0),
+      Number(data.discountedPrice || data.price || 0),
+      data.saleStatus || data.sale_status || "off_sale",
+      data.dataSource || data._source || "dom",
+      data.additionalImages || data.title_images?.slice(1) || [],
     );
   }
 

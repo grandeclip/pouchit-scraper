@@ -1,0 +1,70 @@
+{
+  "defaults": {
+    "limit": 1000,
+    "link_url_pattern": "%a-bly.com%"
+  },
+  "description": "Supabase 상품을 Ably Playwright로 검증하고 비교 결과를 저장합니다",
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-11-11",
+    "tags": [
+      "validation",
+      "bulk",
+      "ably"
+    ]
+  },
+  "name": "Ably Product Validation",
+  "nodes": {
+    "1": {
+      "config": {
+        "limit": "${limit}",
+        "link_url_pattern": "${link_url_pattern}",
+        "sale_status": "${sale_status}"
+      },
+      "name": "Search Products from Supabase",
+      "next_nodes": [
+        "2"
+      ],
+      "retry": {
+        "backoff_ms": 1000,
+        "max_attempts": 3
+      },
+      "timeout_ms": 30000,
+      "type": "supabase_search"
+    },
+    "2": {
+      "config": {
+        "concurrency": 4,
+        "strategy_id": "default"
+      },
+      "name": "Validate with Ably Playwright",
+      "next_nodes": [
+        "3"
+      ],
+      "retry": {
+        "backoff_ms": 2000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 90000,
+      "type": "ably_validation"
+    },
+    "3": {
+      "config": {
+        "format": "json",
+        "output_dir": "/app/results",
+        "pretty": true
+      },
+      "name": "Save Results to File",
+      "next_nodes": [],
+      "retry": {
+        "backoff_ms": 500,
+        "max_attempts": 3
+      },
+      "timeout_ms": 10000,
+      "type": "result_writer"
+    }
+  },
+  "start_node": "1",
+  "version": "1.0.0",
+  "workflow_id": "ably-validation-v1"
+}

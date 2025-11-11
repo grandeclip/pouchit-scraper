@@ -14,6 +14,10 @@ import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { SCRAPER_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
 import { JsonLdSchemaExtractor } from "@/extractors/JsonLdSchemaExtractor";
+import {
+  IApiCaptureStrategy,
+  AblyApiCaptureStrategy,
+} from "@/strategies/api-capture/AblyApiCaptureStrategy";
 
 /**
  * Playwright Script 실행 결과 타입 (범용)
@@ -35,6 +39,14 @@ export interface ScriptExecutionResult {
  * Playwright Script Executor 클래스
  */
 export class PlaywrightScriptExecutor {
+  /**
+   * API Capture Strategy Registry (플랫폼별)
+   */
+  private static readonly apiCaptureStrategies: Map<
+    string,
+    IApiCaptureStrategy
+  > = new Map([["ably", new AblyApiCaptureStrategy()]]);
+
   /**
    * YAML 설정 기반으로 상품 스크래핑
    *
@@ -59,10 +71,61 @@ export class PlaywrightScriptExecutor {
       throw new Error("Navigation steps 또는 extraction 설정이 없음");
     }
 
-    // Navigation Steps 실행
-    await this.executeNavigationSteps(page, productId, navigationSteps, config);
+    // API Capture Strategy 확인 (플랫폼별)
+    const apiCaptureStrategy = this.apiCaptureStrategies.get(config.platform);
 
-    // Extraction Script 실행
+    if (apiCaptureStrategy) {
+      logger.debug(
+        { platform: config.platform, productId },
+        "API Capture Strategy 사용",
+      );
+
+      // API 캡처 시도 (Navigation 전에 리스너 등록)
+      const apiCapturePromise = apiCaptureStrategy.captureApiResponse(
+        page,
+        productId,
+        config,
+      );
+
+      // Navigation Steps 실행
+      await this.executeNavigationSteps(
+        page,
+        productId,
+        navigationSteps,
+        config,
+      );
+
+      // API 캡처 결과 확인
+      const apiResult = await apiCapturePromise;
+
+      if (apiResult) {
+        logger.info(
+          { platform: config.platform, productId, source: apiResult._source },
+          "API 캡처 성공 - extraction script 스킵",
+        );
+        return apiResult;
+      }
+
+      logger.debug(
+        { platform: config.platform, productId },
+        "API 캡처 실패 - extraction script fallback",
+      );
+    } else {
+      // API Capture Strategy 없음 → 일반 Navigation만 실행
+      logger.debug(
+        { platform: config.platform, productId },
+        "API Capture Strategy 없음 - extraction script만 사용",
+      );
+
+      await this.executeNavigationSteps(
+        page,
+        productId,
+        navigationSteps,
+        config,
+      );
+    }
+
+    // Fallback: Extraction Script 실행
     return await this.executeExtractionScript(page, extraction);
   }
 

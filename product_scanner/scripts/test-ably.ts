@@ -8,10 +8,7 @@
 
 import { chromium } from "playwright-extra";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import * as fs from "fs";
-import * as path from "path";
 
-const DEBUG_DIR = "/app/analysis/a-bly-debug";
 
 const TEST_PRODUCTS = [
   { id: "20787714", desc: "판매중 (라운드랩)" },
@@ -48,10 +45,6 @@ async function testProducts() {
   console.log("🔍 A-bly 4개 품목 종합 테스트\n");
   console.log("🛡️  Stealth Plugin 활성화\n");
 
-  // 디버그 디렉토리 생성
-  // if (!fs.existsSync(DEBUG_DIR)) {
-  //   fs.mkdirSync(DEBUG_DIR, { recursive: true });
-  // }
 
   // Stealth Plugin 적용
   chromium.use(StealthPlugin());
@@ -91,6 +84,22 @@ async function testProducts() {
     };
 
     try {
+      // 1. API 응답 Promise 설정 (BEFORE navigation - 핵심!)
+      let apiResponse: any = null;
+      const apiPromise = new Promise<any>((resolve) => {
+        page.on("response", async (response) => {
+          if (response.url().includes(`/api/v3/goods/${product.id}/basic/`)) {
+            try {
+              const data = await response.json();
+              resolve(data);
+            } catch (e) {
+              console.error(`❌ JSON 파싱 실패: ${(e as Error).message}`);
+            }
+          }
+        });
+      });
+
+      // 2. 페이지 로딩
       console.log(`⏱️  로딩: ${url}`);
       const startTime = Date.now();
 
@@ -104,7 +113,7 @@ async function testProducts() {
 
       console.log(`✅ 로딩 완료 (${loadTime}ms)`);
 
-      // 1. Cloudflare 및 기본 정보 확인
+      // 3. Cloudflare 및 기본 정보 확인
       const pageInfo = await page.evaluate(() => {
         return {
           title: document.title,
@@ -136,7 +145,7 @@ async function testProducts() {
         continue;
       }
 
-      // 2. Detection 정보
+      // 4. Detection 정보
       const detectionInfo = await page.evaluate(() => {
         return {
           webdriver: (navigator as any).webdriver,
@@ -150,96 +159,71 @@ async function testProducts() {
         `🔍 Detection: webdriver=${detectionInfo.webdriver}, chrome=${detectionInfo.chrome}, plugins=${detectionInfo.plugins}`,
       );
 
-      // 3. SSR 데이터 추출 시도
-      const ssrData = await page.evaluate(() => {
-        const script = document.getElementById("__NEXT_DATA__");
-        if (!script) return null;
+      // API 응답 대기 (최대 5초)
+      try {
+        apiResponse = await Promise.race([
+          apiPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("API timeout")), 5000),
+          ),
+        ]);
 
-        try {
-          const data = JSON.parse(script.textContent || "{}");
-          const queries =
-            data.props?.pageProps?.serverQueryClient?.queries || [];
-          const goods = queries[0]?.state?.data?.goods;
+        // API 응답 성공
+        const goods = apiResponse.goods;
+        console.log(`✅ API 캡처 성공\n`);
 
-          if (goods) {
-            return {
-              method: "SSR",
-              name: goods.name,
-              saleType: goods.sale_type,
-              price: goods.price_info?.thumbnail_price,
-              originalPrice: goods.price_info?.consumer,
-              images: goods.cover_images?.slice(0, 3) || [],
-            };
-          }
-        } catch (e) {
-          return { error: (e as Error).message };
+        if (goods && goods.name) {
+          result.extractionMethod = "API";
+          result.success = true;
+          result.data = {
+            title: goods.name,
+            saleType: goods.sale_type,
+            price: goods.price_info?.thumbnail_price?.toString(),
+            images: goods.cover_images?.slice(0, 3) || [],
+          };
+
+          console.log(`   상품명: ${goods.name}`);
+          console.log(`   브랜드: ${goods.market?.name || "없음"}`);
+          console.log(`   상태: ${goods.sale_type}`);
+          console.log(`   정가: ${goods.price_info?.consumer || 0}원`);
+          console.log(`   할인가: ${goods.price_info?.thumbnail_price || 0}원`);
+          console.log(
+            `   이미지: ${goods.cover_images?.length || 0}개 (첫번째: ${goods.cover_images?.[0]?.substring(0, 50) || "없음"}...)`,
+          );
         }
+      } catch (e) {
+        console.log(`❌ API 응답 캡처 실패: ${(e as Error).message}`);
 
-        return null;
-      });
+        // Fallback: Meta 태그 기반 추출
+        console.log(`⚠️  Meta 태그 fallback`);
 
-      if (ssrData && !ssrData.error) {
-        console.log(`✅ SSR 추출 성공`);
-        result.extractionMethod = "SSR";
-        result.success = true;
-        result.data = {
-          title: ssrData.name,
-          saleType: ssrData.saleType,
-          price: ssrData.price?.toString(),
-          images: ssrData.images,
-        };
+        const metaData = await page.evaluate(() => {
+          const metaTitle = document
+            .querySelector('meta[property="og:title"]')
+            ?.getAttribute("content");
+          const metaImage = document
+            .querySelector('meta[property="og:image"]')
+            ?.getAttribute("content");
 
-        console.log(`   상품명: ${ssrData.name}`);
-        console.log(`   상태: ${ssrData.saleType}`);
-        console.log(`   가격: ${ssrData.price}원`);
-      } else {
-        // 4. DOM/Meta 태그 추출 (fallback)
-        console.log(`⚠️  SSR 없음 → Meta/DOM 추출`);
-
-        const domData = await page.evaluate(() => {
           return {
-            metaTitle: document
-              .querySelector('meta[property="og:title"]')
-              ?.getAttribute("content"),
-            metaImage: document
-              .querySelector('meta[property="og:image"]')
-              ?.getAttribute("content"),
-            metaPrice: document
-              .querySelector('meta[property="og:price:amount"]')
-              ?.getAttribute("content"),
-            buttons: Array.from(document.querySelectorAll("button"))
-              .map((btn) => btn.textContent?.trim())
-              .filter(Boolean)
-              .slice(0, 5),
-            images: Array.from(document.querySelectorAll("img"))
-              .map((img) => img.src)
-              .filter((src) => src && src.startsWith("http"))
-              .slice(0, 3),
+            metaTitle: metaTitle || "",
+            metaImage: metaImage || "",
           };
         });
 
-        result.extractionMethod = "DOM";
-        result.success = !!domData.metaTitle;
+        result.extractionMethod = "Meta";
+        result.success = !!metaData.metaTitle;
         result.data = {
-          metaTitle: domData.metaTitle || undefined,
-          metaImage: domData.metaImage || undefined,
-          price: domData.metaPrice || undefined,
-          buttons: domData.buttons as string[],
-          images: domData.images,
+          title: metaData.metaTitle,
+          metaTitle: metaData.metaTitle,
+          metaImage: metaData.metaImage,
+          images: metaData.metaImage ? [metaData.metaImage] : [],
         };
 
-        console.log(`   Meta 제목: ${domData.metaTitle || "없음"}`);
-        console.log(`   Meta 가격: ${domData.metaPrice || "없음"}`);
-        console.log(`   버튼 개수: ${domData.buttons?.length || 0}`);
+        console.log(`   Meta 상품명: ${metaData.metaTitle || "없음"}`);
+        console.log(`   Meta 이미지: ${metaData.metaImage || "없음"}`);
       }
 
-      // 스크린샷 저장
-      // const screenshotPath = path.join(
-      //   DEBUG_DIR,
-      //   `4products-${product.id}.png`,
-      // );
-      // await page.screenshot({ path: screenshotPath, fullPage: false });
-      // console.log(`📸 스크린샷: ${screenshotPath}`);
     } catch (error) {
       console.error(`❌ 에러:`, error instanceof Error ? error.message : error);
       result.error = error instanceof Error ? error.message : String(error);
@@ -264,16 +248,16 @@ async function testProducts() {
     total: results.length,
     success: results.filter((r) => r.success).length,
     cloudflareBlocked: results.filter((r) => r.cloudflareBlocked).length,
-    ssrExtraction: results.filter((r) => r.extractionMethod === "SSR").length,
-    domExtraction: results.filter((r) => r.extractionMethod === "DOM").length,
+    apiExtraction: results.filter((r) => r.extractionMethod === "API").length,
+    metaExtraction: results.filter((r) => r.extractionMethod === "Meta").length,
     failed: results.filter((r) => !r.success && !r.cloudflareBlocked).length,
   };
 
   console.log(`전체: ${summary.total}개`);
   console.log(`성공: ${summary.success}개`);
   console.log(`Cloudflare 차단: ${summary.cloudflareBlocked}개`);
-  console.log(`SSR 추출: ${summary.ssrExtraction}개`);
-  console.log(`DOM 추출: ${summary.domExtraction}개`);
+  console.log(`API 추출: ${summary.apiExtraction}개`);
+  console.log(`Meta 추출: ${summary.metaExtraction}개`);
   console.log(`실패: ${summary.failed}개\n`);
 
   // 개별 결과
@@ -289,11 +273,6 @@ async function testProducts() {
       `${status} [${i + 1}] ${r.description} → ${r.extractionMethod} ${r.data?.title || r.data?.metaTitle || "데이터 없음"}`,
     );
   });
-
-  // JSON 저장
-  // const resultPath = path.join(DEBUG_DIR, "4products-test-results.json");
-  // fs.writeFileSync(resultPath, JSON.stringify(results, null, 2));
-  // console.log(`\n💾 결과 저장: ${resultPath}`);
 
   console.log(`\n✅ 테스트 완료`);
 }
