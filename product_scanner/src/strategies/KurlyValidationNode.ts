@@ -17,13 +17,54 @@ import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
 import type { Page } from "playwright";
 import { PlaywrightScriptExecutor } from "@/utils/PlaywrightScriptExecutor";
-import { KurlyProduct, KurlyDomSaleStatus } from "@/core/domain/KurlyProduct";
+import {
+  KurlyProduct,
+  KurlyDomSaleStatus,
+  KurlyDOMResponse,
+} from "@/core/domain/KurlyProduct";
 
 /**
  * Kurly Validation Node Strategy
  */
 export class KurlyValidationNode extends BaseValidationNode {
   public readonly type = "kurly_validation";
+
+  /**
+   * NOT_FOUND 응답 체크 (중복 로직 제거)
+   */
+  private isNotFoundResponse(domData: KurlyDOMResponse): boolean {
+    const notFoundMessages = ["상품 정보 없음", "추출 실패"];
+    const notFoundSources = ["next_data_missing", "product_missing"];
+
+    return (
+      notFoundMessages.includes(domData.name) ||
+      domData.status === "NOT_FOUND" ||
+      notFoundSources.includes(domData._source || "")
+    );
+  }
+
+  /**
+   * KurlyDomSaleStatus 타입 검증 (Type Assertion 제거)
+   */
+  private validateSaleStatus(status: string): KurlyDomSaleStatus {
+    const validStatuses: KurlyDomSaleStatus[] = [
+      "ON_SALE",
+      "SOLD_OUT",
+      "INFO_CHANGED",
+      "NOT_FOUND",
+      "ERROR",
+    ];
+
+    if (!validStatuses.includes(status as KurlyDomSaleStatus)) {
+      logger.warn(
+        { type: this.type, status },
+        "Invalid status detected, defaulting to ERROR",
+      );
+      return "ERROR";
+    }
+
+    return status as KurlyDomSaleStatus;
+  }
 
   /**
    * Platform ID 추출
@@ -103,11 +144,14 @@ export class KurlyValidationNode extends BaseValidationNode {
       );
 
       // YAML 기반 스크래핑 실행
-      const domData = await PlaywrightScriptExecutor.scrapeProduct(
+      const rawData = await PlaywrightScriptExecutor.scrapeProduct(
         page,
         productId,
         platformConfig,
       );
+
+      // Type conversion to KurlyDOMResponse (YAML script returns custom structure)
+      const domData = rawData as unknown as KurlyDOMResponse;
 
       logger.info(
         {
@@ -119,13 +163,8 @@ export class KurlyValidationNode extends BaseValidationNode {
         "스크래핑 결과",
       );
 
-      // "상품 정보 없음" 체크 (not_found 처리)
-      if (
-        domData.name === "상품 정보 없음" ||
-        domData.status === "NOT_FOUND" ||
-        domData._source === "next_data_missing" ||
-        domData._source === "product_missing"
-      ) {
+      // NOT_FOUND 응답 체크 (Helper 메서드 사용)
+      if (this.isNotFoundResponse(domData)) {
         logger.info(
           {
             type: this.type,
@@ -138,7 +177,8 @@ export class KurlyValidationNode extends BaseValidationNode {
         return this.createNotFoundValidation(product, "Kurly");
       }
 
-      // KurlyProduct 도메인 객체로 변환
+      // KurlyProduct 도메인 객체로 변환 (Type Validation 추가)
+      const validatedStatus = this.validateSaleStatus(domData.status);
       const kurlyProduct = KurlyProduct.fromDOMData({
         productId,
         name: domData.name,
@@ -146,7 +186,7 @@ export class KurlyValidationNode extends BaseValidationNode {
         retailPrice: domData.retailPrice || 0,
         discountedPrice: domData.discountedPrice || 0,
         isSoldOut: domData.isSoldOut,
-        status: domData.status as KurlyDomSaleStatus,
+        status: validatedStatus,
         _source: domData._source,
         _error: domData._error,
       });

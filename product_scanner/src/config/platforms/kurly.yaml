@@ -22,6 +22,11 @@ constants:
   # User Agent
   MOBILE_USER_AGENT: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
+  # 상태 메시지 (Magic String 제거)
+  NOT_FOUND_MESSAGE: "상품 정보 없음"
+  ERROR_MESSAGE: "추출 실패"
+  MISSING_NAME_MESSAGE: "상품명 없음"
+
 # 스캔 전략 (Strategy Pattern)
 strategies:
   # Playwright 브라우저 전략
