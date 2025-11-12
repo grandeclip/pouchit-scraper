@@ -79,6 +79,7 @@ function App() {
   // 필터 및 페이지네이션 상태
   const [filterMismatchOnly, setFilterMismatchOnly] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
   const itemsPerPage = 20;
 
   // 날짜 목록 로드
@@ -163,7 +164,30 @@ function App() {
   // 데이터 변경 시 페이지 초기화
   useEffect(() => {
     setCurrentPage(1);
+    setPageInput("1");
   }, [selectedFile, uploadedData, filterMismatchOnly]);
+
+  // 페이지 이동 핸들러
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+    setPageInput(page.toString());
+  };
+
+  // 페이지 입력 핸들러
+  const handlePageInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPageInput(e.target.value);
+  };
+
+  // 페이지 입력 확정 핸들러
+  const handlePageInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const page = parseInt(pageInput, 10);
+    if (!isNaN(page) && page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    } else {
+      setPageInput(currentPage.toString());
+    }
+  };
 
   // 시간 포맷팅
   const formatDuration = (ms: number) => {
@@ -420,7 +444,9 @@ function App() {
                         {product.fetch === null ? (
                           <div className="diff">
                             <div className="db-value">
-                              {product.db.original_price.toLocaleString()}원
+                              {product.db.original_price !== null
+                                ? `${product.db.original_price.toLocaleString()}원`
+                                : "-"}
                             </div>
                             <div className="fetch-value">❌ 실패</div>
                           </div>
@@ -431,12 +457,15 @@ function App() {
                             }
                           >
                             <div className="db-value">
-                              {product.db.original_price.toLocaleString()}원
+                              {product.db.original_price !== null
+                                ? `${product.db.original_price.toLocaleString()}원`
+                                : "-"}
                             </div>
                             {!product.comparison.original_price && (
                               <div className="fetch-value">
-                                {product.fetch.original_price.toLocaleString()}
-                                원
+                                {product.fetch.original_price !== null
+                                  ? `${product.fetch.original_price.toLocaleString()}원`
+                                  : "-"}
                               </div>
                             )}
                           </div>
@@ -446,7 +475,9 @@ function App() {
                         {product.fetch === null ? (
                           <div className="diff">
                             <div className="db-value">
-                              {product.db.discounted_price.toLocaleString()}원
+                              {product.db.discounted_price !== null
+                                ? `${product.db.discounted_price.toLocaleString()}원`
+                                : "-"}
                             </div>
                             <div className="fetch-value">❌ 실패</div>
                           </div>
@@ -457,12 +488,15 @@ function App() {
                             }
                           >
                             <div className="db-value">
-                              {product.db.discounted_price.toLocaleString()}원
+                              {product.db.discounted_price !== null
+                                ? `${product.db.discounted_price.toLocaleString()}원`
+                                : "-"}
                             </div>
                             {!product.comparison.discounted_price && (
                               <div className="fetch-value">
-                                {product.fetch.discounted_price.toLocaleString()}
-                                원
+                                {product.fetch.discounted_price !== null
+                                  ? `${product.fetch.discounted_price.toLocaleString()}원`
+                                  : "-"}
                               </div>
                             )}
                           </div>
@@ -527,30 +561,42 @@ function App() {
             {totalPages > 1 && (
               <div className="pagination">
                 <button
-                  onClick={() => setCurrentPage(1)}
+                  onClick={() => handlePageChange(1)}
                   disabled={currentPage === 1}
                 >
                   &laquo; 처음
                 </button>
                 <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
                 >
                   &lsaquo; 이전
                 </button>
-                <span className="page-info">
-                  {currentPage} / {totalPages} 페이지
-                </span>
+                <form
+                  onSubmit={handlePageInputSubmit}
+                  className="page-input-form"
+                >
+                  <input
+                    type="number"
+                    min="1"
+                    max={totalPages}
+                    value={pageInput}
+                    onChange={handlePageInputChange}
+                    className="page-input"
+                    onBlur={handlePageInputSubmit}
+                  />
+                  <span className="page-info">/ {totalPages}</span>
+                </form>
                 <button
                   onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    handlePageChange(Math.min(totalPages, currentPage + 1))
                   }
                   disabled={currentPage === totalPages}
                 >
                   다음 &rsaquo;
                 </button>
                 <button
-                  onClick={() => setCurrentPage(totalPages)}
+                  onClick={() => handlePageChange(totalPages)}
                   disabled={currentPage === totalPages}
                 >
                   마지막 &raquo;

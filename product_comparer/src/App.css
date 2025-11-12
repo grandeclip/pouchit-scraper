@@ -328,10 +328,16 @@ h2 {
 /* 페이지네이션 */
 .pagination {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
   gap: 10px;
+  padding: 15px;
   margin-top: 20px;
+  position: sticky;
+  bottom: 0;
+  background: white;
+  border-top: 2px solid #e9ecef;
+  z-index: 5;
 }
 
 .pagination button {
@@ -357,8 +363,32 @@ h2 {
   background: #f5f5f5;
 }
 
+.page-input-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.page-input {
+  width: 60px;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: center;
+  color: #333;
+  background: white;
+  color-scheme: light;
+}
+
+.page-input:focus {
+  outline: none;
+  border-color: #1976d2;
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
+}
+
 .page-info {
-  padding: 8px 16px;
+  padding: 0 8px;
   font-weight: 600;
   color: #333;
 }
