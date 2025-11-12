@@ -87,9 +87,20 @@ export class JsonLdSchemaExtractor {
 
   /**
    * Page에서 JSON-LD 데이터 추출
+   * @param page Playwright Page 인스턴스
+   * @param interceptedApiData Network intercept된 API 응답 (optional)
    */
-  async extract(page: Page): Promise<JsonLdProductData> {
+  async extract(
+    page: Page,
+    interceptedApiData?: any,
+  ): Promise<JsonLdProductData> {
     try {
+      // API 데이터가 있으면 우선 사용
+      if (interceptedApiData?.data) {
+        logger.info("Network intercepted API 데이터 사용");
+        return this.extractFromApiData(interceptedApiData.data);
+      }
+
       // AvailabilityMapper에서 매핑 데이터 가져오기
       const mapper = AvailabilityMapper.getInstance();
       const browserConfig: BrowserExtractionConfig = {
@@ -169,6 +180,22 @@ export class JsonLdSchemaExtractor {
       // 4. 가격 정보
       const price = productData.offers?.price || 0;
 
+      // 4-1. DOM에서 정가(consumer_price) 추출 (무신사 전용)
+      // JSON-LD에는 판매가만 있고 정가는 DOM에 존재
+      let consumerPrice = price; // 기본값: 판매가와 동일
+
+      const discountWrapEl = document.querySelector(
+        '[class*="Price__DiscountWrap"]',
+      );
+      if (discountWrapEl) {
+        const originalPriceText = discountWrapEl.textContent?.trim() || "";
+        const extractedPrice =
+          parseInt(originalPriceText.replace(/[^0-9]/g, "")) || 0;
+        if (extractedPrice > 0) {
+          consumerPrice = extractedPrice;
+        }
+      }
+
       // 5. 판매 상태 판별 (YAML 기반 매핑)
       const availability = productData.offers?.availability;
 
@@ -187,11 +214,40 @@ export class JsonLdSchemaExtractor {
       return {
         name: name,
         title_images: image ? [image] : [],
-        consumer_price: price,
+        consumer_price: consumerPrice,
         price: price,
         sale_status: saleStatus,
-        _source: "jsonld",
+        _source: "jsonld_hybrid",
       };
+    };
+  }
+
+  /**
+   * Network Intercepted API 데이터에서 추출
+   */
+  private extractFromApiData(apiData: any): JsonLdProductData {
+    const mapper = AvailabilityMapper.getInstance();
+
+    // 무신사 API 응답 구조:
+    // { goodsNm, goodsPrice: { normalPrice, salePrice }, thumbnailImageUrl }
+    const name = apiData.goodsNm || "";
+    const consumerPrice = apiData.goodsPrice?.normalPrice || 0; // 정가
+    const price = apiData.goodsPrice?.salePrice || 0; // 판매가
+    const thumbnail = apiData.thumbnailImageUrl || "";
+
+    // 판매 상태 판별 (무신사는 정가/판매가가 있으면 판매중)
+    let saleStatus = "on_sale";
+    if (price === 0) {
+      saleStatus = "off_sale";
+    }
+
+    return {
+      name,
+      title_images: thumbnail ? [thumbnail] : [],
+      consumer_price: consumerPrice,
+      price,
+      sale_status: saleStatus,
+      _source: "api_intercept",
     };
   }
 

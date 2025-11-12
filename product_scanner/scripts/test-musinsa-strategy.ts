@@ -12,9 +12,26 @@ import { ConfigLoader } from "@/config/ConfigLoader";
 import { ScannerRegistry } from "@/services/ScannerRegistry";
 
 const TEST_CASES = [
-  // Job에서 실패한 케이스들 (모바일 환경 테스트)
   {
-    name: "[JOB 실패] 지베르니 파운데이션",
+    name: "정상 판매 상품 #1 - Original Price 확인",
+    goodsNo: "2291962",
+    expected: {
+      sale_status: "SELNG",
+      hasName: true,
+      hasPrice: true,
+    },
+  },
+  {
+    name: "정상 판매 상품 #2",
+    goodsNo: "2172345",
+    expected: {
+      sale_status: "SELNG",
+      hasName: true,
+      hasPrice: true,
+    },
+  },
+  {
+    name: "정상 판매 상품 #3",
     goodsNo: "4350236",
     expected: {
       sale_status: "SELNG",
@@ -23,7 +40,7 @@ const TEST_CASES = [
     },
   },
   {
-    name: "[JOB 실패] 네이처리퍼블릭 샴푸",
+    name: "정상 판매 상품 #4",
     goodsNo: "3025352",
     expected: {
       sale_status: "SELNG",
@@ -32,27 +49,8 @@ const TEST_CASES = [
     },
   },
   {
-    name: "[JOB 실패] 잉가 립틴트",
-    goodsNo: "3491425",
-    expected: {
-      sale_status: "SLDOT", // JSON-LD availability: "" (품절)
-      hasName: true,
-      hasPrice: true,
-    },
-  },
-  {
-    name: "[JOB 실패] 닥터포헤어 토닉",
-    goodsNo: "1430803",
-    expected: {
-      sale_status: "SELNG",
-      hasName: true,
-      hasPrice: true,
-    },
-  },
-  // 기존 테스트 케이스
-  {
-    name: "품절 상품",
-    goodsNo: "4359070",
+    name: "품절 상품 (SOLDOUT)",
+    goodsNo: "1434615",
     expected: {
       sale_status: "SLDOT",
       hasName: true,
@@ -60,12 +58,12 @@ const TEST_CASES = [
     },
   },
   {
-    name: "삭제된 상품",
-    goodsNo: "3441745",
+    name: "판매중지 상품 (STOP_SALE)",
+    goodsNo: "3982540",
     expected: {
       sale_status: "STSEL",
-      hasName: true, // "삭제된 상품"이라는 placeholder 이름 존재
-      hasPrice: false, // 가격은 0
+      hasName: true,
+      hasPrice: true,
     },
   },
 ];

@@ -32,6 +32,10 @@ import {
 import { isPlaywrightStrategy } from "@/core/domain/StrategyConfig.guards";
 import { logger } from "@/config/logger";
 import { SCRAPER_CONFIG } from "@/config/constants";
+import {
+  JsonLdSchemaExtractor,
+  JsonLdConfig,
+} from "@/extractors/JsonLdSchemaExtractor";
 
 // Stealth 플러그인 적용
 chromium.use(StealthPlugin());
@@ -83,6 +87,7 @@ export class BrowserScanner<
   };
   private externalBrowser: Browser | null = null;
   private usingExternalBrowser: boolean = false;
+  private interceptedApiData: any = null; // Network intercept된 API 응답 저장
 
   constructor(options: BrowserScannerOptions<TDomData, TProduct, TConfig>) {
     super(options.config, options.strategy);
@@ -171,6 +176,9 @@ export class BrowserScanner<
     }
 
     try {
+      // Network Intercept 설정 (API 응답 캡처)
+      await this.setupNetworkIntercept(id);
+
       // 네비게이션 스텝 실행
       await this.executeNavigationSteps(id);
 
@@ -379,6 +387,69 @@ export class BrowserScanner<
   }
 
   /**
+   * Network Intercept 설정 (API 응답 캡처)
+   * Response 이벤트 리스너 방식 사용 (비차단)
+   */
+  private async setupNetworkIntercept(id: string): Promise<void> {
+    if (!this.page) {
+      return;
+    }
+
+    // 무신사 상품 API URL 패턴 (도메인 포함)
+    const apiUrlPattern = `/api2/goods/${id}`;
+
+    this.interceptedApiData = null; // 초기화
+
+    // Response 이벤트 리스너 등록 (비차단 방식)
+    this.page.on("response", async (response) => {
+      try {
+        const url = response.url();
+
+        // API URL 매칭 (goods-detail.musinsa.com/api2/goods/{id} 패턴)
+        if (
+          url.includes(apiUrlPattern) &&
+          !url.includes("/options") &&
+          !url.includes("/curation")
+        ) {
+          const bodyText = await response.text();
+
+          // JSON 파싱 시도
+          try {
+            this.interceptedApiData = JSON.parse(bodyText);
+
+            logger.info(
+              {
+                strategyId: this.strategy.id,
+                url,
+                status: response.status(),
+                hasData: !!this.interceptedApiData?.data,
+              },
+              "API 응답 intercept 완료",
+            );
+          } catch {
+            this.interceptedApiData = null;
+            logger.warn(
+              { strategyId: this.strategy.id, url },
+              "API 응답 JSON 파싱 실패",
+            );
+          }
+        }
+      } catch (error) {
+        // 에러 발생해도 무시 (페이지 로딩 차단하지 않음)
+        logger.debug(
+          { strategyId: this.strategy.id, error },
+          "Response intercept 에러 (무시)",
+        );
+      }
+    });
+
+    logger.debug(
+      { strategyId: this.strategy.id, pattern: apiUrlPattern },
+      "Network intercept 설정 완료 (response listener)",
+    );
+  }
+
+  /**
    * 페이지에서 데이터 추출
    */
   private async extractFromPage(): Promise<TDomData> {
@@ -431,8 +502,42 @@ export class BrowserScanner<
       return result as TDomData;
     }
 
+    if (
+      extractionConfig.method === "json_ld_schema" &&
+      extractionConfig.config
+    ) {
+      // JSON-LD Schema.org 추출 방식
+      logger.info(
+        { strategyId: this.strategy.id, method: "json_ld_schema" },
+        "데이터 추출 중 (json_ld_schema)",
+      );
+
+      // Type guard: JsonLdConfig validation
+      const config = extractionConfig.config;
+      if (
+        !config ||
+        typeof config !== "object" ||
+        !("selector" in config) ||
+        !("fallback" in config)
+      ) {
+        throw new Error(
+          "Invalid json_ld_schema config: missing selector or fallback",
+        );
+      }
+
+      const extractor = new JsonLdSchemaExtractor(
+        config as unknown as JsonLdConfig,
+      );
+      const result = await extractor.extract(
+        this.page,
+        this.interceptedApiData,
+      );
+
+      return result as TDomData;
+    }
+
     throw new Error(
-      `잘못된 extraction 설정 - strategy: ${this.strategy.id}. method는 'evaluate'(+script) 또는 'selector'(+selectors) 필요`,
+      `잘못된 extraction 설정 - strategy: ${this.strategy.id}. method는 'evaluate'(+script), 'selector'(+selectors), 또는 'json_ld_schema'(+config) 필요`,
     );
   }
 

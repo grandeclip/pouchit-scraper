@@ -16,10 +16,15 @@ import {
 import { PlatformConfig } from "@/core/domain/PlatformConfig";
 import {
   StrategyConfig,
+  HttpStrategyConfig,
   PlaywrightStrategyConfig,
 } from "@/core/domain/StrategyConfig";
-import { isPlaywrightStrategy } from "@/core/domain/StrategyConfig.guards";
+import {
+  isHttpStrategy,
+  isPlaywrightStrategy,
+} from "@/core/domain/StrategyConfig.guards";
 
+import { MusinsaHttpScanner } from "./MusinsaHttpScanner";
 import { BrowserScanner } from "@/scanners/strategies/BrowserScanner";
 
 /**
@@ -32,6 +37,10 @@ export class MusinsaScannerFactory {
    * 전략에 맞는 Scanner 생성 (Type Guard 사용)
    */
   create(strategy: StrategyConfig): IScanner<MusinsaProduct> {
+    if (isHttpStrategy(strategy)) {
+      return this.createHttpScanner(strategy);
+    }
+
     if (isPlaywrightStrategy(strategy)) {
       return this.createBrowserScanner(strategy);
     }
@@ -39,6 +48,15 @@ export class MusinsaScannerFactory {
     throw new Error(
       `Musinsa에서 지원하지 않는 strategy 타입: ${strategy.type}`,
     );
+  }
+
+  /**
+   * HTTP Scanner 생성
+   */
+  private createHttpScanner(
+    strategy: HttpStrategyConfig,
+  ): IScanner<MusinsaProduct> {
+    return new MusinsaHttpScanner(this.config, strategy);
   }
 
   /**
@@ -67,4 +85,3 @@ export class MusinsaScannerFactory {
     });
   }
 }
-

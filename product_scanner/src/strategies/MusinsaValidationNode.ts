@@ -1,14 +1,15 @@
 /**
- * Musinsa Validation Node Strategy
+ * Musinsa Validation Node Strategy (HTTP API-based)
  *
  * SOLID 원칙:
  * - SRP: 무신사 검증 및 비교만 담당
  * - LSP: BaseValidationNode 대체 가능
+ * - DIP: MusinsaHttpScanner에 의존
  * - Strategy Pattern: INodeStrategy 구현
  *
  * 변경 사항:
+ * - Playwright → HTTP API 전환 (MusinsaHttpScanner 사용)
  * - BaseValidationNode 상속으로 코드 중복 제거
- * - 플랫폼별 구현만 유지 (extractProductId, validateProductWithPage)
  */
 
 import {
@@ -20,17 +21,25 @@ import { ProductSetSearchResult } from "@/core/domain/ProductSet";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
 import type { Page } from "playwright";
-import { PlaywrightScriptExecutor } from "@/utils/PlaywrightScriptExecutor";
-import {
-  MusinsaProduct,
-  MusinsaDomSaleStatus,
-} from "@/core/domain/MusinsaProduct";
+import { MusinsaHttpScanner } from "@/scanners/platforms/musinsa/MusinsaHttpScanner";
+import type { StrategyConfig } from "@/core/domain/StrategyConfig";
 
 /**
- * Musinsa Validation Node Strategy
+ * Musinsa Validation Node Strategy (HTTP API-based)
  */
 export class MusinsaValidationNode extends BaseValidationNode {
   public readonly type = "musinsa_validation";
+  private scanner: MusinsaHttpScanner | null = null;
+
+  /** HTTP API 전략 ID (YAML strategies[].id 참조) */
+  private static readonly HTTP_STRATEGY_ID = "api";
+
+  /**
+   * 화해와 동일하게 HTTP API 기반이므로 스크린샷 불필요
+   */
+  protected shouldSaveScreenshot(): boolean {
+    return false;
+  }
 
   /**
    * Platform ID 추출
@@ -65,11 +74,11 @@ export class MusinsaValidationNode extends BaseValidationNode {
   }
 
   /**
-   * Page를 사용한 단일 상품 검증 (플랫폼별 구현)
+   * HTTP API 기반 단일 상품 검증 (Playwright 대신 MusinsaHttpScanner 사용)
    */
   protected async validateProductWithPage(
     product: ProductSetSearchResult,
-    page: Page,
+    _page: Page,
     platformConfig: PlatformConfig,
   ): Promise<ProductValidationResult> {
     try {
@@ -89,37 +98,34 @@ export class MusinsaValidationNode extends BaseValidationNode {
 
       logger.debug(
         { type: this.type, productSetId: product.product_set_id, productNo },
-        "상품 검증 중",
+        "상품 검증 중 (HTTP API)",
       );
 
-      // YAML 기반 스크래핑 실행
-      const domData = await PlaywrightScriptExecutor.scrapeProduct(
-        page,
-        productNo,
-        platformConfig,
-      );
-
-      // "삭제된 상품" 체크 (not_found 처리)
-      if (domData.name === "삭제된 상품" || domData._source === "not_found") {
-        return this.createNotFoundValidation(product, "Musinsa");
+      // MusinsaHttpScanner 초기화 (필요 시)
+      if (!this.scanner) {
+        const strategy = platformConfig.strategies.find(
+          (s: StrategyConfig) =>
+            s.id === MusinsaValidationNode.HTTP_STRATEGY_ID,
+        );
+        if (!strategy) {
+          throw new Error(
+            `HTTP API 전략이 설정되지 않음 (strategy.id="${MusinsaValidationNode.HTTP_STRATEGY_ID}" 필요)`,
+          );
+        }
+        this.scanner = new MusinsaHttpScanner(platformConfig, strategy);
+        await this.scanner.initialize();
       }
 
-      // MusinsaProduct 도메인 객체로 변환
-      const musinsaProduct = MusinsaProduct.fromDOMData({
-        ...domData,
-        id: productNo,
-        productNo,
-        sale_status: domData.sale_status as MusinsaDomSaleStatus,
-      });
-      const plainObject = musinsaProduct.toPlainObject();
+      // HTTP API로 상품 스캔
+      const musinsaProduct = await this.scanner.scan(productNo);
 
       // 비교 결과 생성
       const platformData: PlatformProductData = {
-        productName: plainObject.productName as string,
-        thumbnail: plainObject.thumbnail as string,
-        originalPrice: plainObject.originalPrice as number,
-        discountedPrice: plainObject.discountedPrice as number,
-        saleStatus: plainObject.saleStatus as string,
+        productName: musinsaProduct.productName,
+        thumbnail: musinsaProduct.thumbnail,
+        originalPrice: musinsaProduct.originalPrice,
+        discountedPrice: musinsaProduct.discountedPrice,
+        saleStatus: musinsaProduct.saleStatus,
       };
 
       return this.compareProducts(product, platformData);

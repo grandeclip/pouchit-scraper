@@ -1,117 +1,126 @@
 # 무신사(Musinsa) 플랫폼 설정
-# 전략: Playwright 브라우저 기반 스크래핑
+# 전략: HTTP API (직접 API 호출)
 
 platform: musinsa
 name: "무신사"
-baseUrl: "https://www.musinsa.com"
+baseUrl: "https://goods-detail.musinsa.com"
 
-# 엔드포인트 (Playwright 전용이므로 빈 객체)
-endpoints: {}
+# API 엔드포인트
+endpoints:
+  goodsDetail: "${baseUrl}/api2/goods/${goodsId}"
 
 # 스캔 전략 (Strategy Pattern)
 strategies:
-  # Playwright 브라우저 전략
-  - id: "browser"
-    type: "playwright"
+  # 전략 1: HTTP API (빠르고 효율적)
+  - id: "api"
+    type: "http"
     priority: 1
-    description: "브라우저 기반 스크래핑"
-    playwright:
-      headless: true
-      timeout: 30000
+    description: "API 기반 데이터 페칭 (권장)"
+    http:
+      method: GET
+      headers:
+        # 브라우저 식별 헤더
+        User-Agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+        Accept: "*/*"
+        Accept-Language: "ko-KR,ko;q=0.9"
+        Accept-Encoding: "gzip, deflate, br"
+        # CORS 보안 헤더
+        Sec-Fetch-Site: "same-site"
+        Sec-Fetch-Mode: "cors"
+        Sec-Fetch-Dest: "empty"
+        Referer: "https://www.musinsa.com/"
+      timeout: 10000
+      retryCount: 3
+      retryDelay: 1000
+      requestDelay: 1000
 
-      # 브라우저 설정
-      browserOptions:
-        args:
-          - "--disable-blink-features=AutomationControlled"
-
-      # Context 설정
-      contextOptions:
-        viewport:
-          width: 430
-          height: 932
-        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
-        isMobile: true
-        hasTouch: true
-        deviceScaleFactor: 3
-
-      # 네비게이션 전략
-      navigationSteps:
-        # Step 1: 상품 상세 페이지로 직접 이동
-        - action: "navigate"
-          url: "https://www.musinsa.com/products/${goodsId}"
-          description: "상품 상세 페이지 접속"
-
-        # Step 2: 앱 다운로드 팝업 제거 (모바일)
-        - action: "evaluate"
-          script: |
-            () => {
-              // 앱 전환 관련 요소 제거
-              const appBanners = document.querySelectorAll('[class*="app"], [class*="download"], [class*="encourage"]');
-              appBanners.forEach(el => el.remove());
-
-              // 오버레이 제거
-              const overlays = document.querySelectorAll('[class*="overlay"], [class*="modal"]');
-              overlays.forEach(el => el.remove());
-
-              // body overflow 복원
-              document.body.style.overflow = 'auto';
-            }
-          description: "앱 전환 팝업 제거"
-
-        # Step 3: 페이지 로딩 대기
-        - action: "wait"
-          timeout: 2000
-          description: "페이지 렌더링 대기"
-
-      # 데이터 추출 전략 (JSON-LD Schema.org 기반)
-      extraction:
-        method: "json_ld_schema"
-        description: "JSON-LD Schema.org 구조화 데이터 추출"
-        extractor: "JsonLdSchemaExtractor"
-        config:
-          selector: 'script[type="application/ld+json"]'
-          fallback:
-            name: "삭제된 상품"
-            thumbnail: "https://via.placeholder.com/1x1"
-            price: 0
-            sale_status: "STSEL"
+  # 전략 2: Playwright 브라우저 (Fallback - API 차단 시)
+  # 현재는 API로 모든 요구사항 충족
+  # - id: "browser"
+  #   type: "playwright"
+  #   priority: 2
+  #   description: "브라우저 기반 스크래핑 (Fallback)"
+  #   playwright:
+  #     headless: true
+  #     timeout: 30000
+  #     browserOptions:
+  #       args:
+  #         - "--disable-blink-features=AutomationControlled"
+  #     contextOptions:
+  #       viewport:
+  #         width: 430
+  #         height: 932
+  #       userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+  #       isMobile: true
+  #       hasTouch: true
+  #       deviceScaleFactor: 3
+  #     navigationSteps:
+  #       - action: "navigate"
+  #         url: "https://www.musinsa.com/products/${goodsId}"
+  #         description: "상품 상세 페이지 접속"
+  #       - action: "wait"
+  #         timeout: 2000
+  #         description: "페이지 렌더링 대기"
+  #     extraction:
+  #       method: "json_ld_schema"
+  #       description: "JSON-LD Schema.org 구조화 데이터 추출"
+  #       extractor: "JsonLdSchemaExtractor"
+  #       config:
+  #         selector: 'script[type="application/ld+json"]'
+  #         fallback:
+  #           name: "삭제된 상품"
+  #           thumbnail: "https://via.placeholder.com/1x1"
+  #           price: 0
+  #           sale_status: "STSEL"
 
 # 필드 매핑 규칙
 fieldMapping:
   # 상품명
   productName:
-    source: "name"
+    source: "data.goodsNm"
     type: "string"
     required: true
 
   # 썸네일
   thumbnail:
-    source: "thumbnail"
+    source: "data.thumbnailImageUrl"
     type: "string"
     required: true
-    normalize: true
+    transform: "addImagePrefix"
+    prefix: "https://image.msscdn.net"
 
   # 정가
   originalPrice:
-    source: "consumer_price"
+    source: "data.goodsPrice.normalPrice"
     type: "number"
     required: true
 
   # 판매가
   discountedPrice:
-    source: "price"
+    source: "data.goodsPrice.salePrice"
     type: "number"
     required: true
 
   # 판매 상태
   saleStatus:
-    source: "sale_status"
+    source: "data.goodsSaleType"
     type: "enum"
     required: true
     mapping:
-      SELNG: "on_sale"      # 판매중
-      SLDOT: "sold_out"     # 품절
-      STSEL: "off_sale"     # 판매중지/삭제
+      SALE: "on_sale"           # 판매중
+      SOLDOUT: "sold_out"       # 품절
+      STOP_SALE: "off_sale"     # 판매중지
+
+# 에러 처리
+errorHandling:
+  # API 에러 응답 처리
+  errorField: "meta.errorCode"
+  notFoundCodes:
+    - "ERROR"
+    - "NOT_FOUND"
+  notFound: "product_deleted"
+  rateLimitDelay: 2000
+  serverErrorRetry: true
 
 # 검증 규칙
 validation:
@@ -119,28 +128,10 @@ validation:
   normalizeUrls: true
   strictMode: false
 
-# 에러 처리
-errorHandling:
-  notFound: "product_deleted"
-  rateLimitDelay: 2000
-  serverErrorRetry: true
-
 # Workflow Rate Limiting
+# Node-level rate limiting (상품별 HTTP 요청 간격 제어)
 workflow:
   rate_limit:
     enabled: true
-    wait_time_ms: 3000
-    description: "무신사 플랫폼 rate limiting"
-
-  # Concurrency Settings (병렬 처리 설정)
-  concurrency:
-    max: 10        # 최대 병렬 개수
-    default: 4     # 기본 병렬 개수
-    description: "배치 병렬 처리 설정"
-
-  # Memory Management (메모리 누수 방지)
-  memory_management:
-    page_rotation_interval: 10     # N개마다 Page 재생성 (메모리 정리)
-    context_rotation_interval: 50  # N개마다 Context 재생성 (장기 실행 대비)
-    enable_gc_hints: true           # V8 GC 힌트 활성화
-    description: "메모리 최적화 설정"
+    wait_time_ms: 2500  # 각 상품 스캔 간 대기 시간 (밀리초)
+    description: "HTTP request rate limiting per product (applies in MusinsaValidationNode)"

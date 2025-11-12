@@ -140,6 +140,28 @@ export class MusinsaProduct implements IProduct {
       MusinsaProduct.mapSaleStatus(domData.sale_status),
     );
   }
+
+  /**
+   * 팩토리 메서드: API 응답 데이터로부터 MusinsaProduct 생성
+   */
+  static fromApiResponse(apiData: {
+    id: string;
+    productNo: string;
+    productName: string;
+    thumbnail: string;
+    originalPrice: number;
+    discountedPrice: number;
+    saleStatus: string;
+  }): MusinsaProduct {
+    return new MusinsaProduct(
+      apiData.productNo,
+      apiData.productName,
+      apiData.thumbnail,
+      apiData.originalPrice,
+      apiData.discountedPrice,
+      apiData.saleStatus as SaleStatus,
+    );
+  }
 }
 
 /**

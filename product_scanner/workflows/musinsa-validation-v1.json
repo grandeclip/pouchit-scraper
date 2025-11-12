@@ -3,14 +3,16 @@
     "limit": 1000,
     "link_url_pattern": "%musinsa.com%"
   },
-  "description": "Supabase 상품을 Musinsa Playwright로 검증하고 비교 결과를 저장합니다",
+  "description": "Supabase 상품을 Musinsa HTTP API로 검증하고 비교 결과를 저장합니다",
   "metadata": {
     "author": "Product Scanner Team",
-    "created_at": "2025-11-04",
+    "created_at": "2025-11-12",
+    "updated_at": "2025-11-12",
     "tags": [
       "validation",
       "bulk",
-      "musinsa"
+      "musinsa",
+      "http-api"
     ]
   },
   "name": "Musinsa Product Validation",
@@ -34,10 +36,10 @@
     },
     "2": {
       "config": {
-        "concurrency": 4,
-        "strategy_id": "default"
+        "concurrency": 1,
+        "strategy_id": "api"
       },
-      "name": "Validate with Musinsa Playwright",
+      "name": "Validate with Musinsa HTTP API",
       "next_nodes": [
         "3"
       ],
@@ -45,7 +47,7 @@
         "backoff_ms": 2000,
         "max_attempts": 2
       },
-      "timeout_ms": 60000,
+      "timeout_ms": 30000,
       "type": "musinsa_validation"
     },
     "3": {
