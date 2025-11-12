@@ -148,8 +148,10 @@ export class PlaywrightScriptExecutor {
 
       switch (action) {
         case "navigate": {
-          // URL 템플릿 변수 치환 (${goodsId} → productId)
-          const targetUrl = url.replace("${goodsId}", productId);
+          // URL 템플릿 변수 치환 (여러 플랫폼 지원)
+          const targetUrl = url
+            .replace("${goodsId}", productId)
+            .replace("${productId}", productId);
 
           // 페이지 이동 (domcontentloaded 사용 - networkidle보다 빠름)
           try {

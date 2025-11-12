@@ -15,6 +15,7 @@ import { OliveyoungValidationNode } from "@/strategies/OliveyoungValidationNode"
 import { MusinsaValidationNode } from "@/strategies/MusinsaValidationNode";
 import { ZigzagValidationNode } from "@/strategies/ZigzagValidationNode";
 import { AblyValidationNode } from "@/strategies/AblyValidationNode";
+import { KurlyValidationNode } from "@/strategies/KurlyValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
 import { logger } from "@/config/logger";
 
@@ -33,6 +34,7 @@ export class NodeStrategyFactory {
     this.registerStrategy(new MusinsaValidationNode());
     this.registerStrategy(new ZigzagValidationNode());
     this.registerStrategy(new AblyValidationNode());
+    this.registerStrategy(new KurlyValidationNode());
     this.registerStrategy(new ResultWriterNode());
   }
 

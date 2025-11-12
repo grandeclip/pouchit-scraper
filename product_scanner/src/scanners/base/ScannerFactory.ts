@@ -20,12 +20,14 @@ import { PLATFORM_IDS } from "@/core/domain/PlatformId";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
 import { ZigzagConfig } from "@/core/domain/ZigzagConfig";
+import { AblyConfig } from "@/core/domain/AblyConfig";
+import { KurlyConfig } from "@/core/domain/KurlyConfig";
 import { HwahaeScannerFactory } from "@/scanners/platforms/hwahae/HwahaeScannerFactory";
 import { OliveyoungScannerFactory } from "@/scanners/platforms/oliveyoung/OliveyoungScannerFactory";
 import { ZigzagScannerFactory } from "@/scanners/platforms/zigzag/ZigzagScannerFactory";
 import { MusinsaScannerFactory } from "@/scanners/platforms/musinsa/MusinsaScannerFactory";
 import { AblyScannerFactory } from "@/scanners/platforms/ably/AblyScannerFactory";
-import { AblyConfig } from "@/core/domain/AblyConfig";
+import { KurlyScannerFactory } from "@/scanners/platforms/kurly/KurlyScannerFactory";
 
 /**
  * 스캐너 팩토리
@@ -119,6 +121,11 @@ export class ScannerFactory {
 
       case PLATFORM_IDS.ABLY: {
         const factory = new AblyScannerFactory(config as AblyConfig);
+        return factory.create(strategy) as unknown as IScanner;
+      }
+
+      case PLATFORM_IDS.KURLY: {
+        const factory = new KurlyScannerFactory(config as KurlyConfig);
         return factory.create(strategy) as unknown as IScanner;
       }
 
