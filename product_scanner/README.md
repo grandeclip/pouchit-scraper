@@ -11,6 +11,7 @@
 - **무신사**: HTTP API 직접 호출 (빠름, 정확)
 - **지그재그**: GraphQL API (첫구매 쿠폰 처리) + Playwright 대체
 - **에이블리**: Playwright (Network API 캡처 + Meta Tag fallback)
+- **마켓컬리**: Playwright (`__NEXT_DATA__` 파싱 + 상품 상태 감지)
 - **제네릭 아키텍처**: 새 플랫폼 추가 시 YAML 설정만으로 확장
 - CSV 데이터와 실시간 데이터 검증
 
@@ -103,6 +104,28 @@ graph LR
 
 - **1차**: Network API 캡처 (`/api/v3/goods/{id}/basic/`)
 - **2차**: Meta Tag Fallback (API 타임아웃 시)
+
+#### 6. 마켓컬리 (`__NEXT_DATA__` 파싱)
+
+```mermaid
+graph LR
+    A[Scan Request] --> B[Playwright 브라우저]
+    B --> C[__NEXT_DATA__ 추출]
+    C --> D{상품 상태 감지}
+    D -->|판매중| E[정가/할인가 추출]
+    D -->|품절| F[재고없음 상태]
+    D -->|정보변경| G[off_sale 상태]
+    E --> H[결과 반환]
+    F --> H
+    G --> H
+```
+
+- **전략**: Next.js `__NEXT_DATA__` SSR 데이터 파싱
+- **상품 상태 감지**:
+  - `isSoldOut: true` → 품절/재고없음
+  - `isSoldOut: null/undefined` → 상품정보변경
+  - `isSoldOut: false` → 판매중
+- **가격 추출**: `discountedPrice` → `basePrice` fallback
 
 ### Supabase 상품 검색
 
@@ -376,6 +399,7 @@ npx tsc --project tsconfig.scripts.json --noEmit
 | 무신사   | `musinsa`    | HTTP API                          | Musinsa API                                      | ~1초 (8배 개선) |
 | 지그재그 | `zigzag`     | GraphQL (우선), Playwright (대체) | GraphQL API (첫구매 쿠폰 처리) / `__NEXT_DATA__` | ~2초            |
 | 에이블리 | `ably`       | Playwright                        | Network API 캡처 + Meta Tag Fallback             | ~4초            |
+| 마켓컬리 | `kurly`      | Playwright                        | `__NEXT_DATA__` 파싱 + 상품 상태 감지            | ~3초            |
 
 ### API 엔드포인트 (v2.1.0)
 
@@ -466,6 +490,16 @@ POST /api/v1/platforms/ably/scan/:goodsId
 
 # 전략 목록
 GET /api/v1/platforms/ably/scan/strategies
+```
+
+##### 마켓컬리
+
+```bash
+# 브라우저 스캔 (__NEXT_DATA__ 파싱)
+POST /api/v1/platforms/kurly/scan/:productId
+
+# 전략 목록
+GET /api/v1/platforms/kurly/scan/strategies
 ```
 
 ##### 검증 (CSV vs API) - 화해 전용
