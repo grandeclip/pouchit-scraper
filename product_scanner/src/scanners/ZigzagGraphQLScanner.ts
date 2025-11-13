@@ -154,10 +154,37 @@ export class ZigzagGraphQLScanner extends BaseScanner<
         priceData?.final_discount_info?.discount_price || originalPrice;
     }
 
-    // 판매 상태 (matched_item_list의 첫 번째 아이템)
-    const item = catalogProduct.matched_item_list?.[0];
-    const salesStatus: ZigzagSalesStatus = item?.sales_status || "SUSPENDED";
-    const displayStatus: ZigzagDisplayStatus = item?.display_status || "HIDDEN";
+    // 판매 상태 (matched_item_list 전체 확인)
+    // - 하나라도 ON_SALE이면 판매중
+    // - 모두 SOLD_OUT이면 품절
+    const items = catalogProduct.matched_item_list || [];
+
+    let salesStatus: ZigzagSalesStatus = "SUSPENDED";
+    let displayStatus: ZigzagDisplayStatus = "HIDDEN";
+
+    if (items.length > 0) {
+      // 하나라도 ON_SALE이면 판매중
+      const hasOnSale = items.some((item) => item.sales_status === "ON_SALE");
+      // 모두 SOLD_OUT인지 확인
+      const allSoldOut = items.every(
+        (item) => item.sales_status === "SOLD_OUT",
+      );
+
+      if (hasOnSale) {
+        salesStatus = "ON_SALE";
+      } else if (allSoldOut) {
+        salesStatus = "SOLD_OUT";
+      } else {
+        // 그 외의 경우 첫 번째 아이템 상태 사용
+        salesStatus = items[0].sales_status;
+      }
+
+      // display_status: 하나라도 VISIBLE이면 노출 중
+      const hasVisible = items.some(
+        (item) => item.display_status === "VISIBLE",
+      );
+      displayStatus = hasVisible ? "VISIBLE" : items[0].display_status;
+    }
 
     // 구매 가능 여부 (판매중이고 노출 중이면 true)
     const isPurchasable =

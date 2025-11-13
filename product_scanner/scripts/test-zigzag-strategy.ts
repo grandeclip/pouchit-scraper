@@ -57,6 +57,17 @@ const TEST_CASES = [
       expectedPrice: 14800, // 첫구매 제외 가격 (중요!)
     },
   },
+  {
+    name: "케이스 5: 상품중 일부는 판매, 일부는 품절",
+    productId: "124800806",
+    expected: {
+      sale_status: "on_sale",
+      isPurchasable: true,
+      hasName: true,
+      hasPrice: true,
+      expectedPrice: 6600,
+    },
+  },
 ];
 
 async function testZigzagStrategy() {
