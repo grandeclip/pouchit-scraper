@@ -1,0 +1,259 @@
+{
+    "data": {
+        "pdp_option_info": {
+            "catalog_product": {
+                "additional_item_list": null,
+                "category_list": [
+                    {
+                        "category_id": 2278,
+                        "value": "스킨케어"
+                    }
+                ],
+                "color_image_list": [],
+                "coupon_available_status": "COUPON_AVAILABLE",
+                "custom_input_option_list": [],
+                "discount_info": {
+                    "color": "#FA6EE3",
+                    "image_url": null,
+                    "title": "쿠폰할인가"
+                },
+                "estimated_shipping_date": null,
+                "external_code": null,
+                "fulfillment_type": "MERCHANT",
+                "id": "117931583",
+                "is_only_zigzin_button_visible": false,
+                "managed_category_list": [
+                    {
+                        "category_id": 2277,
+                        "depth": 1,
+                        "id": "2277",
+                        "key": "beauty",
+                        "value": "뷰티"
+                    },
+                    {
+                        "category_id": 2278,
+                        "depth": 2,
+                        "id": "2278",
+                        "key": "skin_care",
+                        "value": "스킨케어"
+                    },
+                    {
+                        "category_id": 2972,
+                        "depth": 3,
+                        "id": "2972",
+                        "key": "mist",
+                        "value": "미스트"
+                    }
+                ],
+                "matched_item_list": [
+                    {
+                        "delivery_type": "GENERAL",
+                        "discount_info": {
+                            "color": "#FA6EE3",
+                            "image_url": null,
+                            "order": 5,
+                            "title": "쿠폰할인가"
+                        },
+                        "display_status": "VISIBLE",
+                        "expected_delivery_date": "11. 17(월) 이내 발송예정",
+                        "expected_delivery_time": 1763391599000,
+                        "final_price": 44850,
+                        "id": "700975942",
+                        "is_zigzin": false,
+                        "item_attribute_list": [
+                            {
+                                "id": "91527174",
+                                "name": "옵션",
+                                "value": "레드 100+100",
+                                "value_id": "280211599"
+                            }
+                        ],
+                        "item_code": null,
+                        "name": "레드 100+100",
+                        "price": 59800,
+                        "price_delta": 0,
+                        "remain_stock": null,
+                        "sales_status": "ON_SALE",
+                        "wms_notification_info": null
+                    },
+                    {
+                        "delivery_type": "GENERAL",
+                        "discount_info": {
+                            "color": "#FA6EE3",
+                            "image_url": null,
+                            "order": 5,
+                            "title": "쿠폰할인가"
+                        },
+                        "display_status": "VISIBLE",
+                        "expected_delivery_date": "11. 17(월) 이내 발송예정",
+                        "expected_delivery_time": 1763391599000,
+                        "final_price": 44850,
+                        "id": "700975943",
+                        "is_zigzin": false,
+                        "item_attribute_list": [
+                            {
+                                "id": "91527174",
+                                "name": "옵션",
+                                "value": "옐로우 100+100",
+                                "value_id": "280211598"
+                            }
+                        ],
+                        "item_code": null,
+                        "name": "옐로우 100+100",
+                        "price": 59800,
+                        "price_delta": 0,
+                        "remain_stock": null,
+                        "sales_status": "ON_SALE",
+                        "wms_notification_info": null
+                    },
+                    {
+                        "delivery_type": "GENERAL",
+                        "discount_info": {
+                            "color": "#FA6EE3",
+                            "image_url": null,
+                            "order": 5,
+                            "title": "쿠폰할인가"
+                        },
+                        "display_status": "VISIBLE",
+                        "expected_delivery_date": "11. 17(월) 이내 발송예정",
+                        "expected_delivery_time": 1763391599000,
+                        "final_price": 44850,
+                        "id": "700975944",
+                        "is_zigzin": false,
+                        "item_attribute_list": [
+                            {
+                                "id": "91527174",
+                                "name": "옵션",
+                                "value": "옐로우 + 레드",
+                                "value_id": "280211600"
+                            }
+                        ],
+                        "item_code": null,
+                        "name": "옐로우 + 레드",
+                        "price": 59800,
+                        "price_delta": 0,
+                        "remain_stock": null,
+                        "sales_status": "ON_SALE",
+                        "wms_notification_info": null
+                    }
+                ],
+                "matching_catalog_product_info": null,
+                "maximum_order_quantity": 5,
+                "meta_catalog_product_info": null,
+                "minimum_order_quantity": 1,
+                "minimum_order_quantity_type": null,
+                "name": "[총 2개/교차가능] 달바 '옐로우&레드' 화이트 트러플 미스트 세트 100ml+100ml",
+                "product_additional_option_list": null,
+                "product_image_list": [
+                    {
+                        "image_type": "MAIN",
+                        "origin_url": "https://s3.ap-northeast-2.amazonaws.com/product-image.s.zigzag.kr/original/d/2022/12/1/15872_202212011955150401_93488.jpeg",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2022/12/1/15872_202212011955150401_93488.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2022/12/1/15872_202212011955150401_93488.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2022/12/1/15872_202212011955150401_93488.jpeg"
+                    }
+                ],
+                "product_option_list": [
+                    {
+                        "code": null,
+                        "id": "91527174",
+                        "name": "옵션",
+                        "option_type": "BASIC",
+                        "order": 0,
+                        "required": true,
+                        "value_list": [
+                            {
+                                "code": "#FFD200",
+                                "id": "280211598",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "옐로우 100+100"
+                            },
+                            {
+                                "code": "#F01E1E",
+                                "id": "280211599",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "레드 100+100"
+                            },
+                            {
+                                "code": "#F01E1E",
+                                "id": "280211600",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "옐로우 + 레드"
+                            }
+                        ]
+                    }
+                ],
+                "product_price": {
+                    "coupon_discount_info_list": [
+                        {
+                            "discount_amount": 14950,
+                            "discount_amount_of_amount_coupon": null,
+                            "discount_rate_bp": 2500,
+                            "discount_type": "RATE",
+                            "max_discount_amount": 20000,
+                            "min_required_amount": 20000,
+                            "target_type": "SHOP_GROUP_WITH_ZONLY"
+                        }
+                    ],
+                    "display_final_price": {
+                        "final_price": {
+                            "badge": {
+                                "color": {
+                                    "normal": "#FA6EE3"
+                                },
+                                "text": "쿠폰할인가"
+                            },
+                            "color": {
+                                "normal": "#FA6EE3"
+                            }
+                        },
+                        "final_price_additional": null
+                    },
+                    "final_discount_info": {
+                        "discount_price": 44850
+                    },
+                    "first_order_discount": null,
+                    "max_price_info": {
+                        "price": 59800
+                    },
+                    "product_promotion_discount_info": null
+                },
+                "promotion_info": null,
+                "scheduled_sale_date": null,
+                "shipping_company": null,
+                "shipping_fee": {
+                    "additional_shipping_fee_text": "제주/도서산간 <span>2500원</span>",
+                    "base_fee": 0,
+                    "fee_type": "FREE",
+                    "minimum_free_shipping_fee": null
+                },
+                "shop_id": 15872,
+                "shop_main_domain": "cq-u8xvl2iv",
+                "shop_name": "달바",
+                "store_deal_banner": null,
+                "trait_list": [],
+                "zigzin_item_list": []
+            },
+            "flags": {
+                "is_cart_button_visible": true,
+                "is_purchase_only_one_at_time": false
+            },
+            "key_color": {
+                "buy_button": {
+                    "background": {
+                        "disabled": "#E8E9EB",
+                        "enabled": "#121314"
+                    },
+                    "text": {
+                        "disabled": "#A1A9AD",
+                        "enabled": "#FAFAFB"
+                    }
+                },
+                "discount_info_of_atf": "#FA6EE3"
+            }
+        }
+    }
+}

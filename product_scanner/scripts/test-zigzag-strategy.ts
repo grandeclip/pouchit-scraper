@@ -2,13 +2,11 @@
 
 /**
  * ZigZag 전략 검증 스크립트
- * 6가지 케이스 테스트 (기존 test-zigzag-playwright.ts 결과 기반):
- * 1. 정상 판매 상품 (157001205)
- * 2. 정상 판매 상품 (111018539)
- * 3. 잘못된 ID (1570012055)
- * 4. 판매 중단 상품 (110848364)
- * 5. 판매 중단 상품 (164410989)
- * 6. 품절 상품 (162525042)
+ * 4가지 케이스 테스트 (ZIGZAG_IMPLEMENTATION_GUIDE.md 기반):
+ * 1. 일반 쿠폰 (117931583) - 배지: 쿠폰할인가
+ * 2. 품절 상품 (116580170) - 배지 없음
+ * 3. 직잭픽 (155514630) - 배지: 직잭픽
+ * 4. 첫구매 쿠폰 (135275589) - 배지: 첫구매쿠폰 (핵심)
  */
 
 import { ConfigLoader } from "@/config/ConfigLoader";
@@ -16,63 +14,47 @@ import { ScannerRegistry } from "@/services/ScannerRegistry";
 
 const TEST_CASES = [
   {
-    name: "정상 판매 - 토리버치 백",
-    productId: "157001205",
+    name: "케이스 1: 일반 쿠폰 (판매중)",
+    productId: "117931583",
     expected: {
       sale_status: "on_sale",
       isPurchasable: true,
       hasName: true,
       hasPrice: true,
+      minPrice: 40000, // 최소 기대 할인가
     },
   },
   {
-    name: "정상 판매 - 마리떼 프랑소와저버 탑",
-    productId: "111018539",
-    expected: {
-      sale_status: "on_sale",
-      isPurchasable: true,
-      hasName: true,
-      hasPrice: true,
-    },
-  },
-  {
-    name: "잘못된 상품 ID",
-    productId: "1570012055",
-    expected: {
-      sale_status: "off_sale",
-      isPurchasable: false,
-      hasName: false, // 에러 시 placeholder
-      hasPrice: false,
-    },
-  },
-  {
-    name: "판매 중단 - 칼하트 WIP 니트",
-    productId: "110848364",
-    expected: {
-      sale_status: "off_sale",
-      isPurchasable: false,
-      hasName: true,
-      hasPrice: true, // 가격은 존재하지만 구매 불가
-    },
-  },
-  {
-    name: "판매 중단 - 그레이프 스커트",
-    productId: "164410989",
-    expected: {
-      sale_status: "off_sale",
-      isPurchasable: false,
-      hasName: true,
-      hasPrice: true,
-    },
-  },
-  {
-    name: "품절 상품",
-    productId: "162525042",
+    name: "케이스 2: 품절 상품",
+    productId: "116580170",
     expected: {
       sale_status: "sold_out",
       isPurchasable: false,
       hasName: true,
       hasPrice: true,
+      minPrice: 20000,
+    },
+  },
+  {
+    name: "케이스 3: 직잭픽 (프로모션)",
+    productId: "155514630",
+    expected: {
+      sale_status: "on_sale",
+      isPurchasable: true,
+      hasName: true,
+      hasPrice: true,
+      minPrice: 30000,
+    },
+  },
+  {
+    name: "케이스 4: 첫구매 쿠폰 (첫구매 제외 가격)",
+    productId: "135275589",
+    expected: {
+      sale_status: "on_sale",
+      isPurchasable: true,
+      hasName: true,
+      hasPrice: true,
+      expectedPrice: 14800, // 첫구매 제외 가격 (중요!)
     },
   },
 ];
@@ -132,7 +114,19 @@ async function testZigzagStrategy() {
           hasPrice: testCase.expected.hasPrice
             ? result.discountedPrice > 0
             : result.discountedPrice === 0,
+          priceValid: true, // 기본값
         };
+
+        // 가격 검증 (케이스별)
+        if ("expectedPrice" in testCase.expected) {
+          // 케이스 4: 정확한 가격 검증
+          checks.priceValid =
+            result.discountedPrice === testCase.expected.expectedPrice;
+        } else if ("minPrice" in testCase.expected) {
+          // 케이스 1-3: 최소 가격 검증
+          checks.priceValid =
+            result.discountedPrice >= testCase.expected.minPrice!;
+        }
 
         const allPassed = Object.values(checks).every((v) => v);
 
@@ -146,6 +140,17 @@ async function testZigzagStrategy() {
         console.log(
           `  ${checks.hasPrice ? "✅" : "❌"} discountedPrice: ${result.discountedPrice} (기대값: ${testCase.expected.hasPrice ? ">0" : "0"})`,
         );
+
+        // 가격 검증 결과 출력
+        if ("expectedPrice" in testCase.expected) {
+          console.log(
+            `  ${checks.priceValid ? "✅" : "❌"} 정확한 가격: ${result.discountedPrice} (기대값: ${testCase.expected.expectedPrice})`,
+          );
+        } else if ("minPrice" in testCase.expected) {
+          console.log(
+            `  ${checks.priceValid ? "✅" : "❌"} 최소 가격: ${result.discountedPrice} (기대값: >=${testCase.expected.minPrice})`,
+          );
+        }
 
         if (allPassed) {
           console.log("\n🎉 테스트 통과!");

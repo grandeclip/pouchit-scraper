@@ -1,0 +1,231 @@
+{
+    "data": {
+        "pdp_option_info": {
+            "catalog_product": {
+                "additional_item_list": null,
+                "category_list": [
+                    {
+                        "category_id": 2278,
+                        "value": "스킨케어"
+                    }
+                ],
+                "color_image_list": [],
+                "coupon_available_status": "COUPON_AVAILABLE",
+                "custom_input_option_list": [],
+                "discount_info": {
+                    "color": "#FA6EE3",
+                    "image_url": null,
+                    "title": "직잭픽"
+                },
+                "estimated_shipping_date": null,
+                "external_code": null,
+                "fulfillment_type": "MERCHANT",
+                "id": "155514630",
+                "is_only_zigzin_button_visible": false,
+                "managed_category_list": [
+                    {
+                        "category_id": 2277,
+                        "depth": 1,
+                        "id": "2277",
+                        "key": "beauty",
+                        "value": "뷰티"
+                    },
+                    {
+                        "category_id": 2278,
+                        "depth": 2,
+                        "id": "2278",
+                        "key": "skin_care",
+                        "value": "스킨케어"
+                    },
+                    {
+                        "category_id": 2965,
+                        "depth": 3,
+                        "id": "2965",
+                        "key": "essence-ampoule-serum",
+                        "value": "에센스/앰플/세럼"
+                    }
+                ],
+                "matched_item_list": [
+                    {
+                        "delivery_type": "FAST",
+                        "discount_info": {
+                            "color": "#FA6EE3",
+                            "image_url": null,
+                            "order": 5,
+                            "title": "쿠폰할인가"
+                        },
+                        "display_status": "VISIBLE",
+                        "expected_delivery_date": "내일(금) 이내 발송예정",
+                        "expected_delivery_time": 1763132399000,
+                        "final_price": 34200,
+                        "id": "682562625",
+                        "is_zigzin": false,
+                        "item_attribute_list": [
+                            {
+                                "id": "86956695",
+                                "name": "선택",
+                                "value": "선택완료",
+                                "value_id": "266270951"
+                            }
+                        ],
+                        "item_code": "131175189ZA2",
+                        "name": "선택완료",
+                        "price": 42750,
+                        "price_delta": 0,
+                        "remain_stock": null,
+                        "sales_status": "ON_SALE",
+                        "wms_notification_info": null
+                    }
+                ],
+                "matching_catalog_product_info": null,
+                "maximum_order_quantity": 5,
+                "meta_catalog_product_info": null,
+                "minimum_order_quantity": 1,
+                "minimum_order_quantity_type": null,
+                "name": "[직잭픽/속광홈케어] 레티놀 그린티 PDRN 스킨부스터 앰플 40mL + 사은품 증정",
+                "product_additional_option_list": null,
+                "product_image_list": [
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500059_14342.png",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500059_14342.png?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500059_14342.png?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500059_14342.png"
+                    },
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500433_97638.png",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500433_97638.png?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500433_97638.png?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340500433_97638.png"
+                    },
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050082_47197.jpeg",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050082_47197.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050082_47197.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050082_47197.jpeg"
+                    },
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050374_27707.jpeg",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050374_27707.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050374_27707.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050374_27707.jpeg"
+                    },
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050598_42620.jpeg",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050598_42620.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050598_42620.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050598_42620.jpeg"
+                    },
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050820_58294.jpeg",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050820_58294.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050820_58294.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/8/18/20526_202508180903050820_58294.jpeg"
+                    },
+                    {
+                        "image_type": "MAIN",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340490807_39534.gif",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340490807_39534.gif?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340490807_39534.gif?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/29/20526_202510291340490807_39534.gif"
+                    }
+                ],
+                "product_option_list": [
+                    {
+                        "code": null,
+                        "id": "86956695",
+                        "name": "선택",
+                        "option_type": "BASIC",
+                        "order": 0,
+                        "required": true,
+                        "value_list": [
+                            {
+                                "code": null,
+                                "id": "266270951",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "선택완료"
+                            }
+                        ]
+                    }
+                ],
+                "product_price": {
+                    "coupon_discount_info_list": [
+                        {
+                            "discount_amount": 8550,
+                            "discount_amount_of_amount_coupon": null,
+                            "discount_rate_bp": 2000,
+                            "discount_type": "RATE",
+                            "max_discount_amount": 30000,
+                            "min_required_amount": 15000,
+                            "target_type": "SHOP_WITH_ZONLY"
+                        }
+                    ],
+                    "display_final_price": {
+                        "final_price": {
+                            "badge": null,
+                            "color": {
+                                "normal": "#34383B"
+                            }
+                        },
+                        "final_price_additional": {
+                            "badge": {
+                                "text": "직잭픽"
+                            },
+                            "color": {
+                                "normal": "#FA6EE3"
+                            }
+                        }
+                    },
+                    "final_discount_info": {
+                        "discount_price": 34200
+                    },
+                    "first_order_discount": null,
+                    "max_price_info": {
+                        "price": 57000
+                    },
+                    "product_promotion_discount_info": {
+                        "discount_amount": 14250
+                    }
+                },
+                "promotion_info": null,
+                "scheduled_sale_date": null,
+                "shipping_company": null,
+                "shipping_fee": {
+                    "additional_shipping_fee_text": "제주/도서산간 <span>0원</span>",
+                    "base_fee": 0,
+                    "fee_type": "FREE",
+                    "minimum_free_shipping_fee": null
+                },
+                "shop_id": 20526,
+                "shop_main_domain": "cq-tsn28u2w",
+                "shop_name": "이니스프리",
+                "store_deal_banner": null,
+                "trait_list": [],
+                "zigzin_item_list": []
+            },
+            "flags": {
+                "is_cart_button_visible": true,
+                "is_purchase_only_one_at_time": false
+            },
+            "key_color": {
+                "buy_button": {
+                    "background": {
+                        "disabled": "#E8E9EB",
+                        "enabled": "#121314"
+                    },
+                    "text": {
+                        "disabled": "#A1A9AD",
+                        "enabled": "#FAFAFB"
+                    }
+                },
+                "discount_info_of_atf": "#FA6EE3"
+            }
+        }
+    }
+}

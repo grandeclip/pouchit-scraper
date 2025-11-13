@@ -34,6 +34,16 @@ strategies:
               product_price {
                 max_price_info { price }
                 final_discount_info { discount_price }
+                display_final_price {
+                  final_price {
+                    price
+                    badge { text }
+                  }
+                  final_price_additional {
+                    price
+                    badge { text }
+                  }
+                }
               }
               matched_item_list {
                 sales_status

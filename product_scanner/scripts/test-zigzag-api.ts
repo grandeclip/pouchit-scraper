@@ -1,65 +1,108 @@
 /**
- * ZigZag GraphQL API 테스트 스크립트
+ * Zigzag 필요 데이터 추출 테스트
  *
- * 목적: GetCatalogProductDetailPageOption API 동작 확인
- * - 정상 상품
- * - 존재하지 않는 상품
- * - 판매중단 상품
- * - 품절 상품
+ * 추출 필드:
+ * - product_name: catalog_product.name
+ * - thumbnail: catalog_product.product_image_list (MAIN)
+ * - sale_status: catalog_product.matched_item_list[0].sales_status
+ * - original_price: catalog_product.product_price.max_price_info.price
+ * - discounted_price: 첫구매 제외 가격
  */
 
 const GRAPHQL_ENDPOINT =
   "https://api.zigzag.kr/api/2/graphql/GetCatalogProductDetailPageOption";
 
-// 최소 필드 GraphQL 쿼리 (핵심 데이터 + thumbnail)
-const PRODUCT_QUERY = `
+// 필요 필드만 추출하는 최적화된 쿼리
+const EXTRACTION_QUERY = `
   query GetCatalogProductDetailPageOption($catalog_product_id: ID!, $input: PdpBaseInfoInput) {
     pdp_option_info(catalog_product_id: $catalog_product_id, input: $input) {
       catalog_product {
         id
         name
         shop_name
-        product_price {
-          max_price_info { price }
-          final_discount_info { discount_price }
+
+        product_image_list {
+          image_type
+          pdp_thumbnail_url
         }
+
         matched_item_list {
           sales_status
           display_status
         }
-        product_image_list {
-          image_type
-          pdp_thumbnail_url
+
+        product_price {
+          max_price_info {
+            price
+          }
+          final_discount_info {
+            discount_price
+          }
+          product_promotion_discount_info {
+            discount_amount
+          }
+          display_final_price {
+            final_price {
+              price
+              badge {
+                text
+              }
+            }
+            final_price_additional {
+              price
+              badge {
+                text
+              }
+            }
+          }
         }
       }
     }
   }
 `;
 
+interface ExtractedData {
+  product_id: string;
+  product_name: string;
+  shop_name: string;
+  thumbnail: string;
+  sale_status: string;
+  original_price: number;
+  discounted_price: number;
+  is_first_purchase: boolean;
+  badge?: string;
+}
+
 interface TestCase {
   id: string;
   description: string;
-  expectedStatus?: string;
+  expectedBadge?: string;
 }
 
 const TEST_CASES: TestCase[] = [
   {
-    id: "157001205",
-    description: "정상 상품 1 (에뛰드 마스카라)",
-    expectedStatus: "ON_SALE",
+    id: "117931583",
+    description: "케이스 1: 일반 쿠폰 (판매중)",
+    expectedBadge: "쿠폰할인가",
   },
-  { id: "111018539", description: "정상 상품 2", expectedStatus: "ON_SALE" },
   {
-    id: "1570012055",
-    description: "존재하지 않는 상품 (ID 오류)",
-    expectedStatus: "ERROR",
+    id: "116580170",
+    description: "케이스 2: 일반 할인 (품절)",
+    expectedBadge: null,
   },
-  { id: "110848364", description: "판매중단 1", expectedStatus: "SUSPENDED" },
-  { id: "164410989", description: "판매중단 2", expectedStatus: "SUSPENDED" },
-  { id: "162525042", description: "품절", expectedStatus: "SOLD_OUT" },
+  {
+    id: "155514630",
+    description: "케이스 3: 직잭픽",
+    expectedBadge: "직잭픽",
+  },
+  {
+    id: "135275589",
+    description: "케이스 4: 첫구매 쿠폰",
+    expectedBadge: "첫구매쿠폰",
+  },
 ];
 
-async function fetchProductInfo(productId: string) {
+async function fetchProductData(productId: string) {
   const response = await fetch(GRAPHQL_ENDPOINT, {
     method: "POST",
     headers: {
@@ -68,10 +111,10 @@ async function fetchProductInfo(productId: string) {
       Origin: "https://zigzag.kr",
       Referer: "https://zigzag.kr/",
       "User-Agent":
-        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
     },
     body: JSON.stringify({
-      query: PRODUCT_QUERY,
+      query: EXTRACTION_QUERY,
       variables: {
         catalog_product_id: productId,
         input: {
@@ -89,8 +132,54 @@ async function fetchProductInfo(productId: string) {
   return response.json();
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function extractData(result: any): ExtractedData {
+  const product = result.data?.pdp_option_info?.catalog_product;
+
+  if (!product) {
+    throw new Error("상품 데이터 없음");
+  }
+
+  // 썸네일 추출 (MAIN 이미지)
+  const mainImage = product.product_image_list?.find(
+    (img: any) => img.image_type === "MAIN",
+  );
+  const thumbnail = mainImage?.pdp_thumbnail_url || "";
+
+  // 판매 상태 (첫 번째 아이템 기준)
+  const saleStatus = product.matched_item_list?.[0]?.sales_status || "UNKNOWN";
+
+  // 가격 정보
+  const priceData = product.product_price;
+  const originalPrice = priceData.max_price_info?.price || 0;
+
+  // 첫구매 제외 가격 계산
+  const displayPrice = priceData.display_final_price;
+  const badge = displayPrice.final_price_additional?.badge?.text;
+  const isFirstPurchase = badge?.includes("첫구매") ?? false;
+
+  // 첫구매 쿠폰인 경우: final_price가 첫구매 제외 가격
+  // 그 외의 경우: final_discount_info.discount_price 사용
+  let discountedPrice: number;
+
+  if (isFirstPurchase) {
+    // 첫구매 제외 가격 = display_final_price.final_price.price
+    discountedPrice = displayPrice.final_price.price;
+  } else {
+    // 일반 할인가
+    discountedPrice = priceData.final_discount_info?.discount_price || 0;
+  }
+
+  return {
+    product_id: product.id,
+    product_name: product.name,
+    shop_name: product.shop_name,
+    thumbnail,
+    sale_status: saleStatus,
+    original_price: originalPrice,
+    discounted_price: discountedPrice,
+    is_first_purchase: isFirstPurchase,
+    badge: badge || displayPrice.final_price.badge?.text || undefined,
+  };
 }
 
 function formatPrice(price: number): string {
@@ -98,131 +187,93 @@ function formatPrice(price: number): string {
 }
 
 function calculateDiscountRate(original: number, discounted: number): number {
+  if (original === 0) return 0;
   return Math.round(((original - discounted) / original) * 100);
 }
 
-async function testProduct(testCase: TestCase) {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function testExtraction(testCase: TestCase) {
   console.log(`\n${"=".repeat(80)}`);
-  console.log(`테스트: ${testCase.description}`);
+  console.log(`${testCase.description}`);
   console.log(`상품 ID: ${testCase.id}`);
-  console.log(`예상 상태: ${testCase.expectedStatus || "UNKNOWN"}`);
   console.log("=".repeat(80));
 
   try {
-    const result = await fetchProductInfo(testCase.id);
+    const result = await fetchProductData(testCase.id);
 
-    // GraphQL 에러 확인
     if (result.errors) {
-      console.log("❌ GraphQL 에러 발생:");
-      result.errors.forEach((err: any, idx: number) => {
-        console.log(`  [${idx + 1}] ${err.message}`);
-        if (err.extensions) {
-          console.log(
-            `      Extensions:`,
-            JSON.stringify(err.extensions, null, 2),
-          );
-        }
-      });
+      console.log("❌ GraphQL 에러:");
+      result.errors.forEach((err: any) => console.log(`  - ${err.message}`));
       return;
     }
 
-    // 데이터 존재 확인
-    if (!result.data || !result.data.pdp_option_info) {
-      console.log("⚠️  데이터 없음 (상품 존재하지 않음)");
-      console.log("Response:", JSON.stringify(result, null, 2));
-      return;
-    }
+    const extracted = extractData(result);
 
-    const product = result.data.pdp_option_info.catalog_product;
+    console.log("\n✅ 데이터 추출 성공\n");
 
-    // 상품이 null인 경우
-    if (!product) {
-      console.log("⚠️  상품 정보 없음 (catalog_product = null)");
-      return;
-    }
+    console.log(`📦 기본 정보:`);
+    console.log(`  Product ID: ${extracted.product_id}`);
+    console.log(`  Product Name: ${extracted.product_name}`);
+    console.log(`  Shop: ${extracted.shop_name}`);
 
-    // 기본 정보
-    console.log("\n✅ 상품 정보 조회 성공");
-    console.log(`  ID: ${product.id}`);
-    console.log(`  이름: ${product.name}`);
-    console.log(`  브랜드: ${product.shop_name}`);
+    console.log(`\n🖼️  Thumbnail:`);
+    console.log(`  ${extracted.thumbnail.substring(0, 80)}...`);
 
-    // 가격 정보
-    if (product.product_price) {
-      const price = product.product_price;
-      const original = price.max_price_info?.price;
-      const discounted = price.final_discount_info?.discount_price;
+    console.log(`\n💰 가격 정보:`);
+    console.log(
+      `  정가 (original_price): ${formatPrice(extracted.original_price)}원`,
+    );
+    console.log(
+      `  할인가 (discounted_price): ${formatPrice(extracted.discounted_price)}원`,
+    );
+    const discountRate = calculateDiscountRate(
+      extracted.original_price,
+      extracted.discounted_price,
+    );
+    console.log(`  할인율: ${discountRate}%`);
 
-      if (original && discounted) {
-        const discountRate = calculateDiscountRate(original, discounted);
-        console.log(`\n💰 가격 정보:`);
-        console.log(`  정가: ${formatPrice(original)}원`);
-        console.log(`  할인가: ${formatPrice(discounted)}원`);
-        console.log(`  할인율: ${discountRate}%`);
+    console.log(`\n📊 판매 상태:`);
+    console.log(`  sale_status: ${extracted.sale_status}`);
+
+    if (extracted.badge) {
+      console.log(`\n🏷️  배지:`);
+      console.log(`  ${extracted.badge}`);
+
+      if (extracted.is_first_purchase) {
+        console.log(`  ⚠️  첫구매 쿠폰 상품`);
+        console.log(`  → discounted_price는 첫구매 제외 가격입니다`);
       }
     }
 
-    // 판매 상태 (핵심 필드)
-    if (product.matched_item_list && product.matched_item_list.length > 0) {
-      const item = product.matched_item_list[0];
-      console.log(`\n📦 판매 상태:`);
-      console.log(`  sales_status: ${item.sales_status}`);
-      console.log(`  display_status: ${item.display_status}`);
-
-      // 예상 상태와 비교
-      if (
-        testCase.expectedStatus &&
-        item.sales_status !== testCase.expectedStatus
-      ) {
+    // 예상 배지 검증
+    if (testCase.expectedBadge !== undefined) {
+      const actualBadge = extracted.badge || null;
+      if (actualBadge === testCase.expectedBadge) {
+        console.log(`\n  ✅ 배지 일치: ${actualBadge || "(없음)"}`);
+      } else {
         console.log(
-          `  ⚠️  예상과 다름! (예상: ${testCase.expectedStatus}, 실제: ${item.sales_status})`,
+          `\n  ⚠️  배지 불일치: 예상(${testCase.expectedBadge}) vs 실제(${actualBadge})`,
         );
-      } else if (testCase.expectedStatus) {
-        console.log(`  ✅ 예상 상태 일치`);
-      }
-
-      // 상태별 한글 설명
-      const statusMap: Record<string, string> = {
-        ON_SALE: "판매중",
-        SOLD_OUT: "품절",
-        SUSPENDED: "판매중단",
-      };
-      const statusKo = statusMap[item.sales_status] || "알 수 없음";
-      console.log(`  상태: ${statusKo}`);
-    }
-
-    // 썸네일 이미지
-    if (product.product_image_list && product.product_image_list.length > 0) {
-      const mainImage = product.product_image_list.find(
-        (img: any) => img.image_type === "MAIN",
-      );
-      if (mainImage?.pdp_thumbnail_url) {
-        console.log(`\n🖼️  썸네일:`);
-        console.log(`  ${mainImage.pdp_thumbnail_url.substring(0, 70)}...`);
       }
     }
   } catch (error: any) {
-    console.log("❌ 요청 실패:", error.message);
-    if (error.cause) {
-      console.log("   원인:", error.cause);
-    }
+    console.log("❌ 추출 실패:", error.message);
   }
 }
 
 async function main() {
-  console.log("ZigZag GraphQL API 테스트 시작\n");
-  console.log(`엔드포인트: ${GRAPHQL_ENDPOINT}`);
-  console.log(`총 테스트 케이스: ${TEST_CASES.length}개`);
+  console.log("Zigzag 데이터 추출 테스트\n");
+  console.log(`총 테스트: ${TEST_CASES.length}개`);
   console.log(`딜레이: 2초\n`);
 
   for (let i = 0; i < TEST_CASES.length; i++) {
-    const testCase = TEST_CASES[i];
+    await testExtraction(TEST_CASES[i]);
 
-    await testProduct(testCase);
-
-    // 마지막 케이스가 아니면 2초 대기
     if (i < TEST_CASES.length - 1) {
-      console.log("\n⏳ 2초 대기 중...");
+      console.log("\n⏳ 2초 대기...");
       await sleep(2000);
     }
   }
@@ -232,8 +283,7 @@ async function main() {
   console.log("=".repeat(80));
 }
 
-// 실행
 main().catch((error) => {
-  console.error("스크립트 실행 실패:", error);
+  console.error("실행 실패:", error);
   process.exit(1);
 });

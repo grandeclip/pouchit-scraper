@@ -1,0 +1,168 @@
+{
+    "data": {
+        "pdp_option_info": {
+            "catalog_product": {
+                "additional_item_list": null,
+                "category_list": [
+                    {
+                        "category_id": 2278,
+                        "value": "스킨케어"
+                    }
+                ],
+                "color_image_list": [],
+                "coupon_available_status": "COUPON_AVAILABLE",
+                "custom_input_option_list": [],
+                "discount_info": null,
+                "estimated_shipping_date": null,
+                "external_code": null,
+                "fulfillment_type": "MERCHANT",
+                "id": "116580170",
+                "is_only_zigzin_button_visible": false,
+                "managed_category_list": [
+                    {
+                        "category_id": 2277,
+                        "depth": 1,
+                        "id": "2277",
+                        "key": "beauty",
+                        "value": "뷰티"
+                    },
+                    {
+                        "category_id": 2278,
+                        "depth": 2,
+                        "id": "2278",
+                        "key": "skin_care",
+                        "value": "스킨케어"
+                    },
+                    {
+                        "category_id": 2965,
+                        "depth": 3,
+                        "id": "2965",
+                        "key": "essence-ampoule-serum",
+                        "value": "에센스/앰플/세럼"
+                    }
+                ],
+                "matched_item_list": [
+                    {
+                        "delivery_type": "GENERAL",
+                        "discount_info": null,
+                        "display_status": "VISIBLE",
+                        "expected_delivery_date": "11. 18(화) 이내 발송예정",
+                        "expected_delivery_time": 1763477999000,
+                        "final_price": 27000,
+                        "id": "453339198",
+                        "is_zigzin": false,
+                        "item_attribute_list": [
+                            {
+                                "id": "26651915",
+                                "name": "옵션",
+                                "value": "6번 푹잠 마스크팩 세럼",
+                                "value_id": "91398499"
+                            }
+                        ],
+                        "item_code": "11A01200901",
+                        "name": "6번 푹잠 마스크팩 세럼",
+                        "price": 27000,
+                        "price_delta": 0,
+                        "remain_stock": null,
+                        "sales_status": "SOLD_OUT",
+                        "wms_notification_info": null
+                    }
+                ],
+                "matching_catalog_product_info": null,
+                "maximum_order_quantity": null,
+                "meta_catalog_product_info": null,
+                "minimum_order_quantity": 1,
+                "minimum_order_quantity_type": null,
+                "name": "6번 푹잠 마스크팩 세럼",
+                "product_additional_option_list": null,
+                "product_image_list": [
+                    {
+                        "image_type": "MAIN",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/1/30/22469_202501301724500253_44706.jpeg",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/1/30/22469_202501301724500253_44706.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/1/30/22469_202501301724500253_44706.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/1/30/22469_202501301724500253_44706.jpeg"
+                    },
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://s3.ap-northeast-2.amazonaws.com/product-image.s.zigzag.kr/original/d/2024/8/2/22469_202408021650010186_33975.png",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2024/8/2/22469_202408021650010186_33975.png?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2024/8/2/22469_202408021650010186_33975.png?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2024/8/2/22469_202408021650010186_33975.png"
+                    }
+                ],
+                "product_option_list": [
+                    {
+                        "code": null,
+                        "id": "26651915",
+                        "name": "옵션",
+                        "option_type": "BASIC",
+                        "order": 0,
+                        "required": true,
+                        "value_list": [
+                            {
+                                "code": null,
+                                "id": "91398499",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "6번 푹잠 마스크팩 세럼"
+                            }
+                        ]
+                    }
+                ],
+                "product_price": {
+                    "coupon_discount_info_list": null,
+                    "display_final_price": {
+                        "final_price": {
+                            "badge": null,
+                            "color": {
+                                "normal": "#121314"
+                            }
+                        },
+                        "final_price_additional": null
+                    },
+                    "final_discount_info": {
+                        "discount_price": 27000
+                    },
+                    "first_order_discount": null,
+                    "max_price_info": {
+                        "price": 30000
+                    },
+                    "product_promotion_discount_info": null
+                },
+                "promotion_info": null,
+                "scheduled_sale_date": null,
+                "shipping_company": null,
+                "shipping_fee": {
+                    "additional_shipping_fee_text": "제주/도서산간 <span>0원</span>",
+                    "base_fee": 3000,
+                    "fee_type": "FREE",
+                    "minimum_free_shipping_fee": 20000
+                },
+                "shop_id": 22469,
+                "shop_main_domain": "cq-zk8pb5x3",
+                "shop_name": "넘버즈인",
+                "store_deal_banner": null,
+                "trait_list": [],
+                "zigzin_item_list": []
+            },
+            "flags": {
+                "is_cart_button_visible": true,
+                "is_purchase_only_one_at_time": false
+            },
+            "key_color": {
+                "buy_button": {
+                    "background": {
+                        "disabled": "#E8E9EB",
+                        "enabled": "#121314"
+                    },
+                    "text": {
+                        "disabled": "#A1A9AD",
+                        "enabled": "#FAFAFB"
+                    }
+                },
+                "discount_info_of_atf": "#FA6EE3"
+            }
+        }
+    }
+}

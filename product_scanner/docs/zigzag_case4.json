@@ -1,0 +1,231 @@
+{
+    "data": {
+        "pdp_option_info": {
+            "catalog_product": {
+                "additional_item_list": null,
+                "category_list": [
+                    {
+                        "category_id": 2278,
+                        "value": "스킨케어"
+                    }
+                ],
+                "color_image_list": [],
+                "coupon_available_status": "COUPON_AVAILABLE",
+                "custom_input_option_list": [],
+                "discount_info": {
+                    "color": "#FA6EE3",
+                    "image_url": null,
+                    "title": "첫구매쿠폰"
+                },
+                "estimated_shipping_date": null,
+                "external_code": null,
+                "fulfillment_type": "MERCHANT",
+                "id": "135275589",
+                "is_only_zigzin_button_visible": false,
+                "managed_category_list": [
+                    {
+                        "category_id": 2277,
+                        "depth": 1,
+                        "id": "2277",
+                        "key": "beauty",
+                        "value": "뷰티"
+                    },
+                    {
+                        "category_id": 2278,
+                        "depth": 2,
+                        "id": "2278",
+                        "key": "skin_care",
+                        "value": "스킨케어"
+                    },
+                    {
+                        "category_id": 2965,
+                        "depth": 3,
+                        "id": "2965",
+                        "key": "essence-ampoule-serum",
+                        "value": "에센스/앰플/세럼"
+                    }
+                ],
+                "matched_item_list": [
+                    {
+                        "delivery_type": "GENERAL",
+                        "discount_info": {
+                            "color": "#FA6EE3",
+                            "image_url": null,
+                            "order": 2,
+                            "title": "첫구매쿠폰"
+                        },
+                        "display_status": "VISIBLE",
+                        "expected_delivery_date": "11. 17(월) 이내 발송예정",
+                        "expected_delivery_time": 1763391599000,
+                        "final_price": 10360,
+                        "id": "701992954",
+                        "is_zigzin": false,
+                        "item_attribute_list": [
+                            {
+                                "id": "57562192",
+                                "name": "사이즈",
+                                "value": "[🥈중간 용량] 60mL+[증정🎁]패드 4매",
+                                "value_id": "281039236"
+                            }
+                        ],
+                        "item_code": null,
+                        "name": "[🥈중간 용량] 60mL+[증정🎁]패드 4매",
+                        "price": 14800,
+                        "price_delta": 0,
+                        "remain_stock": null,
+                        "sales_status": "ON_SALE",
+                        "wms_notification_info": null
+                    }
+                ],
+                "matching_catalog_product_info": null,
+                "maximum_order_quantity": 5,
+                "meta_catalog_product_info": null,
+                "minimum_order_quantity": 1,
+                "minimum_order_quantity_type": null,
+                "name": "[1️⃣등 모공&요철 케어🏆] 클로저 세럼 60mL(+사은품🎁)",
+                "product_additional_option_list": null,
+                "product_image_list": [
+                    {
+                        "image_type": "SUB",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/11/13/15635_202511131001310976_80332.jpeg",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/11/13/15635_202511131001310976_80332.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/11/13/15635_202511131001310976_80332.jpeg?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/11/13/15635_202511131001310976_80332.jpeg"
+                    },
+                    {
+                        "image_type": "MAIN",
+                        "origin_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/28/15635_202510281308290726_83438.gif",
+                        "pdp_static_image_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/28/15635_202510281308290726_83438.gif?width=720&height=720&quality=80&format=jpeg",
+                        "pdp_thumbnail_url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/28/15635_202510281308290726_83438.gif?width=720&height=720&quality=80&format=jpeg",
+                        "url": "https://cf.product-image.s.zigzag.kr/original/d/2025/10/28/15635_202510281308290726_83438.gif"
+                    }
+                ],
+                "product_option_list": [
+                    {
+                        "code": null,
+                        "id": "57562192",
+                        "name": "사이즈",
+                        "option_type": "BASIC",
+                        "order": 0,
+                        "required": true,
+                        "value_list": [
+                            {
+                                "code": null,
+                                "id": "243835216",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "[🥈중간 용량] 60mL"
+                            },
+                            {
+                                "code": null,
+                                "id": "243835215",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "[🥈중간 용량] 60mL(선데이 글로우 세럼 샘플 3매 증정)"
+                            },
+                            {
+                                "code": null,
+                                "id": "278243682",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "[🥈중간 용량] 60mL+[증정🎁]패드 2매"
+                            },
+                            {
+                                "code": null,
+                                "id": "282408564",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "[라방/총80ML] 클로저세럼 60mL+[증정🎁]클로저세럼 10mLX2+패드 4매"
+                            },
+                            {
+                                "code": null,
+                                "id": "281039236",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "[🥈중간 용량] 60mL+[증정🎁]패드 4매"
+                            },
+                            {
+                                "code": null,
+                                "id": "289838980",
+                                "jpeg_url": null,
+                                "static_url": null,
+                                "value": "[🥈중간 용량] 60mL+클로저 마스크팩 5매+[증정🎁]패드 4매"
+                            }
+                        ]
+                    }
+                ],
+                "product_price": {
+                    "coupon_discount_info_list": [
+                        {
+                            "discount_amount": 4440,
+                            "discount_amount_of_amount_coupon": null,
+                            "discount_rate_bp": 3000,
+                            "discount_type": "RATE",
+                            "max_discount_amount": 6000,
+                            "min_required_amount": 10000,
+                            "target_type": "SHOP_GROUP_WITH_ZONLY"
+                        }
+                    ],
+                    "display_final_price": {
+                        "final_price": {
+                            "badge": null,
+                            "color": {
+                                "normal": "#34383B"
+                            }
+                        },
+                        "final_price_additional": {
+                            "badge": {
+                                "text": "첫구매쿠폰"
+                            },
+                            "color": {
+                                "normal": "#FA6EE3"
+                            }
+                        }
+                    },
+                    "final_discount_info": {
+                        "discount_price": 10360
+                    },
+                    "first_order_discount": null,
+                    "max_price_info": {
+                        "price": 21800
+                    },
+                    "product_promotion_discount_info": {
+                        "discount_amount": 7000
+                    }
+                },
+                "promotion_info": null,
+                "scheduled_sale_date": null,
+                "shipping_company": null,
+                "shipping_fee": {
+                    "additional_shipping_fee_text": "제주/도서산간 <span>3000원</span>",
+                    "base_fee": 0,
+                    "fee_type": "FREE",
+                    "minimum_free_shipping_fee": null
+                },
+                "shop_id": 15635,
+                "shop_main_domain": "cq-kcif0cri",
+                "shop_name": "프랭클리",
+                "store_deal_banner": null,
+                "trait_list": [],
+                "zigzin_item_list": []
+            },
+            "flags": {
+                "is_cart_button_visible": true,
+                "is_purchase_only_one_at_time": false
+            },
+            "key_color": {
+                "buy_button": {
+                    "background": {
+                        "disabled": "#E8E9EB",
+                        "enabled": "#121314"
+                    },
+                    "text": {
+                        "disabled": "#A1A9AD",
+                        "enabled": "#FAFAFB"
+                    }
+                },
+                "discount_info_of_atf": "#FA6EE3"
+            }
+        }
+    }
+}

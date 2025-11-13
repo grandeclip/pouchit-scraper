@@ -227,3 +227,22 @@ export const SCRAPER_CONFIG = {
    */
   PAGE_RENDER_DELAY_MS: 3000,
 } as const;
+
+/**
+ * Zigzag 플랫폼 상수
+ * Zigzag 특화 비즈니스 로직용
+ */
+export const ZIGZAG_CONSTANTS = {
+  /**
+   * 첫구매 배지 키워드 목록
+   * 첫구매 제외 가격 계산 시 badge.text와 비교
+   *
+   * 사용처:
+   * - ZigzagGraphQLScanner: discountedPrice 조건부 계산
+   * - final_price_additional.badge.text에서 검사
+   *
+   * 확장 가능성:
+   * - "첫 구매", "신규 구매" 등 변형 추가 가능
+   */
+  FIRST_PURCHASE_BADGE_KEYWORDS: ["첫구매", "첫 구매"] as const,
+} as const;

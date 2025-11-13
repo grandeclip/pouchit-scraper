@@ -19,6 +19,7 @@ import {
   ZigzagSalesStatus,
   ZigzagDisplayStatus,
 } from "@/core/domain/ZigzagProduct";
+import { ZIGZAG_CONSTANTS } from "@/config/constants";
 
 /**
  * GraphQL 응답 타입 (GetCatalogProductDetailPageOption)
@@ -33,6 +34,16 @@ interface GraphQLResponse {
         product_price: {
           max_price_info: { price: number };
           final_discount_info: { discount_price: number };
+          display_final_price: {
+            final_price: {
+              price: number;
+              badge: { text: string } | null;
+            };
+            final_price_additional: {
+              price: number;
+              badge: { text: string };
+            } | null;
+          };
         };
         matched_item_list?: Array<{
           sales_status: ZigzagSalesStatus;
@@ -121,11 +132,27 @@ export class ZigzagGraphQLScanner extends BaseScanner<
       )?.pdp_thumbnail_url || "";
 
     // 가격 정보
-    const originalPrice =
-      catalogProduct.product_price?.max_price_info?.price || 0;
-    const discountedPrice =
-      catalogProduct.product_price?.final_discount_info?.discount_price ||
-      originalPrice;
+    const priceData = catalogProduct.product_price;
+    const originalPrice = priceData?.max_price_info?.price || 0;
+
+    // 첫구매 제외 가격 계산 (조건부)
+    const displayPrice = priceData?.display_final_price;
+    const badge = displayPrice?.final_price_additional?.badge?.text;
+    const isFirstPurchase =
+      ZIGZAG_CONSTANTS.FIRST_PURCHASE_BADGE_KEYWORDS.some((keyword) =>
+        badge?.includes(keyword),
+      ) ?? false;
+
+    let discountedPrice: number;
+
+    if (isFirstPurchase) {
+      // 첫구매 제외 가격 = display_final_price.final_price.price
+      discountedPrice = displayPrice?.final_price?.price || originalPrice;
+    } else {
+      // 일반 할인가 = final_discount_info.discount_price
+      discountedPrice =
+        priceData?.final_discount_info?.discount_price || originalPrice;
+    }
 
     // 판매 상태 (matched_item_list의 첫 번째 아이템)
     const item = catalogProduct.matched_item_list?.[0];
