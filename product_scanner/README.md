@@ -9,7 +9,7 @@
 - **화해**: API + Playwright 이중 전략
 - **올리브영**: Playwright 브라우저 기반 스크래핑
 - **무신사**: HTTP API 직접 호출 (빠름, 정확)
-- **지그재그**: GraphQL API (우선) + Playwright 대체
+- **지그재그**: GraphQL API (첫구매 쿠폰 처리) + Playwright 대체
 - **에이블리**: Playwright (Network API 캡처 + Meta Tag fallback)
 - **제네릭 아키텍처**: 새 플랫폼 추가 시 YAML 설정만으로 확장
 - CSV 데이터와 실시간 데이터 검증
@@ -67,19 +67,25 @@ graph LR
 - **성능**: 기존 Playwright 대비 8배 빠름 (~8초 → ~1초)
 - **정확도**: API 직접 조회로 100% 정확한 정가/할인가 추출
 
-#### 4. 지그재그 (이중 전략)
+#### 4. 지그재그 (이중 전략 + 첫구매 쿠폰 처리)
 
 ```mermaid
 graph LR
     A[Scan Request] --> B{전략 선택}
     B -->|Priority 1| C[GraphQL API]
     B -->|Priority 2| D[Playwright __NEXT_DATA__]
-    C --> E[상품 정보 추출]
-    D --> E
-    E --> F[결과 반환]
+    C --> E[배지 감지]
+    E -->|첫구매 쿠폰| F[첫구매 제외 가격]
+    E -->|일반 할인| G[할인가]
+    F --> H[결과 반환]
+    G --> H
+    D --> H
 ```
 
 - **1차**: GraphQL API (빠름, 정확)
+  - `display_final_price` 구조로 배지 정보 추출
+  - 첫구매 쿠폰 감지 시 첫구매 제외 가격 반환
+  - 일반 할인 시 `final_discount_info.discount_price` 사용
 - **2차**: Playwright `__NEXT_DATA__` (API 실패 시)
 
 #### 5. 에이블리 (Network API 캡처)
@@ -363,13 +369,13 @@ npx tsc --project tsconfig.scripts.json --noEmit
 
 ### 지원 플랫폼
 
-| 플랫폼   | Platform ID  | 전략                              | 추출 방식                            | 성능            |
-| -------- | ------------ | --------------------------------- | ------------------------------------ | --------------- |
-| 화해     | `hwahae`     | API (우선), Playwright (대체)     | REST API / DOM                       | ~1초            |
-| 올리브영 | `oliveyoung` | Playwright                        | DOM Selector                         | ~5초            |
-| 무신사   | `musinsa`    | HTTP API                          | Musinsa API                          | ~1초 (8배 개선) |
-| 지그재그 | `zigzag`     | GraphQL (우선), Playwright (대체) | GraphQL API / `__NEXT_DATA__`        | ~2초            |
-| 에이블리 | `ably`       | Playwright                        | Network API 캡처 + Meta Tag Fallback | ~4초            |
+| 플랫폼   | Platform ID  | 전략                              | 추출 방식                                        | 성능            |
+| -------- | ------------ | --------------------------------- | ------------------------------------------------ | --------------- |
+| 화해     | `hwahae`     | API (우선), Playwright (대체)     | REST API / DOM                                   | ~1초            |
+| 올리브영 | `oliveyoung` | Playwright                        | DOM Selector                                     | ~5초            |
+| 무신사   | `musinsa`    | HTTP API                          | Musinsa API                                      | ~1초 (8배 개선) |
+| 지그재그 | `zigzag`     | GraphQL (우선), Playwright (대체) | GraphQL API (첫구매 쿠폰 처리) / `__NEXT_DATA__` | ~2초            |
+| 에이블리 | `ably`       | Playwright                        | Network API 캡처 + Meta Tag Fallback             | ~4초            |
 
 ### API 엔드포인트 (v2.1.0)
 
