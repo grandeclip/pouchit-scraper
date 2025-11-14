@@ -8,37 +8,15 @@ description: Prepare and create a commit with documentation
 
 **OUTPUT LANGUAGE**: 한글 (Korean) - All results must be written in Korean.
 
+**PROGRESS**: Should wait for confirmation from the user before committing.
+
 Complete pre-commit checks and create a commit.
 
 ## Pre-Commit Checklist
 
 **MUST ALL PASS before committing:**
 
-**참고**: docker build 대신 docker-compose를 사용합니다.
-
-### product_search 모듈
-
-```bash
-cd product_search
-
-# 1. Docker Compose Build & Up
-docker-compose up --build -d
-
-# 2. Container Status Check
-docker ps | grep product_search
-# STATUS 확인 (healthy)
-
-# 3. Health Check
-curl http://localhost:3000/health
-
-# 4. Basic API Test (선택적)
-curl -X POST http://localhost:3000/search-products/oliveyoung \
-  -H "Content-Type: application/json" \
-  -d '{"brand":"라운드랩","productName":"선크림"}'
-
-# 5. Cleanup
-docker-compose down
-```
+**참고**: docker build 대신 make를 사용합니다.
 
 ### product_scanner 모듈
 
@@ -46,10 +24,11 @@ docker-compose down
 cd product_scanner
 
 # 1. Docker Compose Build & Up
-docker-compose up --build -d
+make dev
 
 # 2. Container Status Check
-docker ps | grep product_scanner
+docker ps | grep product_search_dev
+docker ps | grep workflow_worker_dev
 # STATUS가 "healthy"인지 확인
 
 # 3. Health Check
@@ -62,7 +41,7 @@ docker exec product_scanner npx tsx test-supabase.ts
 # product_sets 테이블 레코드 수 확인
 
 # 5. Cleanup
-docker-compose down
+make dev-down
 ```
 
 ## Steps
