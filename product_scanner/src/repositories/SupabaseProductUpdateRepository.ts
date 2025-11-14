@@ -80,6 +80,27 @@ export class SupabaseProductUpdateRepository
    */
   async update(data: ProductUpdateData): Promise<boolean> {
     try {
+      // 플랫폼 정보 조회 (oliveyoung original_price 예외 처리용)
+      const { data: existingData, error: fetchError } = await this.client
+        .from(this.tableName)
+        .select("link_url")
+        .eq("product_set_id", data.product_set_id)
+        .single();
+
+      if (fetchError) {
+        logger.error(
+          {
+            product_set_id: data.product_set_id,
+            error: fetchError.message,
+          },
+          "❌ 플랫폼 정보 조회 실패",
+        );
+        return false;
+      }
+
+      const isOliveyoung =
+        existingData?.link_url?.includes("oliveyoung.co.kr") ?? false;
+
       // 업데이트할 필드만 포함 (undefined 제거)
       const updateFields: Record<string, unknown> = {
         updated_at: data.updated_at,
@@ -93,6 +114,7 @@ export class SupabaseProductUpdateRepository
       }
 
       // 가격 필드 Assertion: 0원은 JsonlParser에서 필터링되어야 함
+      // TODO: Oliveyoung original_price 정보 가져오는데 오류가 있어서 수정 후 적용 예정
       if (data.original_price !== undefined) {
         if (data.original_price === 0) {
           logger.error(
@@ -104,7 +126,20 @@ export class SupabaseProductUpdateRepository
             "❌ 가격 0원이 Repository 도달 - JsonlParser 필터링 누락",
           );
         }
-        updateFields.original_price = data.original_price;
+
+        // Oliveyoung 플랫폼 예외: original_price 업데이트 제외
+        if (isOliveyoung) {
+          logger.warn(
+            {
+              product_set_id: data.product_set_id,
+              field: "original_price",
+              platform: "oliveyoung",
+            },
+            "⚠️  Oliveyoung original_price 업데이트 스킵 (플랫폼 예외)",
+          );
+        } else {
+          updateFields.original_price = data.original_price;
+        }
       }
 
       if (data.discounted_price !== undefined) {
