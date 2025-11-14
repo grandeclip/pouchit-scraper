@@ -246,3 +246,34 @@ export const ZIGZAG_CONSTANTS = {
    */
   FIRST_PURCHASE_BADGE_KEYWORDS: ["첫구매", "첫 구매"] as const,
 } as const;
+
+/**
+ * Product Update 설정
+ * Supabase product_sets 업데이트 시 Rate Limiting 설정
+ */
+export const UPDATE_CONFIG = {
+  /**
+   * 업데이트 간 지연 시간 (ms)
+   * 환경변수: UPDATE_DELAY_MS
+   * 기본값: 100ms
+   *
+   * 목적:
+   * - Supabase API Rate Limiting 방지
+   * - 부드러운 업데이트 처리 (gentle requests)
+   * - DB 부하 분산
+   *
+   * 조정 가이드:
+   * - 50ms: 빠른 처리 (초당 20개)
+   * - 100ms: 기본값 (초당 10개) ✅
+   * - 200ms: 안전한 처리 (초당 5개)
+   * - 500ms: 매우 안전 (초당 2개)
+   */
+  DEFAULT_DELAY_MS: parseInt(process.env.UPDATE_DELAY_MS || "100", 10),
+
+  /**
+   * 최대 지연 시간 (ms)
+   * 환경변수 값 검증용
+   * 기본값: 5000ms (5초)
+   */
+  MAX_DELAY_MS: 5000,
+} as const;

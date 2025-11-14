@@ -17,6 +17,7 @@ import { ZigzagValidationNode } from "@/strategies/ZigzagValidationNode";
 import { AblyValidationNode } from "@/strategies/AblyValidationNode";
 import { KurlyValidationNode } from "@/strategies/KurlyValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
+import { UpdateProductSetNode } from "@/strategies/UpdateProductSetNode";
 import { logger } from "@/config/logger";
 
 /**
@@ -36,6 +37,7 @@ export class NodeStrategyFactory {
     this.registerStrategy(new AblyValidationNode());
     this.registerStrategy(new KurlyValidationNode());
     this.registerStrategy(new ResultWriterNode());
+    this.registerStrategy(new UpdateProductSetNode());
   }
 
   /**
