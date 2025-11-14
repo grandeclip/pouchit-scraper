@@ -1,7 +1,7 @@
 mall: hwahae
 name: "화해"
 baseUrl: "https://www.hwahae.co.kr"
-searchUrl: "${baseUrl}/search?q=${encodedQuery}"
+searchUrl: "${baseUrl}/search?q=${encodedQuery}&type=products"
 
 # 최대 결과 수 제한
 maxResults: 5
@@ -99,28 +99,45 @@ extraction:
         if (results.length >= MAX_RESULTS) return;
         try {
           const links = item.querySelectorAll('a');
-          
+
           if (links.length >= 2) {
             // 첫 번째 링크: 이미지
             const imgLink = links[0];
+            const href = imgLink.getAttribute('href') || '';
+
+            // ✅ goods만 유효, products는 무시
+            if (!href.startsWith('goods/')) {
+              return;
+            }
+
+            // goodsId 추출 (goods/69574 -> 69574)
+            const goodsIdMatch = href.match(/goods\/(\d+)/);
+            if (!goodsIdMatch) return;
+
+            const goodsId = goodsIdMatch[1];
+
+            // ID 중복 체크
+            if (seenUrls.has(goodsId)) {
+              return;
+            }
+            seenUrls.add(goodsId);
+
             const img = imgLink.querySelector('img');
             let thumbnail = img?.getAttribute('src') || '';
-            
+
             // 쿼리 파라미터 제거
             if (thumbnail) {
               thumbnail = thumbnail.split('?')[0];
             }
-            
+
             // 두 번째 링크: 상품 정보
             const infoLink = links[1];
-            const href = infoLink.getAttribute('href') || '';
-            const productId = href.replace('products/', '');
-            
+
             // 상품명과 단종 여부
             const textDivs = infoLink.querySelectorAll('div');
             let productName = '';
             let isDiscontinued = false;
-            
+
             if (textDivs.length > 0) {
               const firstDiv = textDivs[0];
               if (firstDiv.textContent?.trim() === '단종') {
@@ -132,17 +149,17 @@ extraction:
                 productName = firstDiv.textContent?.trim() || '';
               }
             }
-            
+
             // 브랜드는 검색 입력값 사용 (HTML에 없음)
             const brand = searchBrand;
-            
+
             // 평점과 리뷰 수
             const allText = infoLink.textContent || '';
-            
+
             // 평점 추출
             const ratingMatch = allText.match(/(\d+\.\d+)/);
             const rating = ratingMatch ? ratingMatch[1] : '';
-            
+
             // 리뷰 수 추출
             const reviewMatch = allText.match(/\(([0-9,]+)\)/);
             let reviewCount = '';
@@ -157,20 +174,12 @@ extraction:
                 }
               }
             }
-            
-            if (productName && productId) {
-              const productUrl = 'https://www.hwahae.co.kr/products/' + productId;
 
-              // URL 중복 체크 (쿼리 파라미터 제거한 정규화된 URL로 비교)
-              const normalizedUrl = productUrl.split('?')[0];
-              if (seenUrls.has(normalizedUrl)) {
-                console.log('[Hwahae] 중복 URL 제거:', normalizedUrl);
-                return;
-              }
-              seenUrls.add(normalizedUrl);
+            if (productName && goodsId) {
+              const productUrl = 'https://www.hwahae.co.kr/goods/' + goodsId;
 
               results.push({
-                productId,
+                productId: goodsId,
                 brand,
                 productName,
                 isDiscontinued,

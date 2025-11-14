@@ -66,28 +66,28 @@ product_search/
 
 ## 🚀 사용법
 
-### 설치
+### 서버 실행 (Docker Compose)
 
 ```bash
+# 루트 디렉토리에서
+docker-compose up -d product-search
+
+# 또는 개발 환경
 cd product_search
-npm install  # 또는 Docker 이미지 빌드 시 자동 설치
-```
-
-### 서버 실행
-
-```bash
+npm install
 npm start
-# 또는
-tsx server.ts
 ```
 
 ### CLI 도구 사용 (권장)
 
-`product-search-cli.ts`를 사용하면 서버에 간편하게 요청을 보낼 수 있습니다.
+**전제조건**: Docker Compose로 서버가 실행 중이어야 함 (`docker-compose up -d product-search`)
+
+`product-search-cli.ts`로 실행 중인 서버에 요청을 보낼 수 있습니다.
 
 #### 기본 사용법
 
 ```bash
+cd product_search
 npx tsx product-search-cli.ts <mall> <brand> <productName>
 ```
 
@@ -95,24 +95,39 @@ npx tsx product-search-cli.ts <mall> <brand> <productName>
 
 ```bash
 npx tsx product-search-cli.ts oliveyoung "라운드랩" "선크림"
+npx tsx product-search-cli.ts hwahae "삐아" "레디 투 웨어 다우니 치크"
+npx tsx product-search-cli.ts ably "클리오" "킬커버 파운데이션"
 ```
 
 #### 여러 쇼핑몰 (쉼표로 구분, 병렬 실행)
 
 ```bash
-npx tsx product-search-cli.ts "oliveyoung,musinsa" "토리든" "세럼"
+npx tsx product-search-cli.ts "oliveyoung,musinsa,zigzag" "토리든" "세럼"
+npx tsx product-search-cli.ts "oliveyoung,hwahae" "라운드랩" "선크림"
 ```
 
 #### 모든 쇼핑몰
 
 ```bash
-npx tsx product-search-cli.ts all "AHC" "선스틱"
+npx tsx product-search-cli.ts all "삐아" "레디 투 웨어 다우니 치크"
+npx tsx product-search-cli.ts all "라운드랩" "레디 투 웨어 베이스업 선크림"
 ```
 
-#### JSON 출력
+#### JSON 출력 (프로그래밍 활용)
 
 ```bash
-OUTPUT_JSON=true npx tsx product-search-cli.ts oliveyoung "라운드랩" "선크림"
+OUTPUT_JSON=true npx tsx product-search-cli.ts hwahae "삐아" "레디 투 웨어 다우니 치크"
+OUTPUT_JSON=true npx tsx product-search-cli.ts all "라운드랩" "레디 투 웨어 베이스업 선크림"
+
+# jq와 함께 사용
+OUTPUT_JSON=true npx tsx product-search-cli.ts oliveyoung "라운드랩" "선크림" | jq '.[0] | {mall, success, count}'
+```
+
+#### 사용 내역 확인
+
+```bash
+# 과거 CLI 사용 내역 확인
+cat ~/.zsh_history | grep "product-search-cli.ts" | tail -20
 ```
 
 #### 지원 쇼핑몰
@@ -287,12 +302,12 @@ POST /search-products/newmall
 
 ```typescript
 // scrapers/custom/CustomMallScraper.ts
-import { BaseScraper } from './base/BaseScraper';
-import { Product } from '../core/domain/Product';
+import { BaseScraper } from "./base/BaseScraper";
+import { Product } from "../core/domain/Product";
 
 export class CustomMallScraper extends BaseScraper {
   constructor() {
-    super('custommall');
+    super("custommall");
   }
 
   protected async extract(request: ScraperRequest): Promise<any[]> {
@@ -304,11 +319,11 @@ export class CustomMallScraper extends BaseScraper {
 }
 
 // server.ts에서 등록
-import { ScraperRegistry } from './services/ScraperRegistry';
-import { CustomMallScraper } from './scrapers/custom/CustomMallScraper';
+import { ScraperRegistry } from "./services/ScraperRegistry";
+import { CustomMallScraper } from "./scrapers/custom/CustomMallScraper";
 
 const registry = ScraperRegistry.getInstance();
-registry.registerScraper('custommall', new CustomMallScraper());
+registry.registerScraper("custommall", new CustomMallScraper());
 ```
 
 ## 📊 리팩토링 효과
@@ -328,43 +343,6 @@ registry.registerScraper('custommall', new CustomMallScraper());
 - 유지보수: 설정만 수정
 - 확장성: 새 액션/추출 규칙 추가 용이
 
-## 🐳 Docker 사용법
-
-### Dockerfile
-
-```dockerfile
-FROM node:20-alpine
-
-WORKDIR /app
-
-# 패키지 설치
-COPY package.json package-lock.json ./
-RUN npm install
-
-# Playwright 설치
-RUN npx playwright install --with-deps chromium
-
-# 소스 코드 복사
-COPY . .
-
-EXPOSE 3000
-
-CMD ["npm", "start"]
-```
-
-### docker-compose.yml
-
-```yaml
-version: '3.8'
-services:
-  scraper:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-```
-
 ## 🔍 디버깅
 
 ### 로그 확인
@@ -381,5 +359,5 @@ YAML 설정에서:
 
 ```yaml
 browser:
-  headless: false  # 브라우저 창을 볼 수 있음
+  headless: false # 브라우저 창을 볼 수 있음
 ```
