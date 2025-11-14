@@ -8,7 +8,7 @@ description: Prepare and create a commit with documentation
 
 **OUTPUT LANGUAGE**: 한글 (Korean) - All results must be written in Korean.
 
-**PROGRESS**: Should wait for confirmation from the user before committing.
+**SHOLD BE**: DO NOT CONTAIN ANY AUTHORED BY CLAUDE CODE
 
 Complete pre-commit checks and create a commit.
 
@@ -27,7 +27,7 @@ cd product_scanner
 make dev
 
 # 2. Container Status Check
-docker ps | grep product_search_dev
+docker ps | grep product_scanner_dev
 docker ps | grep workflow_worker_dev
 # STATUS가 "healthy"인지 확인
 
