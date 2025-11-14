@@ -78,6 +78,14 @@ function App() {
 
   // 필터 및 페이지네이션 상태
   const [filterMismatchOnly, setFilterMismatchOnly] = useState(false);
+  const [filterFields, setFilterFields] = useState({
+    productName: false,
+    thumbnail: false,
+    originalPrice: false,
+    discountedPrice: false,
+    saleStatus: false,
+    fetchFailed: false,
+  });
   const [currentPage, setCurrentPage] = useState(1);
   const [pageInput, setPageInput] = useState("1");
   const itemsPerPage = 20;
@@ -147,9 +155,50 @@ function App() {
 
   // 필터링된 상품 목록
   const filteredProducts =
-    displayData?.products.filter(
-      (product) => !filterMismatchOnly || !product.match,
-    ) || [];
+    displayData?.products.filter((product) => {
+      // 불일치만 보기 필터
+      if (filterMismatchOnly && product.match) return false;
+
+      // 항목별 필터 (OR 조건 - 하나라도 체크되어 있으면 해당 항목이 불일치인 것만)
+      const hasFieldFilter = Object.values(filterFields).some((v) => v);
+      if (hasFieldFilter) {
+        const isFetchFailed = product.fetch === null;
+
+        // fetch 실패 필터
+        if (filterFields.fetchFailed && !isFetchFailed) return false;
+
+        // 각 필드 필터 (fetch가 성공한 경우에만)
+        if (!isFetchFailed) {
+          if (
+            filterFields.productName &&
+            product.comparison.product_name !== false
+          )
+            return false;
+          if (filterFields.thumbnail && product.comparison.thumbnail !== false)
+            return false;
+          if (
+            filterFields.originalPrice &&
+            product.comparison.original_price !== false
+          )
+            return false;
+          if (
+            filterFields.discountedPrice &&
+            product.comparison.discounted_price !== false
+          )
+            return false;
+          if (
+            filterFields.saleStatus &&
+            product.comparison.sale_status !== false
+          )
+            return false;
+        } else {
+          // fetch 실패인 경우 fetchFailed 필터만 통과
+          if (!filterFields.fetchFailed) return false;
+        }
+      }
+
+      return true;
+    }) || [];
 
   // 페이지네이션 계산
   const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
@@ -165,7 +214,7 @@ function App() {
   useEffect(() => {
     setCurrentPage(1);
     setPageInput("1");
-  }, [selectedFile, uploadedData, filterMismatchOnly]);
+  }, [selectedFile, uploadedData, filterMismatchOnly, filterFields]);
 
   // 페이지 이동 핸들러
   const handlePageChange = (page: number) => {
@@ -346,18 +395,103 @@ function App() {
             <div className="products-header">
               <h2>🛍️ 상품 비교 결과</h2>
               <div className="filter-controls">
-                <label className="filter-checkbox">
-                  <input
-                    type="checkbox"
-                    checked={filterMismatchOnly}
-                    onChange={(e) => setFilterMismatchOnly(e.target.checked)}
-                  />
-                  불일치만 보기 ({mismatchCount}개)
-                </label>
-                <span className="total-info">
-                  전체: {displayData.products.length}개 | 표시:{" "}
-                  {filteredProducts.length}개
-                </span>
+                <div className="filter-row">
+                  <label className="filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={filterMismatchOnly}
+                      onChange={(e) => setFilterMismatchOnly(e.target.checked)}
+                    />
+                    불일치만 보기 ({mismatchCount}개)
+                  </label>
+                </div>
+                <div className="filter-row">
+                  <span className="filter-label">항목별 필터:</span>
+                  <label className="filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={filterFields.productName}
+                      onChange={(e) =>
+                        setFilterFields({
+                          ...filterFields,
+                          productName: e.target.checked,
+                        })
+                      }
+                    />
+                    상품명
+                  </label>
+                  <label className="filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={filterFields.thumbnail}
+                      onChange={(e) =>
+                        setFilterFields({
+                          ...filterFields,
+                          thumbnail: e.target.checked,
+                        })
+                      }
+                    />
+                    썸네일
+                  </label>
+                  <label className="filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={filterFields.originalPrice}
+                      onChange={(e) =>
+                        setFilterFields({
+                          ...filterFields,
+                          originalPrice: e.target.checked,
+                        })
+                      }
+                    />
+                    정가
+                  </label>
+                  <label className="filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={filterFields.discountedPrice}
+                      onChange={(e) =>
+                        setFilterFields({
+                          ...filterFields,
+                          discountedPrice: e.target.checked,
+                        })
+                      }
+                    />
+                    할인가
+                  </label>
+                  <label className="filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={filterFields.saleStatus}
+                      onChange={(e) =>
+                        setFilterFields({
+                          ...filterFields,
+                          saleStatus: e.target.checked,
+                        })
+                      }
+                    />
+                    판매상태
+                  </label>
+                  <label className="filter-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={filterFields.fetchFailed}
+                      onChange={(e) =>
+                        setFilterFields({
+                          ...filterFields,
+                          fetchFailed: e.target.checked,
+                        })
+                      }
+                    />
+                    Fetch 실패
+                  </label>
+                </div>
+                <div className="filter-row">
+                  <span className="total-info">
+                    전체: {displayData.products.length}개 | 표시:{" "}
+                    {filteredProducts.length}개
+                  </span>
+                </div>
               </div>
             </div>
 
