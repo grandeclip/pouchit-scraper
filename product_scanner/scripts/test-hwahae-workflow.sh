@@ -4,10 +4,11 @@
 set -e
 
 API_BASE_URL="http://localhost:3989/api/v1"
-SALE_STATUS="on_sale"
-LIMIT=5
+SALE_STATUS="${SALE_STATUS:-on_sale}"
+LIMIT="${LIMIT:-5}"
 
 echo "🧪 화해 워크플로우 테스트 시작"
+echo "📊 설정: LIMIT=${LIMIT}, SALE_STATUS=${SALE_STATUS}"
 echo ""
 
 # Step 1: 워크플로우 실행 요청
