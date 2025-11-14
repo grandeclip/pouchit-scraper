@@ -43,6 +43,9 @@ export interface BatchUpdateResult {
   /** 실패한 개수 */
   failed_count: number;
 
+  /** 성공적으로 업데이트된 product_set_id 목록 */
+  updated_ids: string[];
+
   /** 실패한 항목들의 에러 정보 */
   errors: Array<{
     product_set_id: string;

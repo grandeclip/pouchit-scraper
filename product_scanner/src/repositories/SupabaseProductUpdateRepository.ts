@@ -91,10 +91,33 @@ export class SupabaseProductUpdateRepository
       if (data.thumbnail !== undefined) {
         updateFields.thumbnail = data.thumbnail;
       }
+
+      // 가격 필드 Assertion: 0원은 JsonlParser에서 필터링되어야 함
       if (data.original_price !== undefined) {
+        if (data.original_price === 0) {
+          logger.error(
+            {
+              product_set_id: data.product_set_id,
+              field: "original_price",
+              value: 0,
+            },
+            "❌ 가격 0원이 Repository 도달 - JsonlParser 필터링 누락",
+          );
+        }
         updateFields.original_price = data.original_price;
       }
+
       if (data.discounted_price !== undefined) {
+        if (data.discounted_price === 0) {
+          logger.error(
+            {
+              product_set_id: data.product_set_id,
+              field: "discounted_price",
+              value: 0,
+            },
+            "❌ 가격 0원이 Repository 도달 - JsonlParser 필터링 누락",
+          );
+        }
         updateFields.discounted_price = data.discounted_price;
       }
       // sale_status는 제외 (정책 미정)
@@ -176,6 +199,7 @@ export class SupabaseProductUpdateRepository
       updated_count: 0,
       skipped_count: 0,
       failed_count: 0,
+      updated_ids: [],
       errors: [],
     };
 
@@ -211,6 +235,7 @@ export class SupabaseProductUpdateRepository
 
         if (success) {
           result.updated_count++;
+          result.updated_ids.push(update.product_set_id);
         } else {
           result.failed_count++;
           result.errors.push({

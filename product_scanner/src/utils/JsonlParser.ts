@@ -111,6 +111,7 @@ export class JsonlParser {
    *
    * - status: "success" (성공한 검증만)
    * - match: false (변경 감지된 항목만)
+   * - fetch: null이 아닌 경우만 (실패한 경우 스킵)
    * - sale_status는 제외 (업데이트 정책 미정)
    *
    * @param results 검증 결과 배열
@@ -120,36 +121,57 @@ export class JsonlParser {
     results: ProductValidationResult[],
   ): ProductUpdateData[] {
     return results
-      .filter((r) => r.status === "success" && !r.match) // 변경 감지된 항목만
+      .filter((r) => {
+        // 변경 감지된 항목만
+        if (r.status !== "success" || r.match) return false;
+
+        // fetch 데이터가 null이면 스킵 (실패한 경우)
+        if (!r.fetch) return false;
+
+        return true;
+      })
       .map((r) => {
         const updates: ProductUpdateData = {
           product_set_id: r.product_set_id,
           updated_at: getTimestampWithTimezone(),
         };
 
-        // fetch 데이터가 없으면 스킵
-        if (!r.fetch) return updates;
-
         // 변경된 필드만 포함 (comparison 기준)
         if (r.comparison?.product_name === false) {
-          updates.product_name = r.fetch.product_name ?? null;
+          updates.product_name = r.fetch!.product_name ?? null;
         }
 
         if (r.comparison?.thumbnail === false) {
-          updates.thumbnail = r.fetch.thumbnail ?? null;
+          updates.thumbnail = r.fetch!.thumbnail ?? null;
         }
 
+        // 가격 필드 방어 로직: 0원인 경우 업데이트 제외
+        // TODO: history_product_review 테이블에 가격 0 케이스 기록 필요
         if (r.comparison?.original_price === false) {
-          updates.original_price = r.fetch.original_price ?? null;
+          const fetchPrice = r.fetch!.original_price;
+          if (fetchPrice !== null && fetchPrice !== 0) {
+            updates.original_price = fetchPrice;
+          } else if (fetchPrice === 0) {
+            // fetchPrice === 0 → 업데이트 제외 (의심스러운 데이터)
+            // DEBUG 레벨 로깅 (필요 시 활성화)
+            // console.debug(`[JsonlParser] 가격 0원 필터링: ${r.product_set_id}, field: original_price`);
+          }
         }
 
         if (r.comparison?.discounted_price === false) {
-          updates.discounted_price = r.fetch.discounted_price ?? null;
+          const fetchPrice = r.fetch!.discounted_price;
+          if (fetchPrice !== null && fetchPrice !== 0) {
+            updates.discounted_price = fetchPrice;
+          } else if (fetchPrice === 0) {
+            // fetchPrice === 0 → 업데이트 제외 (의심스러운 데이터)
+            // DEBUG 레벨 로깅 (필요 시 활성화)
+            // console.debug(`[JsonlParser] 가격 0원 필터링: ${r.product_set_id}, field: discounted_price`);
+          }
         }
 
         // sale_status는 제외 (정책 미정)
         // if (r.comparison?.sale_status === false) {
-        //   updates.sale_status = r.fetch.sale_status ?? null;
+        //   updates.sale_status = r.fetch!.sale_status ?? null;
         // }
 
         return updates;

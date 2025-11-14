@@ -22,12 +22,16 @@ import {
 import {
   IProductUpdateRepository,
   ProductUpdateData,
+  BatchUpdateResult,
 } from "@/core/interfaces/IProductUpdateRepository";
 import { SupabaseProductUpdateRepository } from "@/repositories/SupabaseProductUpdateRepository";
 import { JsonlParser } from "@/utils/JsonlParser";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { logger } from "@/config/logger";
 import { createJobLogger, logImportant } from "@/utils/LoggerContext";
+import { createClient } from "@supabase/supabase-js";
+import { UPDATE_CONFIG } from "@/config/constants";
+import type { Logger } from "pino";
 
 /**
  * Update Product Set Node Strategy
@@ -118,7 +122,14 @@ export class UpdateProductSetNode implements INodeStrategy {
         );
       }
 
-      // 5. 결과 반환
+      // 5. 업데이트 검증 (샘플링)
+      const verificationResult = await this.verifyUpdates(
+        updates,
+        result,
+        jobLogger,
+      );
+
+      // 6. 결과 반환
       return {
         success: true,
         data: {
@@ -128,6 +139,7 @@ export class UpdateProductSetNode implements INodeStrategy {
             skipped: result.skipped_count,
             failed: result.failed_count,
             error_count: result.errors.length,
+            verification: verificationResult,
             jsonl_path: jsonlPath,
             updated_at: getTimestampWithTimezone(),
           },
@@ -204,6 +216,185 @@ export class UpdateProductSetNode implements INodeStrategy {
         code,
       },
     };
+  }
+
+  /**
+   * 업데이트 검증 (샘플링)
+   *
+   * 실제로 Supabase에 업데이트가 반영되었는지 확인합니다.
+   * 성능을 위해 샘플링하여 검증합니다 (기본값: 10개).
+   *
+   * @param updates 업데이트 요청한 데이터
+   * @param result 업데이트 결과
+   * @param jobLogger Job 로거
+   * @returns 검증 결과
+   */
+  private async verifyUpdates(
+    updates: ProductUpdateData[],
+    result: BatchUpdateResult,
+    jobLogger: Logger,
+  ): Promise<{
+    verified_count: number;
+    verification_passed: boolean;
+    sample_size: number;
+  }> {
+    const SAMPLE_SIZE = Math.min(
+      UPDATE_CONFIG.VERIFICATION_SAMPLE_SIZE,
+      result.updated_count,
+    );
+
+    if (result.updated_count === 0) {
+      return {
+        verified_count: 0,
+        verification_passed: true,
+        sample_size: 0,
+      };
+    }
+
+    try {
+      // Supabase 클라이언트 생성
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!supabaseUrl || !supabaseKey) {
+        jobLogger.warn("Supabase 환경변수 없음 - 검증 스킵");
+        return {
+          verified_count: 0,
+          verification_passed: false,
+          sample_size: 0,
+        };
+      }
+
+      const client = createClient(supabaseUrl, supabaseKey);
+
+      // 성공한 업데이트 ID 목록에서 샘플링
+      const sampleIds = result.updated_ids.slice(0, SAMPLE_SIZE);
+
+      // 성공한 ID에 해당하는 업데이트 데이터 추출
+      const updatesMap = new Map(updates.map((u) => [u.product_set_id, u]));
+      const successfulUpdates = sampleIds
+        .map((id) => updatesMap.get(id))
+        .filter((u): u is ProductUpdateData => u !== undefined);
+
+      let verifiedCount = 0;
+
+      for (const update of successfulUpdates) {
+        const { data, error } = await client
+          .from("product_sets")
+          .select("*")
+          .eq("product_set_id", update.product_set_id)
+          .single();
+
+        if (error || !data) {
+          jobLogger.warn(
+            {
+              product_set_id: update.product_set_id,
+              error: error?.message,
+            },
+            "검증 실패: 데이터 조회 불가",
+          );
+          continue;
+        }
+
+        // 업데이트된 필드 확인
+        let allFieldsMatch = true;
+
+        if (update.product_name !== undefined) {
+          if (data.product_name !== update.product_name) {
+            jobLogger.warn(
+              {
+                product_set_id: update.product_set_id,
+                field: "product_name",
+                expected: update.product_name,
+                actual: data.product_name,
+              },
+              "검증 실패: 필드 불일치",
+            );
+            allFieldsMatch = false;
+          }
+        }
+
+        if (update.thumbnail !== undefined) {
+          if (data.thumbnail !== update.thumbnail) {
+            jobLogger.warn(
+              {
+                product_set_id: update.product_set_id,
+                field: "thumbnail",
+                expected: update.thumbnail,
+                actual: data.thumbnail,
+              },
+              "검증 실패: 필드 불일치",
+            );
+            allFieldsMatch = false;
+          }
+        }
+
+        if (update.original_price !== undefined) {
+          if (data.original_price !== update.original_price) {
+            jobLogger.warn(
+              {
+                product_set_id: update.product_set_id,
+                field: "original_price",
+                expected: update.original_price,
+                actual: data.original_price,
+              },
+              "검증 실패: 필드 불일치",
+            );
+            allFieldsMatch = false;
+          }
+        }
+
+        if (update.discounted_price !== undefined) {
+          if (data.discounted_price !== update.discounted_price) {
+            jobLogger.warn(
+              {
+                product_set_id: update.product_set_id,
+                field: "discounted_price",
+                expected: update.discounted_price,
+                actual: data.discounted_price,
+              },
+              "검증 실패: 필드 불일치",
+            );
+            allFieldsMatch = false;
+          }
+        }
+
+        if (allFieldsMatch) {
+          verifiedCount++;
+        }
+      }
+
+      const verificationPassed = verifiedCount === SAMPLE_SIZE;
+
+      logImportant(
+        jobLogger,
+        `업데이트 검증 완료 (샘플링): ${verifiedCount}/${SAMPLE_SIZE} 통과`,
+        {
+          verified_count: verifiedCount,
+          sample_size: SAMPLE_SIZE,
+          verification_passed: verificationPassed,
+        },
+      );
+
+      return {
+        verified_count: verifiedCount,
+        verification_passed: verificationPassed,
+        sample_size: SAMPLE_SIZE,
+      };
+    } catch (error) {
+      jobLogger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "업데이트 검증 중 예외 발생",
+      );
+
+      return {
+        verified_count: 0,
+        verification_passed: false,
+        sample_size: SAMPLE_SIZE,
+      };
+    }
   }
 
   /**

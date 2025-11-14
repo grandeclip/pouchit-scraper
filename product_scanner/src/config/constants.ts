@@ -249,7 +249,7 @@ export const ZIGZAG_CONSTANTS = {
 
 /**
  * Product Update 설정
- * Supabase product_sets 업데이트 시 Rate Limiting 설정
+ * Supabase product_sets 업데이트 시 Rate Limiting 및 검증 설정
  */
 export const UPDATE_CONFIG = {
   /**
@@ -276,4 +276,24 @@ export const UPDATE_CONFIG = {
    * 기본값: 5000ms (5초)
    */
   MAX_DELAY_MS: 5000,
+
+  /**
+   * 업데이트 검증 샘플 크기
+   * 환경변수: VERIFICATION_SAMPLE_SIZE
+   * 기본값: 10개
+   *
+   * 목적:
+   * - 업데이트 성공 여부 검증 (Supabase SELECT)
+   * - 성능과 신뢰성 균형
+   *
+   * 조정 가이드:
+   * - 5개: 최소 검증 (빠름)
+   * - 10개: 기본값 (균형) ✅
+   * - 20개: 더 확실한 검증 (느림)
+   * - 0: 검증 비활성화 (권장 안함)
+   */
+  VERIFICATION_SAMPLE_SIZE: parseInt(
+    process.env.VERIFICATION_SAMPLE_SIZE || "10",
+    10,
+  ),
 } as const;
