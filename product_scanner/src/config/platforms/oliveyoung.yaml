@@ -166,9 +166,12 @@ strategies:
               const brandEl = querySelector('.top-utils__brand-link', '.prd_brand');
               const brand = brandEl?.textContent?.trim() || '';
 
-              // 이미지 추출
-              const imageEl = querySelector('img[src*="oliveyoung.co.kr"]', '.prd_img img');
-              const thumbnail = imageEl?.src || '';
+              // 이미지 추출 (Mobile: 제품 이미지 / Desktop: prd_img)
+              const imageEl = querySelector('img[alt*="제품"]', '.prd_img img') ||
+                              querySelector('img[src*="cfimages/cf-goods"]', '.prd_img img');
+              const thumbnailRaw = imageEl?.src || '';
+              // URL 정규화: 쿼리 파라미터 제거 (예: ?RS=100x0, ?qt=80 등)
+              const thumbnail = thumbnailRaw.split('?')[0];
 
               // 가격 추출
               const priceEl = querySelector('.info-group__price .price', '.price-2');
