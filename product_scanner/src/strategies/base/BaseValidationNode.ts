@@ -29,6 +29,7 @@ import { logger } from "@/config/logger";
 import { logImportant } from "@/utils/LoggerContext";
 import { BrowserPool } from "@/scanners/base/BrowserPool";
 import type { Browser, BrowserContext, Page } from "playwright";
+import { devices } from "playwright";
 import { SCRAPER_CONFIG } from "@/config/constants";
 import { StreamingResultWriter } from "@/utils/StreamingResultWriter";
 import { RateLimiter } from "@/utils/RateLimiter";
@@ -827,6 +828,10 @@ export abstract class BaseValidationNode implements INodeStrategy {
 
   /**
    * Browser에서 Context/Page 생성 (공통)
+   *
+   * Playwright Devices Registry 사용:
+   * - isMobile: true 감지 시 iPhone preset pool에서 선택
+   * - Stealth Plugin 충돌 없이 모바일 에뮬레이션
    */
   private async createBrowserContext(browser: Browser): Promise<{
     context: BrowserContext;
@@ -838,18 +843,82 @@ export abstract class BaseValidationNode implements INodeStrategy {
     );
     const contextOptions = pwStrategy?.playwright?.contextOptions || {};
 
-    // Context 생성
-    const context = await browser.newContext({
-      viewport: contextOptions.viewport || SCRAPER_CONFIG.DEFAULT_VIEWPORT,
-      userAgent: contextOptions.userAgent || SCRAPER_CONFIG.DEFAULT_USER_AGENT,
-      locale: contextOptions.locale || "ko-KR",
-      timezoneId: contextOptions.timezoneId || "Asia/Seoul",
-      isMobile: contextOptions.isMobile || false,
-      hasTouch: contextOptions.hasTouch || false,
-      deviceScaleFactor: contextOptions.deviceScaleFactor || 1,
-    });
+    // Mobile 여부 확인
+    const isMobile = contextOptions.isMobile || false;
 
-    // Anti-detection 설정
+    logger.info(
+      {
+        platform: this.platformConfig?.platform,
+        isMobile,
+        strategy: isMobile ? "Playwright Devices (iPhone Pool)" : "Custom",
+      },
+      "Browser Context 생성 시작",
+    );
+
+    let finalContextOptions: Record<string, unknown>;
+
+    if (isMobile) {
+      // Playwright Devices Registry 사용 (권장)
+      // iPhone 13/14/15 Pro 시리즈 중 선택 (안정성 + 최신성)
+      const MOBILE_DEVICE_POOL = [
+        "iPhone 13 Pro",
+        "iPhone 14 Pro",
+        "iPhone 15 Pro",
+      ];
+
+      // 순차 선택 (안정성): 플랫폼명 기반 deterministic 선택
+      const platformName = this.platformConfig?.platform || "";
+      const poolIndex =
+        platformName
+          .split("")
+          .reduce((acc, char) => acc + char.charCodeAt(0), 0) %
+        MOBILE_DEVICE_POOL.length;
+      const selectedDevice = MOBILE_DEVICE_POOL[poolIndex];
+
+      const devicePreset = devices[selectedDevice];
+
+      finalContextOptions = {
+        ...devicePreset,
+        locale: contextOptions.locale || "ko-KR",
+        timezoneId: contextOptions.timezoneId || "Asia/Seoul",
+        // YAML 커스텀 설정이 있으면 오버라이드 (preset 후 적용)
+        ...(contextOptions.viewport && { viewport: contextOptions.viewport }),
+        ...(contextOptions.userAgent && {
+          userAgent: contextOptions.userAgent,
+        }),
+      };
+
+      logger.info(
+        {
+          platform: this.platformConfig?.platform,
+          preset: selectedDevice,
+          poolIndex,
+          viewport: finalContextOptions.viewport,
+          userAgent:
+            typeof finalContextOptions.userAgent === "string"
+              ? finalContextOptions.userAgent.substring(0, 50)
+              : undefined,
+        },
+        "모바일 Devices Registry 적용",
+      );
+    } else {
+      // Desktop: 기존 방식 유지
+      finalContextOptions = {
+        viewport: contextOptions.viewport || SCRAPER_CONFIG.DEFAULT_VIEWPORT,
+        userAgent:
+          contextOptions.userAgent || SCRAPER_CONFIG.DEFAULT_USER_AGENT,
+        locale: contextOptions.locale || "ko-KR",
+        timezoneId: contextOptions.timezoneId || "Asia/Seoul",
+        isMobile: false,
+        hasTouch: false,
+        deviceScaleFactor: 1,
+      };
+    }
+
+    // Context 생성
+    const context = await browser.newContext(finalContextOptions);
+
+    // Anti-detection 설정 (공통)
     await context.addInitScript(() => {
       Object.defineProperty(navigator, "webdriver", {
         get: () => false,
@@ -858,6 +927,34 @@ export abstract class BaseValidationNode implements INodeStrategy {
 
     // Page 생성
     const page = await context.newPage();
+
+    // Mobile User-Agent 명시적 설정 (Stealth Plugin 이후)
+    // - CDP (Chrome DevTools Protocol) 사용
+    // - Stealth Plugin의 user-agent override 우회
+    if (isMobile && finalContextOptions.userAgent) {
+      try {
+        const userAgent = String(finalContextOptions.userAgent);
+        const client = await context.newCDPSession(page);
+        await client.send("Network.setUserAgentOverride", {
+          userAgent,
+        });
+        logger.info(
+          {
+            platform: this.platformConfig?.platform,
+            userAgent: userAgent.substring(0, 50),
+          },
+          "Mobile User-Agent 명시적 설정 (CDP)",
+        );
+      } catch (error) {
+        logger.warn(
+          {
+            platform: this.platformConfig?.platform,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "CDP User-Agent override 실패 - 기본 설정 사용",
+        );
+      }
+    }
 
     return { context, page };
   }

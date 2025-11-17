@@ -23,7 +23,9 @@ import { logger } from "@/config/logger";
 import { BROWSER_ARGS } from "@/config/BrowserArgs";
 
 // Stealth 플러그인 적용
-chromium.use(StealthPlugin());
+// Note: page.setUserAgent() 호출로 모바일 User-Agent 설정 (BaseValidationNode)
+const stealth = StealthPlugin();
+chromium.use(stealth);
 
 /**
  * Browser Pool Options
@@ -63,7 +65,7 @@ export class BrowserPool implements IBrowserPool {
 
   /**
    * Singleton 인스턴스 생성 (또는 가져오기)
-   * 
+   *
    * Note: poolSize가 변경되면 기존 인스턴스를 정리하고 새로 생성
    */
   public static getInstance(options: BrowserPoolOptions): BrowserPool {
@@ -72,7 +74,7 @@ export class BrowserPool implements IBrowserPool {
       BrowserPool.instance = new BrowserPool(options);
       return BrowserPool.instance;
     }
-    
+
     // poolSize가 변경되면 기존 인스턴스 정리 후 재생성
     if (BrowserPool.instance.options.poolSize !== options.poolSize) {
       logger.info(
@@ -85,7 +87,7 @@ export class BrowserPool implements IBrowserPool {
       // 기존 인스턴스는 cleanup에서 정리될 것이므로 여기서는 새 인스턴스만 생성
       BrowserPool.instance = new BrowserPool(options);
     }
-    
+
     return BrowserPool.instance;
   }
 
@@ -108,7 +110,7 @@ export class BrowserPool implements IBrowserPool {
       );
       return;
     }
-    
+
     // poolSize가 변경된 경우 기존 pool 정리
     if (this.initialized && this.pool.length !== this.options.poolSize) {
       logger.info(

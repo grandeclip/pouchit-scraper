@@ -203,8 +203,17 @@ export class PlaywrightScriptExecutor {
             try {
               // eslint-disable-next-line no-new-func
               const evaluateFn = new Function(`return ${script}`)();
-              await page.evaluate(evaluateFn);
-              logger.debug({ productId, description }, "evaluate 실행 완료");
+              const result = await page.evaluate(evaluateFn);
+
+              // 결과가 있으면 로깅 (디버깅용)
+              if (result !== undefined && result !== null) {
+                logger.info(
+                  { productId, description, result },
+                  "evaluate 실행 결과",
+                );
+              } else {
+                logger.debug({ productId, description }, "evaluate 실행 완료");
+              }
             } catch (error) {
               logger.warn(
                 {
@@ -212,6 +221,57 @@ export class PlaywrightScriptExecutor {
                   error: error instanceof Error ? error.message : String(error),
                 },
                 "evaluate 실행 실패 - 계속 진행",
+              );
+            }
+          }
+          break;
+        }
+
+        case "waitForSelector": {
+          // CSS 셀렉터가 나타날 때까지 대기
+          const { selector } = step;
+          if (selector) {
+            try {
+              await page.waitForSelector(selector, {
+                state: "attached",
+                timeout: timeout || 10000,
+              });
+              logger.debug(
+                { productId, selector, description },
+                "waitForSelector 완료",
+              );
+            } catch (error) {
+              logger.warn(
+                {
+                  productId,
+                  selector,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+                "waitForSelector 실패 - 계속 진행",
+              );
+            }
+          }
+          break;
+        }
+
+        case "waitForFunction": {
+          // JavaScript 함수가 true를 반환할 때까지 대기
+          const { script } = step;
+          if (script) {
+            try {
+              // eslint-disable-next-line no-new-func
+              const waitFn = new Function(`return ${script}`)();
+              await page.waitForFunction(waitFn, {
+                timeout: timeout || 10000,
+              });
+              logger.debug({ productId, description }, "waitForFunction 완료");
+            } catch (error) {
+              logger.warn(
+                {
+                  productId,
+                  error: error instanceof Error ? error.message : String(error),
+                },
+                "waitForFunction 실패 - 계속 진행",
               );
             }
           }
