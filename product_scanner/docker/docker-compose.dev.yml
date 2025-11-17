@@ -82,7 +82,7 @@ services:
   redis:
     image: redis:8.2-alpine
     container_name: product_scanner_redis_dev
-    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru
     volumes:
       - redis_dev_data:/data
     deploy:
