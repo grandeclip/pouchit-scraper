@@ -24,8 +24,10 @@ import {
   ProductUpdateData,
   BatchUpdateResult,
 } from "@/core/interfaces/IProductUpdateRepository";
+import { IProductHistoryRepository } from "@/core/interfaces/IProductHistoryRepository";
 import { SupabaseProductUpdateRepository } from "@/repositories/SupabaseProductUpdateRepository";
-import { JsonlParser } from "@/utils/JsonlParser";
+import { SupabaseProductHistoryRepository } from "@/repositories/SupabaseProductHistoryRepository";
+import { JsonlParser, ProductValidationResult } from "@/utils/JsonlParser";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { logger } from "@/config/logger";
 import { createJobLogger, logImportant } from "@/utils/LoggerContext";
@@ -39,10 +41,16 @@ import type { Logger } from "pino";
 export class UpdateProductSetNode implements INodeStrategy {
   public readonly type = "update_product_set";
   private repository: IProductUpdateRepository;
+  private historyRepository: IProductHistoryRepository;
 
-  constructor(repository?: IProductUpdateRepository) {
+  constructor(
+    repository?: IProductUpdateRepository,
+    historyRepository?: IProductHistoryRepository,
+  ) {
     // Dependency Injection (DIP 준수)
     this.repository = repository || new SupabaseProductUpdateRepository();
+    this.historyRepository =
+      historyRepository || new SupabaseProductHistoryRepository();
   }
 
   /**
@@ -66,12 +74,14 @@ export class UpdateProductSetNode implements INodeStrategy {
         jsonlPath,
       });
 
-      // 2. JSONL 파싱 및 업데이트 데이터 추출
-      const updates = await JsonlParser.extractUpdatesFromFile(jsonlPath);
+      // 2. JSONL 파싱 (전체 검증 결과 + 업데이트 데이터 추출)
+      const allResults = await JsonlParser.parseValidationResults(jsonlPath);
+      const updates = JsonlParser.extractUpdates(allResults);
 
       jobLogger.info(
         {
-          total_records: updates.length,
+          total_records: allResults.length,
+          update_targets: updates.length,
           jsonl_path: jsonlPath,
         },
         "JSONL 파싱 완료 - 업데이트 대상 추출",
@@ -100,7 +110,14 @@ export class UpdateProductSetNode implements INodeStrategy {
       // 3. Batch Update 실행
       const result = await this.repository.batchUpdate(updates);
 
-      // 4. 결과 로깅
+      // 4. 히스토리 기록 (안전장치: 실패해도 계속 진행)
+      const historyResult = await this.recordHistories(
+        allResults,
+        updates,
+        jobLogger,
+      );
+
+      // 5. 결과 로깅
       logImportant(
         jobLogger,
         `UpdateProductSet 완료: ${result.updated_count}/${updates.length} 성공`,
@@ -109,6 +126,9 @@ export class UpdateProductSetNode implements INodeStrategy {
           updated: result.updated_count,
           skipped: result.skipped_count,
           failed: result.failed_count,
+          history_review: historyResult.review_count,
+          history_price: historyResult.price_count,
+          history_failed: historyResult.failed_count,
         },
       );
 
@@ -122,14 +142,14 @@ export class UpdateProductSetNode implements INodeStrategy {
         );
       }
 
-      // 5. 업데이트 검증 (샘플링)
+      // 6. 업데이트 검증 (샘플링)
       const verificationResult = await this.verifyUpdates(
         updates,
         result,
         jobLogger,
       );
 
-      // 6. 결과 반환
+      // 7. 결과 반환
       return {
         success: true,
         data: {
@@ -140,6 +160,11 @@ export class UpdateProductSetNode implements INodeStrategy {
             failed: result.failed_count,
             error_count: result.errors.length,
             verification: verificationResult,
+            history: {
+              review_count: historyResult.review_count,
+              price_count: historyResult.price_count,
+              failed_count: historyResult.failed_count,
+            },
             jsonl_path: jsonlPath,
             updated_at: getTimestampWithTimezone(),
           },
@@ -160,6 +185,196 @@ export class UpdateProductSetNode implements INodeStrategy {
 
       return this.createErrorResult(errorMessage, "EXECUTION_ERROR");
     }
+  }
+
+  /**
+   * 히스토리 기록 (안전장치 패턴)
+   *
+   * 두 테이블에 히스토리 기록:
+   * 1. history_product_review: 모든 검증 결과 (항상 INSERT)
+   * 2. product_price_histories: 가격 변경 시만 (UPSERT)
+   *
+   * 안전장치:
+   * - 개별 실패해도 계속 진행
+   * - 전체 실패해도 메인 프로세스 방해 안 함
+   *
+   * @param allResults 전체 검증 결과
+   * @param updates 업데이트 대상 데이터
+   * @param jobLogger Job 로거
+   * @returns 히스토리 기록 결과
+   */
+  private async recordHistories(
+    allResults: ProductValidationResult[],
+    updates: ProductUpdateData[],
+    jobLogger: Logger,
+  ): Promise<{
+    review_count: number;
+    price_count: number;
+    failed_count: number;
+  }> {
+    let reviewCount = 0;
+    let priceCount = 0;
+    let failedCount = 0;
+
+    try {
+      // 업데이트 대상만 히스토리 기록 (match=false인 항목)
+      const updatesMap = new Map(updates.map((u) => [u.product_set_id, u]));
+
+      for (const result of allResults) {
+        // match=true (변경 없음) 또는 업데이트 실패한 경우 스킵
+        if (result.match || !updatesMap.has(result.product_set_id)) {
+          continue;
+        }
+
+        // fetch 데이터 없으면 스킵 (실패 케이스)
+        if (!result.fetch || result.status !== "success") {
+          continue;
+        }
+
+        // 1. 리뷰 히스토리 기록 (항상)
+        const reviewSuccess = await this.historyRepository.recordReviewHistory({
+          product_set_id: result.product_set_id,
+          link_url: result.url,
+          status: this.determineStatus(result),
+          comment: this.generateComment(result),
+          before_products: result.db,
+          after_products: result.fetch,
+        });
+
+        if (reviewSuccess) {
+          reviewCount++;
+        } else {
+          failedCount++;
+        }
+
+        // 2. 가격 히스토리 기록 (가격 변경 시만)
+        const priceChanged =
+          result.comparison?.original_price === false ||
+          result.comparison?.discounted_price === false;
+
+        if (priceChanged) {
+          const originalPrice = result.fetch.original_price || 0;
+          const discountedPrice =
+            result.fetch.discounted_price || originalPrice;
+
+          const priceSuccess = await this.historyRepository.recordPriceHistory({
+            product_set_id: result.product_set_id,
+            original_price: originalPrice,
+            discount_price: discountedPrice,
+          });
+
+          if (priceSuccess) {
+            priceCount++;
+          } else {
+            failedCount++;
+          }
+        }
+      }
+
+      logImportant(
+        jobLogger,
+        `히스토리 기록 완료: review=${reviewCount}, price=${priceCount}, failed=${failedCount}`,
+        {
+          review_count: reviewCount,
+          price_count: priceCount,
+          failed_count: failedCount,
+        },
+      );
+
+      return {
+        review_count: reviewCount,
+        price_count: priceCount,
+        failed_count: failedCount,
+      };
+    } catch (error) {
+      jobLogger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          review_count: reviewCount,
+          price_count: priceCount,
+          failed_count: failedCount,
+        },
+        "❌ 히스토리 기록 중 예외 발생 (안전장치 작동)",
+      );
+
+      // 안전장치: 예외 발생해도 현재까지의 결과 반환
+      return {
+        review_count: reviewCount,
+        price_count: priceCount,
+        failed_count: failedCount,
+      };
+    }
+  }
+
+  /**
+   * 처리 상태 결정
+   *
+   * @param result 검증 결과
+   * @returns 상태 코드
+   */
+  private determineStatus(
+    result: ProductValidationResult,
+  ): "verified" | "only_price" | "all" | "confused" {
+    if (result.status !== "success") {
+      return "confused";
+    }
+
+    const comp = result.comparison;
+    if (!comp) {
+      return "confused";
+    }
+
+    // 가격만 변경
+    const priceChanged =
+      comp.original_price === false || comp.discounted_price === false;
+    const nameChanged = comp.product_name === false;
+    const thumbnailChanged = comp.thumbnail === false;
+
+    if (priceChanged && !nameChanged && !thumbnailChanged) {
+      return "only_price";
+    }
+
+    // 모든 필드 변경
+    if (nameChanged || thumbnailChanged || priceChanged) {
+      return "all";
+    }
+
+    // 변경 없음 (이론상 여기 도달 안 함)
+    return "verified";
+  }
+
+  /**
+   * 변경 사항 코멘트 생성
+   *
+   * @param result 검증 결과
+   * @returns 코멘트 문자열
+   */
+  private generateComment(result: ProductValidationResult): string {
+    const changes: string[] = [];
+    const comp = result.comparison;
+
+    if (!comp) {
+      return "비교 정보 없음";
+    }
+
+    if (comp.product_name === false) {
+      changes.push("상품명");
+    }
+    if (comp.thumbnail === false) {
+      changes.push("썸네일");
+    }
+    if (comp.original_price === false) {
+      changes.push("원가");
+    }
+    if (comp.discounted_price === false) {
+      changes.push("할인가");
+    }
+
+    if (changes.length === 0) {
+      return "변경 없음";
+    }
+
+    return `변경: ${changes.join(", ")}`;
   }
 
   /**
