@@ -51,82 +51,61 @@ strategies:
 
       # 네비게이션 전략
       navigationSteps:
-        # Step 1: 상품 상세 페이지로 직접 이동
+        # Step 1: 상품 상세 페이지 이동
         - action: "navigate"
-          url: "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=${goodsId}"
+          url: "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=${goodsId}"
           waitUntil: "domcontentloaded"
           timeout: 30000
-          description: "상품 상세 페이지 접속"
+          description: "상품 상세 페이지 접속 (모바일)"
 
-        # Step 2: 앱 전환 팝업 제거 (모바일)
+        # Step 2: 메인 이미지 완전 로드 대기 (실제 표시 이미지)
         - action: "evaluate"
           script: |
-            () => {
-              // 앱 전환 관련 요소 제거
-              const appBanners = document.querySelectorAll('[class*="app"], [class*="download"], [class*="encourage"]');
-              appBanners.forEach(el => el.remove());
+            async () => {
+              window.scrollTo(0, 0);
 
-              // 오버레이 제거
-              const overlays = document.querySelectorAll('[class*="overlay"], [class*="modal"]');
-              overlays.forEach(el => el.remove());
+              // Swiper 활성 슬라이드의 메인 이미지 대기
+              const waitForImage = async () => {
+                const maxWait = 5000; // 5초
+                const startTime = Date.now();
 
-              // body overflow 복원
-              document.body.style.overflow = 'auto';
+                while (Date.now() - startTime < maxWait) {
+                  const activeSlide = document.querySelector('.swiper-slide-active');
+                  const mainImg = activeSlide?.querySelector('img');
+
+                  if (mainImg && mainImg.complete && mainImg.naturalHeight > 0) {
+                    // 이미지 로드 완료 + 실제 크기 확인
+                    const currentSrc = mainImg.currentSrc || mainImg.src;
+                    if (currentSrc && currentSrc.includes('oliveyoung.co.kr')) {
+                      return true;
+                    }
+                  }
+
+                  await new Promise(resolve => setTimeout(resolve, 200));
+                }
+                return true;
+              };
+
+              return await waitForImage();
             }
-          description: "앱 전환 팝업 제거"
-
-        # Step 3: 페이지 렌더링 충분히 대기
-        - action: "wait"
-          timeout: 3000
-          description: "페이지 렌더링 대기"
+          description: "메인 이미지 로드 완료 대기"
 
       # 데이터 추출 전략
       extraction:
         method: "evaluate"
-        description: "모바일 DOM에서 상품 정보 추출"
+        description: "모바일 DOM에서 상품 정보 추출 (Network에서 thumbnail 자동 캡처)"
         script: |
           () => {
-            // ===== Helper Functions =====
-
-            /**
-             * Mobile/Desktop selector fallback
-             * @param {string} mobileSelector - Mobile용 CSS selector
-             * @param {string} desktopSelector - Desktop fallback selector
-             * @returns {Element|null}
-             */
+            // Helper Functions
             const querySelector = (mobileSelector, desktopSelector) => {
-              return document.querySelector(mobileSelector) ||
-                     document.querySelector(desktopSelector);
+              return document.querySelector(mobileSelector) || document.querySelector(desktopSelector);
             };
 
-            /**
-             * 요소 가시성 체크
-             * @param {Element} el - 체크할 DOM 요소
-             * @returns {boolean}
-             */
-            const isVisible = (el) => {
-              if (!el) return false;
-              const style = window.getComputedStyle(el);
-              return style.display !== 'none' &&
-                     style.visibility !== 'hidden' &&
-                     style.opacity !== '0';
+            const extractNumbers = (text) => {
+              const matches = text.match(/(\d{1,3}(?:,\d{3})*)/g);
+              return matches ? matches.map(m => parseInt(m.replace(/,/g, ''))) : [];
             };
 
-            /**
-             * 가격 텍스트 파싱
-             * @param {string} text - 가격 텍스트 (예: "25,000원")
-             * @returns {number} - 정수형 가격
-             */
-            const parsePrice = (text) => {
-              const match = text.match(/(\d{1,3}(?:,\d{3})*)/);
-              return match ? parseInt(match[1].replace(/,/g, '')) : 0;
-            };
-
-            /**
-             * 버튼 텍스트 포함 여부 체크
-             * @param {string[]} keywords - 체크할 키워드 배열
-             * @returns {boolean}
-             */
             const hasButtonWithText = (keywords) => {
               const buttons = Array.from(document.querySelectorAll('button'));
               return buttons.some(btn =>
@@ -135,7 +114,9 @@ strategies:
               );
             };
 
-            // ===== Error Handling Wrapper =====
+            const isVisible = (el) => {
+              return window.getComputedStyle(el).display !== 'none';
+            };
 
             try {
               // 모바일 페이지로 리다이렉트되었는지 확인
@@ -166,22 +147,77 @@ strategies:
               const brandEl = querySelector('.top-utils__brand-link', '.prd_brand');
               const brand = brandEl?.textContent?.trim() || '';
 
-              // 이미지 추출 (Mobile: 제품 이미지 / Desktop: prd_img)
-              const imageEl = querySelector('img[alt*="제품"]', '.prd_img img') ||
-                              querySelector('img[src*="cfimages/cf-goods"]', '.prd_img img');
-              const thumbnailRaw = imageEl?.src || '';
-              // URL 정규화: 쿼리 파라미터 제거 (예: ?RS=100x0, ?qt=80 등)
-              const thumbnail = thumbnailRaw.split('?')[0];
+              // 메인 썸네일 추출: 실제 화면에 표시되는 이미지 (우클릭 대상)
+              const getDisplayedThumbnail = () => {
+                // 1순위: Swiper 활성 슬라이드의 실제 표시 이미지
+                const activeSlide = document.querySelector('.swiper-slide-active');
+                const activeImg = activeSlide?.querySelector('img');
 
-              // 가격 추출
-              const priceEl = querySelector('.info-group__price .price', '.price-2');
-              const priceText = priceEl?.textContent?.trim() || '';
-              const price = parsePrice(priceText);
+                if (activeImg) {
+                  // currentSrc = 브라우저가 실제로 선택한 이미지 (srcset 고려)
+                  const displayedSrc = activeImg.currentSrc || activeImg.src;
+                  if (displayedSrc && !displayedSrc.includes('options/item')) {
+                    return displayedSrc;
+                  }
+                }
 
-              // 정가 추출
-              const originalPriceEl = querySelector('.info-group__price .price', '.price-1');
-              const originalPriceText = originalPriceEl?.textContent?.trim() || '';
-              const consumerPrice = parsePrice(originalPriceText) || price;
+                // 2순위: 첫 번째 슬라이드 이미지
+                const firstSlide = document.querySelector('.swiper-slide');
+                const firstImg = firstSlide?.querySelector('img');
+                if (firstImg) {
+                  const displayedSrc = firstImg.currentSrc || firstImg.src;
+                  if (displayedSrc && !displayedSrc.includes('options/item')) {
+                    return displayedSrc;
+                  }
+                }
+
+                // Fallback: 모든 슬라이드 검색
+                const allSlides = document.querySelectorAll('.swiper-slide img');
+                for (const img of allSlides) {
+                  const src = img.currentSrc || img.src;
+                  if (src && !src.includes('options/item') && img.complete) {
+                    return src;
+                  }
+                }
+
+                return '';
+              };
+
+              const thumbnailRaw = getDisplayedThumbnail();
+              const thumbnail = thumbnailRaw.split('?')[0]; // 쿼리 제거
+
+              // 가격 추출 로직 개선
+              const priceContainerEl = querySelector('.info-group__price', '.price');
+
+              // 할인율 요소 확인 및 제거
+              const emRateEl = priceContainerEl?.querySelector('em.rate') || priceContainerEl?.querySelector('em');
+              const hasDiscountRate = emRateEl !== null;
+
+              // 할인율 텍스트 제거한 가격 텍스트
+              let priceText = priceContainerEl?.textContent?.trim() || '';
+              if (hasDiscountRate && emRateEl) {
+                const rateText = emRateEl.textContent || '';
+                priceText = priceText.replace(rateText, '');
+              }
+
+              const priceNumbers = extractNumbers(priceText);
+
+              let consumerPrice = 0;
+              let price = 0;
+
+              if (priceNumbers.length === 0) {
+                // 가격 정보 없음
+                consumerPrice = 0;
+                price = 0;
+              } else if (hasDiscountRate && priceNumbers.length >= 2) {
+                // 할인율 있음 → 첫번째=정가, 마지막=판매가
+                consumerPrice = priceNumbers[0];
+                price = priceNumbers[priceNumbers.length - 1];
+              } else {
+                // 할인율 없음 → 1개만 존재 → 정가=판매가
+                consumerPrice = priceNumbers[0];
+                price = priceNumbers[0];
+              }
 
               // ===== Sale Status Detection =====
 

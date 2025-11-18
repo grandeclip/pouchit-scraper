@@ -317,14 +317,13 @@ export class PlaywrightScriptExecutor {
         const extractionFn = new Function(`return ${script}`)();
 
         // Page.evaluate()로 브라우저 컨텍스트에서 실행
-        const result = await page.evaluate(extractionFn);
+        const result = (await page.evaluate(
+          extractionFn,
+        )) as ScriptExecutionResult;
 
-        logger.debug({ result }, "Extraction script 실행 완료");
-
-        return result as ScriptExecutionResult;
+        return result;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        logger.error({ error: message }, "Extraction script 실행 실패");
         throw new Error(`Extraction script 실행 실패: ${message}`);
       }
     }
