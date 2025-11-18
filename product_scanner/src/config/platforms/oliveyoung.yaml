@@ -8,6 +8,26 @@ baseUrl: "https://www.oliveyoung.co.kr"
 # 엔드포인트 (Playwright 전용이므로 빈 객체)
 endpoints: {}
 
+# 플랫폼별 설정 (Platform-specific Settings)
+platform_settings:
+  # Desktop 페이지 감지 및 새로고침 활성화
+  requiresDesktopDetection: true
+
+  # Desktop 감지 Timeout 설정
+  desktopDetection:
+    reloadTimeout: 30000      # 새로고침 timeout (ms)
+    rerenderWaitTime: 1000    # 재렌더링 대기 시간 (ms)
+
+    # Mobile/Desktop 레이아웃 감지 셀렉터
+    mobileSelectors:
+      - ".swiper-slide"
+      - ".info-group__title"
+
+    desktopSelectors:
+      - ".prd_detail_top"
+      - "#Contents"
+      - ".prd_detail"
+
 # 상수 정의 (Constants)
 constants:
   # Timeout 설정
@@ -109,6 +129,49 @@ strategies:
             }
           description: "메인 이미지 로드 완료 대기"
 
+        # Step 4: User-Agent 및 페이지 타입 확인 (디버깅)
+        - action: "evaluate"
+          script: |
+            () => {
+              const ua = navigator.userAgent;
+              const isMobileUA = /Mobile|iPhone|Android/i.test(ua);
+              const pathname = window.location.pathname;
+              const isMobilePath = pathname.includes('/m/goods/');
+
+              // Mobile/Desktop DOM 요소 감지
+              const hasMobileLayout = !!document.querySelector('.swiper-slide, .info-group__title');
+              const hasDesktopLayout = !!document.querySelector('.prd_detail_top, #Contents, .prd_detail');
+
+              console.log('=== Page Info ===');
+              console.log('User-Agent:', ua);
+              console.log('Is Mobile UA:', isMobileUA);
+              console.log('URL:', window.location.href);
+              console.log('Pathname:', pathname);
+              console.log('Is Mobile Path:', isMobilePath);
+              console.log('Viewport:', window.innerWidth, 'x', window.innerHeight);
+              console.log('Has Mobile Layout:', hasMobileLayout);
+              console.log('Has Desktop Layout:', hasDesktopLayout);
+
+              // 경고 출력
+              if (!isMobileUA) {
+                console.warn('⚠️ Desktop User-Agent 감지!');
+              }
+              if (hasDesktopLayout && !hasMobileLayout) {
+                console.warn('⚠️ Desktop Layout 감지! (새로고침 필요)');
+              }
+
+              return {
+                userAgent: ua,
+                isMobileUA,
+                pathname,
+                isMobilePath,
+                viewport: { width: window.innerWidth, height: window.innerHeight },
+                hasMobileLayout,
+                hasDesktopLayout
+              };
+            }
+          description: "User-Agent 및 페이지 타입 확인"
+
       # 데이터 추출 전략
       extraction:
         method: "evaluate"
@@ -143,9 +206,33 @@ strategies:
 
               // ===== Data Extraction =====
 
-              // 상품명 추출
-              const productNameEl = querySelector('.info-group__title', '.prd_name');
-              const productName = productNameEl?.textContent?.trim() || '';
+              // 상품명 추출 (Hybrid - 다양한 selector 시도)
+              const getProductName = () => {
+                const selectors = [
+                  '.info-group__title',           // 1순위: Mobile 기본
+                  '.prd_name',                     // 2순위: Desktop
+                  '[class*="goods"][class*="name"]', // 3순위: goods_name 등
+                  '[class*="product"][class*="name"]', // 4순위: product_name 등
+                  '[class*="title"]',              // 5순위: title 포함
+                  'h1',                            // 6순위: h1 태그
+                  '.goods_name',                   // 7순위: 직접 클래스명
+                ];
+
+                for (const selector of selectors) {
+                  const el = document.querySelector(selector);
+                  if (el) {
+                    const text = el.textContent?.trim() || '';
+                    // 유효한 상품명 조건: 3글자 이상
+                    if (text && text.length >= 3) {
+                      return text;
+                    }
+                  }
+                }
+
+                return '';
+              };
+
+              const productName = getProductName();
 
               // 상품 정보 없음 체크
               if (!productName) {
@@ -158,39 +245,76 @@ strategies:
                   sale_status: 'STSEL',
                   _source: 'not_found',
                   _redirected: true,
-                  _error: null
+                  _error: 'Product name not found'
                 };
               }
 
-              // 브랜드 추출
-              const brandEl = querySelector('.top-utils__brand-link', '.prd_brand');
-              const brand = brandEl?.textContent?.trim() || '';
+              // 브랜드 추출 (Hybrid)
+              const getBrand = () => {
+                const selectors = [
+                  '.top-utils__brand-link',        // 1순위: Mobile
+                  '.prd_brand',                     // 2순위: Desktop
+                  '[class*="brand"]',               // 3순위: brand 포함
+                  '.brand-name',                    // 4순위
+                ];
 
-              // 메인 썸네일 추출: 실제 화면에 표시되는 이미지 (우클릭 대상)
+                for (const selector of selectors) {
+                  const el = document.querySelector(selector);
+                  if (el) {
+                    const text = el.textContent?.trim() || '';
+                    if (text) return text;
+                  }
+                }
+
+                return '';
+              };
+
+              const brand = getBrand();
+
+              // 메인 썸네일 추출: Hybrid (Mobile + Desktop 지원)
               const getDisplayedThumbnail = () => {
-                // 1순위: Swiper 활성 슬라이드의 실제 표시 이미지
+                // 1순위: Mobile Swiper 활성 슬라이드
                 const activeSlide = document.querySelector('.swiper-slide-active');
-                const activeImg = activeSlide?.querySelector('img');
-
-                if (activeImg) {
-                  // currentSrc = 브라우저가 실제로 선택한 이미지 (srcset 고려)
-                  const displayedSrc = activeImg.currentSrc || activeImg.src;
-                  if (displayedSrc && !displayedSrc.includes('options/item')) {
-                    return displayedSrc;
+                if (activeSlide) {
+                  const activeImg = activeSlide.querySelector('img');
+                  if (activeImg) {
+                    const displayedSrc = activeImg.currentSrc || activeImg.src;
+                    if (displayedSrc && !displayedSrc.includes('options/item')) {
+                      return displayedSrc;
+                    }
                   }
                 }
 
-                // 2순위: 첫 번째 슬라이드 이미지
+                // 2순위: Mobile 첫 번째 슬라이드
                 const firstSlide = document.querySelector('.swiper-slide');
-                const firstImg = firstSlide?.querySelector('img');
-                if (firstImg) {
-                  const displayedSrc = firstImg.currentSrc || firstImg.src;
-                  if (displayedSrc && !displayedSrc.includes('options/item')) {
-                    return displayedSrc;
+                if (firstSlide) {
+                  const firstImg = firstSlide.querySelector('img');
+                  if (firstImg) {
+                    const displayedSrc = firstImg.currentSrc || firstImg.src;
+                    if (displayedSrc && !displayedSrc.includes('options/item')) {
+                      return displayedSrc;
+                    }
                   }
                 }
 
-                // Fallback: 모든 슬라이드 검색
+                // 3순위: Desktop 메인 이미지 (다양한 selector 시도)
+                const desktopSelectors = [
+                  '.prd_img img',           // 상품 메인 이미지
+                  '.detail_img img',        // 상세 이미지
+                  '.goods_img img',         // 상품 이미지
+                  '#mainImg',               // ID 기반
+                  '.prd_detail_img img',    // 상세 페이지 이미지
+                  '.item_photo_slide img'   // 슬라이드 이미지
+                ];
+
+                for (const selector of desktopSelectors) {
+                  const desktopImg = document.querySelector(selector);
+                  if (desktopImg && desktopImg.src && !desktopImg.src.includes('options/item')) {
+                    return desktopImg.src;
+                  }
+                }
+
+                // 4순위: 모든 슬라이드 검색 (Mobile fallback)
                 const allSlides = document.querySelectorAll('.swiper-slide img');
                 for (const img of allSlides) {
                   const src = img.currentSrc || img.src;
@@ -199,14 +323,47 @@ strategies:
                   }
                 }
 
-                return '';
+                // 5순위: 가장 큰 이미지 (최후 수단)
+                const allImages = document.querySelectorAll('img');
+                let largestImg = null;
+                let maxSize = 0;
+
+                allImages.forEach(img => {
+                  if (img.complete && img.naturalWidth > 0 && img.src && img.src.includes('oliveyoung.co.kr')) {
+                    const size = img.naturalWidth * img.naturalHeight;
+                    if (size > maxSize && !img.src.includes('options/item')) {
+                      maxSize = size;
+                      largestImg = img;
+                    }
+                  }
+                });
+
+                return largestImg?.src || '';
               };
 
               const thumbnailRaw = getDisplayedThumbnail();
               const thumbnail = thumbnailRaw.split('?')[0]; // 쿼리 제거
 
-              // 가격 추출 로직 개선
-              const priceContainerEl = querySelector('.info-group__price', '.price');
+              // 가격 추출 로직 (Hybrid)
+              const getPriceContainer = () => {
+                const selectors = [
+                  '.info-group__price',            // 1순위: Mobile
+                  '.price',                         // 2순위: Desktop
+                  '[class*="price"]',               // 3순위: price 포함
+                  '.prd_price',                     // 4순위
+                ];
+
+                for (const selector of selectors) {
+                  const el = document.querySelector(selector);
+                  if (el && el.textContent?.trim()) {
+                    return el;
+                  }
+                }
+
+                return null;
+              };
+
+              const priceContainerEl = getPriceContainer();
 
               // 할인율 요소 확인 및 제거
               const emRateEl = priceContainerEl?.querySelector('em.rate') || priceContainerEl?.querySelector('em');

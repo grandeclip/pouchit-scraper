@@ -125,8 +125,121 @@ export class PlaywrightScriptExecutor {
       );
     }
 
+    // Desktop 페이지 감지 및 새로고침 (Platform 설정 기반)
+    if (config.platform_settings?.requiresDesktopDetection) {
+      await this.detectAndReloadIfDesktop(page, productId, config);
+    }
+
     // Fallback: Extraction Script 실행
     return await this.executeExtractionScript(page, extraction);
+  }
+
+  /**
+   * Desktop 페이지 감지 및 새로고침 (Config 기반)
+   */
+  private static async detectAndReloadIfDesktop(
+    page: Page,
+    productId: string,
+    config: any,
+  ): Promise<void> {
+    try {
+      // YAML에서 설정 가져오기
+      const detectionConfig = config.platform_settings?.desktopDetection || {};
+      const mobileSelectors = detectionConfig.mobileSelectors || [
+        ".swiper-slide",
+        ".info-group__title",
+      ];
+      const desktopSelectors = detectionConfig.desktopSelectors || [
+        ".prd_detail_top",
+        "#Contents",
+        ".prd_detail",
+      ];
+      const reloadTimeout = detectionConfig.reloadTimeout || 30000;
+      const rerenderWaitTime = detectionConfig.rerenderWaitTime || 1000;
+
+      // Selector 문자열 생성 (querySelector용)
+      const mobileSelectorStr = mobileSelectors.join(", ");
+      const desktopSelectorStr = desktopSelectors.join(", ");
+
+      const pageInfo = await page.evaluate(
+        ({ mobileSelectors, desktopSelectors }) => {
+          const hasMobileLayout = !!document.querySelector(mobileSelectors);
+          const hasDesktopLayout = !!document.querySelector(desktopSelectors);
+          const pathname = window.location.pathname;
+          const isMobilePath = pathname.includes("/m/goods/");
+
+          return {
+            hasMobileLayout,
+            hasDesktopLayout,
+            pathname,
+            isMobilePath,
+          };
+        },
+        {
+          mobileSelectors: mobileSelectorStr,
+          desktopSelectors: desktopSelectorStr,
+        },
+      );
+
+      logger.debug({ productId, pageInfo }, "페이지 타입 감지 결과");
+
+      // Desktop 레이아웃 감지 (Mobile 레이아웃 없음)
+      if (pageInfo.hasDesktopLayout && !pageInfo.hasMobileLayout) {
+        logger.warn(
+          { productId, pathname: pageInfo.pathname },
+          "⚠️ Desktop 페이지 감지 → 새로고침 시도",
+        );
+
+        // 새로고침 (User-Agent 재전송)
+        await page.reload({
+          waitUntil: "domcontentloaded",
+          timeout: reloadTimeout,
+        });
+
+        // 재렌더링 대기
+        await page.waitForTimeout(rerenderWaitTime);
+
+        // 재확인
+        const reloadedInfo = await page.evaluate(
+          ({ mobileSelectors, desktopSelectors }) => ({
+            hasMobileLayout: !!document.querySelector(mobileSelectors),
+            hasDesktopLayout: !!document.querySelector(desktopSelectors),
+            pathname: window.location.pathname,
+          }),
+          {
+            mobileSelectors: mobileSelectorStr,
+            desktopSelectors: desktopSelectorStr,
+          },
+        );
+
+        logger.debug({ productId, reloadedInfo }, "새로고침 후 페이지 타입");
+
+        if (reloadedInfo.hasDesktopLayout && !reloadedInfo.hasMobileLayout) {
+          logger.error(
+            { productId, pathname: reloadedInfo.pathname },
+            "❌ 새로고침 후에도 Desktop 렌더링 유지 (Hybrid DOM 추출 fallback)",
+          );
+        } else {
+          logger.info(
+            { productId },
+            "✅ 새로고침 성공 → Mobile 렌더링으로 전환",
+          );
+        }
+      } else if (pageInfo.hasMobileLayout) {
+        logger.debug({ productId }, "✅ Mobile 페이지 정상 렌더링");
+      } else {
+        logger.warn(
+          { productId },
+          "⚠️ Mobile/Desktop 레이아웃 모두 감지 안됨 (특수 케이스)",
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.warn(
+        { productId, error: message },
+        "Desktop 감지 중 에러 (무시하고 계속 진행)",
+      );
+    }
   }
 
   /**
