@@ -93,7 +93,7 @@ export class OliveyoungProduct implements IProduct {
   static mapSaleStatus(domStatus: OliveyoungDomSaleStatus): SaleStatus {
     const mapping: Record<OliveyoungDomSaleStatus, SaleStatus> = {
       SELNG: "on_sale",
-      SLDOT: "sold_out",
+      SLDOT: "off_sale", // 일시품절도 off_sale로 통일
       STSEL: "off_sale",
     };
     return mapping[domStatus];

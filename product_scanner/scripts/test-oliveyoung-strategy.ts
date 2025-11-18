@@ -78,11 +78,11 @@ async function testOliveyoungStrategy() {
         console.log(`  - saleStatus: ${result.saleStatus}`);
         console.log(`  - thumbnail: ${result.thumbnail ? "있음" : "없음"}`);
 
-        // 검증 (API 상태를 CSV 상태로 변환)
+        // 검증 (API 상태를 DOM 상태로 변환)
+        // 주의: SLDOT, STSEL 모두 off_sale로 매핑됨
         const apiToExpected: Record<string, string> = {
           on_sale: "SELNG",
-          sold_out: "SLDOT",
-          off_sale: "STSEL",
+          off_sale: "SLDOT_OR_STSEL", // 품절/삭제 모두 off_sale
         };
 
         const checks = {

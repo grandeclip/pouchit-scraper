@@ -58,7 +58,26 @@ strategies:
           timeout: 30000
           description: "상품 상세 페이지 접속 (모바일)"
 
-        # Step 2: 메인 이미지 완전 로드 대기 (실제 표시 이미지)
+        # Step 2: 상단 배너/팝업 제거
+        - action: "evaluate"
+          script: |
+            () => {
+              // 쿠폰 배너, 광고 배너 제거
+              const banners = document.querySelectorAll('.banner, .popup, .modal, .coupon-banner, [class*="banner"], [class*="popup"]');
+              banners.forEach(el => el.remove());
+
+              // z-index 높은 overlay 제거
+              const allElements = document.querySelectorAll('*');
+              allElements.forEach(el => {
+                const zIndex = parseInt(window.getComputedStyle(el).zIndex);
+                if (zIndex > 100) {
+                  el.remove();
+                }
+              });
+            }
+          description: "상단 배너/팝업 제거"
+
+        # Step 3: 메인 이미지 완전 로드 대기 (실제 표시 이미지)
         - action: "evaluate"
           script: |
             async () => {
@@ -222,42 +241,64 @@ strategies:
               // ===== Sale Status Detection =====
 
               const detectSaleStatus = () => {
-                // 1. 페이지 에러 체크
-                const errorEl = document.querySelector('h1');
-                if (errorEl?.textContent?.includes('페이지를 찾을 수 없')) {
-                  return 'STSEL';
+                // 1. 상품 정보 없음 체크 (not_found)
+                if (!productName || productName === '삭제된 상품') {
+                  return 'STSEL'; // not_found → off_sale
                 }
 
-                // 2. Desktop 구매 버튼 체크
+                // 2. 페이지 에러 체크 (404 등)
+                const errorEl = document.querySelector('h1');
+                if (errorEl?.textContent?.includes('페이지를 찾을 수 없')) {
+                  return 'STSEL'; // not_found → off_sale
+                }
+
+                // 3. Mobile 구매 버튼 그룹 체크 (.goods-buy__bottom-group)
+                const buyBtnEl = document.querySelector('#publBtnBuy');
+                if (buyBtnEl) {
+                  const btnText = buyBtnEl.textContent?.trim() || '';
+                  const isDisabled = buyBtnEl.disabled || buyBtnEl.hasAttribute('disabled');
+
+                  // 3-1. 일시품절 (버튼 disabled + 텍스트="일시품절")
+                  if (isDisabled && btnText.includes('일시품절')) {
+                    return 'SLDOT'; // out_of_stock → sold_out
+                  }
+
+                  // 3-2. 바로구매 (버튼 활성 + 텍스트="바로구매")
+                  if (!isDisabled && btnText.includes('바로구매')) {
+                    return 'SELNG'; // on_sale
+                  }
+
+                  // 3-3. 전시기간 아님
+                  if (btnText.includes('전시기간이 아닙니다')) {
+                    return 'STSEL'; // off_sale
+                  }
+                }
+
+                // 4. Desktop 구매 버튼 체크
                 const buyBtn = document.querySelector('.btnBuy');
                 const cartBtn = document.querySelector('.btnBasket');
                 if ((buyBtn && isVisible(buyBtn)) || (cartBtn && isVisible(cartBtn))) {
                   return 'SELNG';
                 }
 
-                // 3. Mobile 구매 버튼 체크
-                if (hasButtonWithText(['장바구니', '바로구매', '구매'])) {
-                  return 'SELNG';
+                // 5. Mobile 재입고 알림 버튼 체크 (일시품절 보조 검증)
+                if (hasButtonWithText(['재입고'])) {
+                  return 'SLDOT'; // out_of_stock
                 }
 
-                // 4. Desktop 품절 버튼 체크
+                // 6. Desktop 품절 버튼 체크
                 const soldOutBtn = document.querySelector('.btnSoldout');
                 const restockBtn = document.querySelector('.btnReStock');
                 if ((soldOutBtn && isVisible(soldOutBtn)) || (restockBtn && isVisible(restockBtn))) {
                   return 'SLDOT';
                 }
 
-                // 5. Mobile 품절 텍스트 체크
-                if (hasButtonWithText(['품절', '재입고'])) {
-                  return 'SLDOT';
-                }
-
-                // 6. 가격 존재 시 판매중으로 간주
+                // 7. 가격 존재 시 판매중으로 간주
                 if (price > 0) {
                   return 'SELNG';
                 }
 
-                // 7. 기본값
+                // 8. 기본값 (판매중지)
                 return 'STSEL';
               };
 
@@ -329,8 +370,8 @@ fieldMapping:
     required: true
     mapping:
       SELNG: "on_sale"      # 판매중
-      SLDOT: "sold_out"     # 품절
-      STSEL: "off_sale"     # 판매중지
+      SLDOT: "off_sale"     # 품절 (일시품절 포함)
+      STSEL: "off_sale"     # 판매중지 (상품 없음 포함)
 
 # 검증 규칙
 validation:
