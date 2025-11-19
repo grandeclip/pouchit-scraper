@@ -121,36 +121,4 @@ describe("PriceParser", () => {
       });
     });
   });
-
-  describe("calculateDiscountRate - 할인율 계산", () => {
-    it("할인율을 정확히 계산해야 함", () => {
-      const rate = PriceParser.calculateDiscountRate(15000, 20000);
-
-      expect(rate).toBe(25);
-    });
-
-    it("소수점을 반올림해야 함", () => {
-      const rate = PriceParser.calculateDiscountRate(16666, 20000);
-
-      expect(rate).toBe(17); // 16.67 → 17
-    });
-
-    it("할인이 없으면 0을 반환해야 함", () => {
-      const rate = PriceParser.calculateDiscountRate(20000, 20000);
-
-      expect(rate).toBe(0);
-    });
-
-    it("원가가 0이면 0을 반환해야 함", () => {
-      const rate = PriceParser.calculateDiscountRate(15000, 0);
-
-      expect(rate).toBe(0);
-    });
-
-    it("판매가가 더 크면 0을 반환해야 함", () => {
-      const rate = PriceParser.calculateDiscountRate(25000, 20000);
-
-      expect(rate).toBe(0);
-    });
-  });
 });

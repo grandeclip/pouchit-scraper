@@ -33,8 +33,9 @@ export class PriceParser {
       return [];
     }
 
-    // 한국 가격 형식: 1,000 또는 1000
-    const regex = /(\d{1,3}(?:,\d{3})*)/g;
+    // 한국 가격 형식: 1,000 또는 1000 (쉼표 있거나 4자리 이상)
+    // 쉼표 구분 숫자 또는 연속 숫자
+    const regex = /\d{1,3}(?:,\d{3})+|\d+/g;
     const matches = text.match(regex);
 
     if (!matches) {
@@ -94,33 +95,5 @@ export class PriceParser {
       amount: this.parse(text),
       currency: "KRW",
     };
-  }
-
-  /**
-   * 할인율 계산
-   *
-   * 할인율 = ((원가 - 판매가) / 원가) * 100
-   * 소수점 반올림
-   *
-   * @param salePrice 판매가
-   * @param originalPrice 원가
-   * @returns 할인율 (%) - 0~100 사이 정수
-   */
-  static calculateDiscountRate(
-    salePrice: number,
-    originalPrice: number,
-  ): number {
-    // 유효하지 않은 케이스
-    if (originalPrice <= 0 || salePrice <= 0) {
-      return 0;
-    }
-
-    // 판매가가 원가보다 크면 할인 없음
-    if (salePrice >= originalPrice) {
-      return 0;
-    }
-
-    const rate = ((originalPrice - salePrice) / originalPrice) * 100;
-    return Math.round(rate);
   }
 }
