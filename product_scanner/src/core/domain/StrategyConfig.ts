@@ -108,11 +108,12 @@ export interface NavigationStep {
  * 추출 설정
  */
 export interface ExtractionConfig {
-  method: "evaluate" | "selector" | "json_ld_schema" | "next_data_schema";
+  method?: "evaluate" | "selector" | "json_ld_schema" | "next_data_schema";
   script?: string;
   selectors?: Record<string, string>;
-  extractor?: string; // Extractor 클래스명 ("JsonLdSchemaExtractor", "NextDataSchemaExtractor")
+  extractor?: string; // ExtractorRegistry ID (예: "oliveyoung", "hwahae")
   config?: Record<string, unknown>; // Extractor별 설정
+  description?: string; // 설명 (로깅용)
 }
 
 /**
