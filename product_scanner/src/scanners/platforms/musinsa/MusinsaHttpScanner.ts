@@ -33,6 +33,8 @@ export interface MusinsaApiResponse {
     goodsPrice: {
       normalPrice: number;
       salePrice: number;
+      couponPrice: number;
+      couponDiscount: boolean;
     };
   };
 }
@@ -111,13 +113,18 @@ export class MusinsaHttpScanner extends BaseScanner<
       saleStatusMapping["STOP_SALE"] ||
       "off_sale";
 
+    // 할인가 결정: couponDiscount === true → couponPrice, false → salePrice
+    const discountedPrice = data.goodsPrice.couponDiscount
+      ? data.goodsPrice.couponPrice
+      : data.goodsPrice.salePrice;
+
     return MusinsaProduct.fromApiResponse({
       id: String(data.goodsNo),
       productNo: String(data.goodsNo),
       productName: data.goodsNm,
       thumbnail: `${imagePrefix}${data.thumbnailImageUrl}`,
       originalPrice: data.goodsPrice.normalPrice,
-      discountedPrice: data.goodsPrice.salePrice,
+      discountedPrice,
       saleStatus,
     });
   }
