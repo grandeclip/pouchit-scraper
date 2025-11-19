@@ -109,8 +109,24 @@ export class SupabaseProductUpdateRepository
       if (data.product_name !== undefined) {
         updateFields.product_name = data.product_name;
       }
+
+      // Thumbnail 업데이트 처리
       if (data.thumbnail !== undefined) {
-        updateFields.thumbnail = data.thumbnail;
+        // Oliveyoung 플랫폼 예외: thumbnail 업데이트 제외 (임시 방어로직)
+        // 사유: 올리브영 썸네일 추출 로직 개선 필요 (서비스 중 가격 업데이트는 정상 동작해야 함)
+        // TODO: 올리브영 썸네일 추출 로직 개선 후 제거 예정
+        if (isOliveyoung) {
+          logger.warn(
+            {
+              product_set_id: data.product_set_id,
+              field: "thumbnail",
+              platform: "oliveyoung",
+            },
+            "⚠️  Oliveyoung thumbnail 업데이트 스킵 (임시 방어로직 - 추출 로직 개선 필요)",
+          );
+        } else {
+          updateFields.thumbnail = data.thumbnail;
+        }
       }
 
       // 가격 필드 Assertion: 0원은 JsonlParser에서 필터링되어야 함
