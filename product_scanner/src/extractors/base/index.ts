@@ -11,3 +11,4 @@ export type {
   SaleStatus,
 } from "./ISaleStatusExtractor";
 export type { IMetadataExtractor, MetadataData } from "./IMetadataExtractor";
+export type { IProductExtractor, ProductData } from "./IProductExtractor";
