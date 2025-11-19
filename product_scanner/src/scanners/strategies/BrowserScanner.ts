@@ -25,6 +25,7 @@ import * as fs from "fs/promises";
 import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { IProduct } from "@/core/interfaces/IProduct";
 import { PlatformConfig } from "@/core/domain/PlatformConfig";
+import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
 import {
   PlaywrightStrategyConfig,
   StrategyConfig,
@@ -536,8 +537,30 @@ export class BrowserScanner<
       return result as TDomData;
     }
 
+    if (extractionConfig.extractor) {
+      // ExtractorRegistry 방식 (Facade Pattern)
+      logger.info(
+        {
+          strategyId: this.strategy.id,
+          extractorId: extractionConfig.extractor,
+        },
+        "데이터 추출 중 (extractor)",
+      );
+
+      const registry = ExtractorRegistry.getInstance();
+      const extractor = registry.get(extractionConfig.extractor);
+      const result = await extractor.extract(this.page);
+
+      logger.debug(
+        { strategyId: this.strategy.id, data: JSON.stringify(result) },
+        "데이터 추출 완료",
+      );
+
+      return result as TDomData;
+    }
+
     throw new Error(
-      `잘못된 extraction 설정 - strategy: ${this.strategy.id}. method는 'evaluate'(+script), 'selector'(+selectors), 또는 'json_ld_schema'(+config) 필요`,
+      `잘못된 extraction 설정 - strategy: ${this.strategy.id}. method는 'evaluate'(+script), 'selector'(+selectors), 'json_ld_schema'(+config), 또는 extractor 필요`,
     );
   }
 
