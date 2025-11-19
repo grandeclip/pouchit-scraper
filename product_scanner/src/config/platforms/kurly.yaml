@@ -133,7 +133,8 @@ strategies:
               return {
                 name: product.name || '상품명 없음',
                 mainImageUrl: product.mainImageUrl || '',
-                retailPrice: product.retailPrice || 0,
+                retailPrice: product.retailPrice,
+                basePrice: product.basePrice || 0,
                 discountedPrice: extractedDiscountedPrice,
                 isSoldOut: product.isSoldOut,
                 status: detectStatus(),

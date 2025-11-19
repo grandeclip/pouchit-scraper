@@ -106,12 +106,15 @@ export class KurlyProduct implements IProduct {
    * 팩토리 메서드: DOM 데이터로부터 KurlyProduct 생성
    */
   static fromDOMData(domData: KurlyDOMResponse): KurlyProduct {
+    // 정가 결정: retailPrice가 있으면 사용, 없으면 basePrice 사용
+    const originalPrice = domData.retailPrice ?? domData.basePrice;
+
     return new KurlyProduct(
       String(domData.productId || "unknown"),
       domData.name,
       domData.mainImageUrl || "",
-      domData.retailPrice,
-      domData.discountedPrice,
+      originalPrice,
+      domData.discountedPrice ?? domData.basePrice,
       KurlyProduct.mapSaleStatus(domData.status),
     );
   }
@@ -137,8 +140,9 @@ export interface KurlyDOMResponse {
   productId?: string;
   name: string;
   mainImageUrl: string;
-  retailPrice: number;
-  discountedPrice: number;
+  retailPrice: number | null;
+  basePrice: number;
+  discountedPrice: number | null;
   isSoldOut: boolean | null;
   status: KurlyDomSaleStatus;
   _source?: string;
