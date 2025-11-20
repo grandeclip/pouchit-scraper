@@ -187,8 +187,11 @@ export class BrowserScanner<
       await this.detectErrorPage(id);
 
       // 데이터 추출
-      return await this.extractFromPage();
+      const data = await this.extractFromPage();
+      await this.takeScreenshot(id, false);
+      return data;
     } catch (error) {
+      await this.takeScreenshot(id, true);
       // Playwright 타임아웃 에러 처리
       if (error instanceof Error) {
         if (error.message.includes("Timeout")) {
@@ -573,11 +576,13 @@ export class BrowserScanner<
   ): Promise<void> {
     // 스크린샷 비활성화 시 스킵
     if (!this.screenshotOptions?.enabled || !this.page) {
+      console.log(`[Screenshot] Skipped: enabled=${this.screenshotOptions?.enabled}, page=${!!this.page}`);
       return;
     }
 
     try {
       const { outputDir, jobId } = this.screenshotOptions;
+      console.log(`[Screenshot] Taking screenshot for ${id} in ${outputDir}`);
 
       // Platform ID 추출 (config에서)
       const platform =

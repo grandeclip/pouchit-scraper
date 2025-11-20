@@ -82,19 +82,44 @@ export class OliveyoungMetadataExtractor implements IMetadataExtractor {
    * 상품명 추출 (7개 selector 순차 시도)
    *
    * 전략:
-   * - 3글자 이상만 유효
-   * - 공백 제거 후 검증
+   * 1. Selector 우선순위:
+   *    - .info-group__title (모바일 1순위)
+   *    - .prd_name (데스크톱 1순위)
+   *    - [class*="goods"][class*="name"] (하이브리드 패턴)
+   * 2. 유효성 검증:
+   *    - 3글자 이상 (공백 제거 후)
+   *    - 에러 메시지 필터링 (404 페이지 대응)
+   *
+   * 에러 메시지 처리:
+   * - "상품을 찾을 수 없어요" (10글자) → 3글자 이상 조건 통과
+   * - errorPatterns로 필터링하여 상품명으로 오인 방지
    *
    * @param page Playwright Page 객체
    * @returns 상품명 또는 빈 문자열
    */
   private async extractProductName(page: Page): Promise<string> {
+    // 에러 메시지 패턴 (상품명으로 간주하지 않음)
+    const errorPatterns = [
+      "상품을 찾을 수 없습니다",
+      "상품을 찾을 수 없어요", // 404 에러 메시지 variant (2025-11-20 추가)
+      "판매종료",
+      "판매 중지",
+      "페이지를 찾을 수 없습니다",
+    ];
+
     for (const selector of this.PRODUCT_NAME_SELECTORS) {
       const text = await DOMHelper.safeText(page, selector);
 
-      // 3글자 이상만 유효
+      // 3글자 이상 && 에러 메시지가 아닌 경우만 유효
       if (text && text.length >= 3) {
-        return text;
+        // 에러 메시지 체크
+        const isErrorMessage = errorPatterns.some((pattern) =>
+          text.includes(pattern),
+        );
+
+        if (!isErrorMessage) {
+          return text;
+        }
       }
     }
 
@@ -135,10 +160,12 @@ export class OliveyoungMetadataExtractor implements IMetadataExtractor {
   private async extractThumbnail(page: Page): Promise<string | undefined> {
     for (const selector of this.THUMBNAIL_SELECTORS) {
       const rawUrl = await DOMHelper.safeAttribute(page, selector, "src");
-      const url = rawUrl.trim(); // 공백 제거
+      let url = rawUrl.trim(); // 공백 제거
 
       if (this.isValidThumbnail(url)) {
-        return url;
+        // 쿼리 파라미터 제거 (예: ?l=ko&QT=85&SF=webp → 제거)
+        const urlWithoutQuery = url.split("?")[0];
+        return urlWithoutQuery;
       }
     }
 

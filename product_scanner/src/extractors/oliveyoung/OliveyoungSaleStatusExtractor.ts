@@ -33,9 +33,10 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
    * Button Selector 목록
    */
   private readonly BUTTON_SELECTORS = {
-    // Mobile
-    mobileBuy: "#publBtnBuy",
-    mobileRestock: ".btnReStock",
+    // Mobile (ID selector 우선)
+    mobileBuy:
+      "#publBtnBuy, #publBtnBasket, .btnBuy, .btn-buy, .btnBasket, .btn_basket",
+    mobileRestock: ".btnReStock, .restock-alert",
 
     // Desktop
     desktopBuy: ".btnBuy",
@@ -44,12 +45,13 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
   };
 
   /**
-   * 기타 Selector
+   * 기타 Selector (Mobile 우선)
    */
   private readonly SELECTORS = {
-    productName: ".prd_name",
+    // CSS Modules로 클래스명이 동적이므로 태그 기반 selector 사용
+    productName: ["h3", ".info-group__title", ".prd_name"], // Mobile (h3), Desktop
     errorPage: ".error_title",
-    price: ".prd_price",
+    price: [".info-group__price", ".prd_price"], // Mobile, Desktop
   };
 
   /**
@@ -101,8 +103,8 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
       return this.createStatus("SoldOut", "품절");
     }
 
-    // 7단계: 가격 존재 여부 체크
-    const hasPrice = await DOMHelper.hasElement(page, this.SELECTORS.price);
+    // 7단계: 가격 존재 여부 체크 (Mobile 우선)
+    const hasPrice = await this.hasAnyElement(page, this.SELECTORS.price);
     if (hasPrice) {
       return this.createStatus("InStock", "판매중");
     }
@@ -112,13 +114,36 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
   }
 
   /**
-   * 상품 정보 존재 여부 확인
+   * 상품 정보 존재 여부 확인 (Mobile 우선)
    *
    * @param page Playwright Page 객체
    * @returns 상품 정보 존재 여부
    */
   private async hasProductInfo(page: Page): Promise<boolean> {
-    return await DOMHelper.hasElement(page, this.SELECTORS.productName);
+    return await this.hasAnyElement(page, this.SELECTORS.productName);
+  }
+
+  /**
+   * 여러 selector 중 하나라도 존재하는지 확인
+   *
+   * @param page Playwright Page 객체
+   * @param selectors Selector 배열 또는 단일 selector
+   * @returns 존재 여부
+   */
+  private async hasAnyElement(
+    page: Page,
+    selectors: string[] | string,
+  ): Promise<boolean> {
+    const selectorArray = Array.isArray(selectors) ? selectors : [selectors];
+
+    for (const selector of selectorArray) {
+      const has = await DOMHelper.hasElement(page, selector);
+      if (has) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -128,45 +153,88 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
    * @returns 404 페이지 여부
    */
   private async is404Page(page: Page): Promise<boolean> {
+    // 1. URL 체크
+    if (page.url().includes("invalid.do") || page.url().includes("nogoods")) {
+      return true;
+    }
+
+    // 2. 에러 메시지 체크
+    const bodyText = await page.textContent("body");
+    if (
+      bodyText?.includes("상품을 찾을 수 없습니다") ||
+      bodyText?.includes("상품을 찾을 수 없어요") ||
+      bodyText?.includes("판매종료") ||
+      bodyText?.includes("판매 중지")
+    ) {
+      return true;
+    }
+
     return await DOMHelper.hasElement(page, this.SELECTORS.errorPage);
   }
 
   /**
-   * Mobile 구매 버튼 체크
+   * Mobile 구매 버튼 체크 (CSS Modules 대응)
+   *
+   * CSS Modules로 인한 동적 클래스명 문제 해결:
+   * - 기존: `.btnBuy` 같은 클래스 selector 사용
+   * - 현재: 모든 button 요소 순회 + textContent 기반 판단
+   *
+   * 전략:
+   * 1. 모든 button 요소 가져오기 (page.$$("button"))
+   * 2. 각 button의 textContent와 visibility 확인
+   * 3. 텍스트 패턴 매칭으로 상태 판단:
+   *    - "일시품절" → OutOfStock
+   *    - "품절" → SoldOut
+   *    - "바로구매", "구매하기", "장바구니" → InStock
+   *    - "전시기간", "판매중지" → Discontinued
+   * 4. Visible 버튼 우선, 없으면 hidden 버튼 사용
    *
    * @param page Playwright Page 객체
    * @returns 판매 상태 (버튼 없으면 null)
    */
   private async checkMobileButton(page: Page): Promise<SaleStatusData | null> {
-    const hasMobileButton = await DOMHelper.hasElement(
-      page,
-      this.BUTTON_SELECTORS.mobileBuy,
-    );
+    // CSS Modules로 인해 클래스명이 동적이므로 모든 button 검사
+    const allButtons = await page.$$("button");
 
-    if (!hasMobileButton) {
-      return null;
+    let hiddenCandidate: SaleStatusData | null = null;
+
+    for (const button of allButtons) {
+      const text = (await button.textContent())?.trim() || "";
+      const isVisible = await button.isVisible();
+
+      // 버튼 텍스트 기반 상태 판단
+      let status: SaleStatusData | null = null;
+
+      if (text.includes("일시품절")) {
+        status = this.createStatus("OutOfStock", "일시품절");
+      } else if (text.includes("품절")) {
+        // "일시품절"이 아닌 일반 "품절"
+        status = this.createStatus("SoldOut", "품절");
+      } else if (
+        text.includes("바로구매") ||
+        text.includes("구매하기") ||
+        text.includes("장바구니")
+      ) {
+        status = this.createStatus("InStock", "판매중");
+      } else if (text.includes("전시기간") || text.includes("판매중지")) {
+        status = this.createStatus("Discontinued", "판매 중지");
+      }
+
+      if (status) {
+        if (isVisible) {
+          return status; // Visible match found, return immediately
+        }
+        if (!hiddenCandidate) {
+          hiddenCandidate = status; // Store first hidden match as candidate
+        }
+      }
     }
 
-    // 버튼 텍스트 확인
-    const buttonText = await DOMHelper.safeText(
-      page,
-      this.BUTTON_SELECTORS.mobileBuy,
-    );
-
-    // 버튼 텍스트 기반 상태 판단
-    if (buttonText.includes("일시품절")) {
-      return this.createStatus("OutOfStock", "일시품절");
+    // If no visible match, return hidden candidate if exists
+    if (hiddenCandidate) {
+      return hiddenCandidate;
     }
 
-    if (buttonText.includes("바로구매") || buttonText.includes("구매하기")) {
-      return this.createStatus("InStock", "판매중");
-    }
-
-    if (buttonText.includes("전시기간")) {
-      return this.createStatus("Discontinued", "판매 중지");
-    }
-
-    // 버튼은 있지만 매칭되는 텍스트 없음 → 다음 단계로
     return null;
   }
 

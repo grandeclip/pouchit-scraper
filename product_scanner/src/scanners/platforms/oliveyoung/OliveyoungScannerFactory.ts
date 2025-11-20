@@ -55,14 +55,46 @@ export class OliveyoungScannerFactory {
       config: this.config,
       strategy,
       parseDOM: async (
-        domData: OliveyoungDOMResponse,
+        domData: any, // ProductData type but using any to avoid complex generic issues for now
         goodsNo: string,
       ): Promise<OliveyoungProduct> => {
+        // ProductData 구조 (Extractor 반환값) 처리
+        if (domData.metadata && domData.price && domData.saleStatus) {
+          return new OliveyoungProduct(
+            goodsNo,
+            domData.metadata.productName ||
+              (domData.saleStatus.saleStatus === "Discontinued"
+                ? "판매 중지된 상품"
+                : ""),
+            domData.metadata.brand || "",
+            domData.metadata.thumbnail ||
+              "https://static.oliveyoung.co.kr/pc-static-root/image/comm/h1_logo.png", // Fallback for sold-out/deleted items
+            domData.price.originalPrice || domData.price.price,
+            domData.price.price,
+            OliveyoungProduct.mapSaleStatus(
+              // @ts-ignore - mapSaleStatus expects OliveyoungDomSaleStatus but we are passing mapped status
+              // Schema.org status를 내부 status로 변환
+              domData.saleStatus.saleStatus === "InStock"
+                ? "SELNG" // 판매중
+                : domData.saleStatus.saleStatus === "OutOfStock"
+                  ? "SLDOT" // 일시품절
+                  : domData.saleStatus.saleStatus === "SoldOut"
+                    ? "SLDOT" // 품절
+                    : "STSEL", // Discontinued (판매중지)
+            ),
+          );
+        }
+
+        // Legacy DOM structure fallback
         return OliveyoungProduct.fromDOMData({
           ...domData,
           id: goodsNo,
           goodsNo,
         });
+      },
+      screenshot: {
+        enabled: true,
+        outputDir: "/app/results/screenshots",
       },
     });
   }

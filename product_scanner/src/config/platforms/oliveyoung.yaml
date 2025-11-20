@@ -78,6 +78,11 @@ strategies:
           timeout: 30000
           description: "상품 상세 페이지 접속 (모바일)"
 
+        # Step 1.5: 페이지 렌더링 대기 (가격 정보 포함)
+        - action: "wait"
+          timeout: 3000
+          description: "페이지 렌더링 대기 (가격 정보 로드)"
+
         # Step 2: 상단 배너/팝업 제거
         - action: "evaluate"
           script: |

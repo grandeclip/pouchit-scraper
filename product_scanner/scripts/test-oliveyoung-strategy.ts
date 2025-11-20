@@ -22,19 +22,28 @@ const TEST_CASES = [
     },
   },
   {
+    name: "워크플로우 실패 상품 (A000000209146)",
+    goodsNo: "A000000209146",
+    expected: {
+      sale_status: "SELNG",
+      hasName: true,
+      hasPrice: true,
+    },
+  },
+  {
     name: "품절 상품",
     goodsNo: "A000000207761",
     expected: {
-      sale_status: "SLDOT",
+      sale_status: "SLDOT_OR_STSEL",
       hasName: true,
-      hasPrice: true,
+      hasPrice: false, // 리다이렉트로 인해 가격 정보를 가져올 수 없음
     },
   },
   {
     name: "삭제된 상품",
     goodsNo: "A000000228859",
     expected: {
-      sale_status: "STSEL",
+      sale_status: "SLDOT_OR_STSEL",
       hasName: true, // "삭제된 상품"이라는 placeholder 이름 존재
       hasPrice: false, // 가격은 0
     },

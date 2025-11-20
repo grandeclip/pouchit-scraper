@@ -262,9 +262,22 @@ export class PlaywrightScriptExecutor {
       switch (action) {
         case "navigate": {
           // URL 템플릿 변수 치환 (여러 플랫폼 지원)
-          const targetUrl = url
+          let targetUrl = url
             .replace("${goodsId}", productId)
             .replace("${productId}", productId);
+
+          // 올리브영: Desktop URL → Mobile URL 변환
+          if (config.platform === "oliveyoung") {
+            targetUrl = targetUrl
+              .replace(
+                "://www.oliveyoung.co.kr/store/G.do",
+                "://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do",
+              )
+              .replace(
+                "://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do",
+                "://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do",
+              );
+          }
 
           // 페이지 이동 (domcontentloaded 사용 - networkidle보다 빠름)
           try {
@@ -406,7 +419,41 @@ export class PlaywrightScriptExecutor {
   ): Promise<ScriptExecutionResult> {
     const { method, extractor, config, script } = extraction;
 
-    // JSON-LD Schema.org Extractor 사용
+    // ExtractorRegistry 방식 (Phase 1 리팩토링)
+    if (extractor && !method) {
+      const { ExtractorRegistry } = await import(
+        "@/extractors/ExtractorRegistry"
+      );
+      const registry = ExtractorRegistry.getInstance();
+
+      try {
+        const extractorInstance = registry.get(extractor);
+        const result = await extractorInstance.extract(page);
+
+        // isAvailable 기반 판매 상태 매핑
+        // true → SELNG (판매중), false → SLDOT (품절)
+        const domSaleStatus = result.saleStatus.isAvailable ? "SELNG" : "SLDOT";
+
+        // ProductData → ScriptExecutionResult 변환
+        return {
+          name: result.metadata.productName,
+          brand: result.metadata.brand,
+          title_images: result.metadata.thumbnail
+            ? [result.metadata.thumbnail]
+            : [],
+          consumer_price: result.price.originalPrice || result.price.price,
+          price: result.price.price,
+          sale_status: domSaleStatus, // DOM 기반 상태 (SELNG, SLDOT)
+          _source: "extractor",
+          _redirected: false,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Extractor 실행 실패 (${extractor}): ${message}`);
+      }
+    }
+
+    // JSON-LD Schema.org Extractor 사용 (Legacy)
     if (method === "json_ld_schema" && extractor === "JsonLdSchemaExtractor") {
       const jsonLdExtractor = new JsonLdSchemaExtractor(config);
       const result = await jsonLdExtractor.extract(page);
@@ -441,6 +488,8 @@ export class PlaywrightScriptExecutor {
       }
     }
 
-    throw new Error(`지원하지 않는 extraction method: ${method}`);
+    throw new Error(
+      `지원하지 않는 extraction 설정 - method: ${method}, extractor: ${extractor}`,
+    );
   }
 }

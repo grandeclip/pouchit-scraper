@@ -50,10 +50,46 @@ export class OliveyoungPriceExtractor implements IPriceExtractor {
   /**
    * 가격 텍스트 찾기 (selector 순차 시도)
    *
+   * 전략:
+   * 1. CSS Modules 대응: h3 기준 DOM 탐색
+   *    - h3.parentElement.parentElement (조부모)
+   *    - children[0]: 브랜드 컨테이너
+   *    - children[1]: 상품명 컨테이너 (h3 포함)
+   *    - children[2]: 가격 컨테이너 ← 목표
+   * 2. Fallback: 클래스 기반 selector 시도
+   *
    * @param page Playwright Page 객체
-   * @returns 가격 텍스트 또는 빈 문자열
+   * @returns 가격 텍스트 (예: "16,000원10%14,400원 ~") 또는 빈 문자열
    */
   private async findPriceText(page: Page): Promise<string> {
+    // CSS Modules 대응: h3 조부모(grandParent)의 children[2]가 가격 컨테이너
+    // 실제 DOM 구조 (모바일):
+    // <div>                              ← grandParent
+    //   <div>브랜드</div>                 ← children[0]
+    //   <div><h3>상품명</h3></div>        ← children[1]
+    //   <div>16,000원10%14,400원 ~</div> ← children[2] (목표)
+    // </div>
+    try {
+      const text = await page.evaluate(() => {
+        const h3 = document.querySelector("h3");
+        if (!h3 || !h3.parentElement || !h3.parentElement.parentElement)
+          return "";
+
+        const grandParent = h3.parentElement.parentElement;
+        const priceContainer = grandParent.children[2]; // children[0]=브랜드, [1]=상품명, [2]=가격
+
+        return priceContainer?.textContent || "";
+      });
+      const trimmed = text.trim();
+
+      if (trimmed && /\d/.test(trimmed)) {
+        return trimmed;
+      }
+    } catch {
+      // h3 없으면 fallback
+    }
+
+    // Fallback: 기존 selector 시도
     for (const selector of this.PRICE_SELECTORS) {
       try {
         const text = await page.$eval(selector, (el) => el.textContent);

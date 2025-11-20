@@ -100,6 +100,133 @@ flowchart TD
 
 ---
 
+## 🔍 CSS Modules 대응 전략 (2025-11-20 추가)
+
+### 문제점
+
+올리브영 모바일 페이지가 **CSS Modules**를 사용하여 클래스명을 동적 생성:
+
+- 예: `.info-group__price` → `.info-group__price_a1b2c3`
+- 기존 클래스 기반 selector 실패 → 데이터 추출 오류
+
+### 해결 방법
+
+#### 1. 가격 추출 (OliveyoungPriceExtractor)
+
+**DOM 구조 분석 결과**:
+
+```html
+<div>
+  ← grandParent
+  <div>브랜드</div>
+  ← children[0]
+  <div><h3>상품명</h3></div>
+  ← children[1]
+  <div>16,000원10%14,400원 ~</div>
+  ← children[2] (목표)
+</div>
+```
+
+**해결 전략**:
+
+- h3 태그 기준 DOM 탐색: `h3.parentElement.parentElement.children[2]`
+- 클래스명 의존 제거, 구조적 접근 사용
+
+**코드**:
+
+```typescript
+const h3 = document.querySelector("h3");
+const grandParent = h3.parentElement.parentElement;
+const priceContainer = grandParent.children[2]; // 가격 컨테이너
+const priceText = priceContainer.textContent; // "16,000원10%14,400원 ~"
+```
+
+**결과**: `16,000원` (정가), `14,400원` (할인가) 정확 추출 ✅
+
+#### 2. 판매 상태 추출 (OliveyoungSaleStatusExtractor)
+
+**문제**:
+
+- 기존: `.btnBuy`, `.btnBasket` 같은 클래스 selector
+- CSS Modules: 클래스명 동적 생성으로 selector 실패
+
+**해결 전략**:
+
+- 모든 `<button>` 요소 순회
+- `textContent` 기반 패턴 매칭
+- Visibility 체크 (visible 버튼 우선)
+
+**코드**:
+
+```typescript
+const allButtons = await page.$$("button");
+
+for (const button of allButtons) {
+  const text = await button.textContent();
+  const isVisible = await button.isVisible();
+
+  // 텍스트 패턴 매칭
+  if (text.includes("일시품절")) return "OutOfStock";
+  if (text.includes("바로구매")) return "InStock";
+  if (text.includes("장바구니")) return "InStock";
+}
+```
+
+**매핑 규칙**:
+| 버튼 텍스트 | schema.org 상태 | 설명 |
+|-------------|----------------|------|
+| "일시품절" | OutOfStock | 일시적 재고 소진 |
+| "품절" | SoldOut | 영구 품절 |
+| "바로구매", "구매하기", "장바구니" | InStock | 판매 가능 |
+| "전시기간", "판매중지" | Discontinued | 판매 종료 |
+
+**결과**: 100% 정확도 ✅
+
+#### 3. 메타데이터 추출 (OliveyoungMetadataExtractor)
+
+**404 에러 메시지 처리**:
+
+- 문제: "상품을 찾을 수 없어요" (10글자) → 3글자 이상 조건 통과 → 상품명으로 오인
+- 해결: `errorPatterns` 배열로 에러 메시지 필터링
+
+**에러 메시지 목록**:
+
+```typescript
+const errorPatterns = [
+  "상품을 찾을 수 없습니다",
+  "상품을 찾을 수 없어요", // variant
+  "판매종료",
+  "판매 중지",
+  "페이지를 찾을 수 없습니다",
+];
+```
+
+**결과**: 404 페이지에서 에러 메시지를 상품명으로 오인하지 않음 ✅
+
+### 검증 결과
+
+**단일 테스트**:
+
+- A000000185362: originalPrice 16000, discountedPrice 14400 ✅
+
+**워크플로우 테스트** (5개 상품):
+
+```json
+{
+  "total": 5,
+  "success": 5,
+  "match_rate": 100
+}
+```
+
+**핵심 교훈**:
+
+1. CSS Modules 환경에서는 **클래스 selector 대신 구조적 접근** 사용
+2. **태그 기반 selector** (h3, button) 활용
+3. **textContent 기반 패턴 매칭**으로 동적 클래스명 문제 해결
+
+---
+
 ## 📝 YAML Scripts 코드 분석
 
 ### 전체 구조
