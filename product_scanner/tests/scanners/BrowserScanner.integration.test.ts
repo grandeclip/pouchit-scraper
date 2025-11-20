@@ -19,7 +19,13 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
     // Mock Page 설정
     mockPage = {
       $eval: jest.fn(),
+      $$: jest.fn(() => Promise.resolve([])),
       locator: jest.fn(),
+      url: jest.fn(
+        () =>
+          "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
+      ),
+      textContent: jest.fn(() => Promise.resolve("정상 페이지")),
     } as any;
 
     // ExtractorRegistry 인스턴스
@@ -66,12 +72,18 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
         return Promise.reject(new Error("Not found"));
       });
 
+      // Mock button elements
+      const mockButton = {
+        textContent: jest.fn(() => Promise.resolve("바로구매")),
+        isVisible: jest.fn(() => Promise.resolve(true)),
+      };
+      (mockPage.$$ as any).mockResolvedValue([mockButton]);
+
       const mockLocator = { count: jest.fn() };
       (mockPage.locator as any).mockReturnValue(mockLocator);
       (mockLocator.count as any)
         .mockResolvedValueOnce(1) // .prd_name 있음
-        .mockResolvedValueOnce(0) // .error_title 없음
-        .mockResolvedValueOnce(1); // #publBtnBuy 있음
+        .mockResolvedValueOnce(0); // .error_title 없음
 
       // Extractor 조회 및 실행
       const extractor = registry.get("oliveyoung");
@@ -142,12 +154,17 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
         return Promise.reject(new Error("Not found"));
       });
 
+      const mockButton = {
+        textContent: jest.fn(() => Promise.resolve("바로구매")),
+        isVisible: jest.fn(() => Promise.resolve(true)),
+      };
+      (mockPage.$$ as any).mockResolvedValue([mockButton]);
+
       const mockLocator = { count: jest.fn() };
       (mockPage.locator as any).mockReturnValue(mockLocator);
       (mockLocator.count as any)
         .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(1);
+        .mockResolvedValueOnce(0);
 
       // BrowserScanner가 수행할 동작 시뮬레이션
       const extractor = registry.get(extractorId);
@@ -182,12 +199,17 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
         return Promise.reject(new Error("Not found"));
       });
 
+      const mockButton = {
+        textContent: jest.fn(() => Promise.resolve("바로구매")),
+        isVisible: jest.fn(() => Promise.resolve(true)),
+      };
+      (mockPage.$$ as any).mockResolvedValue([mockButton]);
+
       const mockLocator = { count: jest.fn() };
       (mockPage.locator as any).mockReturnValue(mockLocator);
       (mockLocator.count as any)
         .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(1);
+        .mockResolvedValueOnce(0);
 
       const startTime = Date.now();
       const extractor = registry.get("oliveyoung");

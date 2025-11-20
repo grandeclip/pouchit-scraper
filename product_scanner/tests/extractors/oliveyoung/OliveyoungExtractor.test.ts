@@ -20,7 +20,13 @@ describe("OliveyoungExtractor", () => {
     mockPage = {
       $eval: jest.fn(),
       $$eval: jest.fn(),
+      $$: jest.fn(),
       locator: jest.fn(),
+      url: jest.fn(
+        () =>
+          "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
+      ),
+      textContent: jest.fn(),
     } as any;
   });
 
@@ -48,6 +54,16 @@ describe("OliveyoungExtractor", () => {
         return Promise.reject(new Error("Not found"));
       });
 
+      // Mock button elements (CSS Modules 대응)
+      const mockButton = {
+        textContent: jest.fn().mockResolvedValue("바로구매"),
+        isVisible: jest.fn().mockResolvedValue(true),
+      };
+      (mockPage.$$ as any).mockResolvedValue([mockButton]);
+
+      // Mock textContent for 404 체크
+      (mockPage.textContent as any).mockResolvedValue("정상 페이지");
+
       const mockLocator = {
         count: jest.fn(),
       };
@@ -56,8 +72,7 @@ describe("OliveyoungExtractor", () => {
       // SaleStatus - 요소 존재 체크
       (mockLocator.count as any)
         .mockResolvedValueOnce(1) // .prd_name 있음
-        .mockResolvedValueOnce(0) // .error_title 없음
-        .mockResolvedValueOnce(1); // #publBtnBuy 있음
+        .mockResolvedValueOnce(0); // .error_title 없음
 
       const result: ProductData = await extractor.extract(mockPage);
 
@@ -88,14 +103,21 @@ describe("OliveyoungExtractor", () => {
         return Promise.reject(new Error("Not found"));
       });
 
+      // Mock button elements
+      const mockButton = {
+        textContent: jest.fn().mockResolvedValue("바로구매"),
+        isVisible: jest.fn().mockResolvedValue(true),
+      };
+      (mockPage.$$ as any).mockResolvedValue([mockButton]);
+      (mockPage.textContent as any).mockResolvedValue("정상 페이지");
+
       const mockLocator = {
         count: jest.fn(),
       };
       (mockPage.locator as any).mockReturnValue(mockLocator);
       (mockLocator.count as any)
         .mockResolvedValueOnce(1) // .prd_name
-        .mockResolvedValueOnce(0) // .error_title
-        .mockResolvedValueOnce(1); // #publBtnBuy
+        .mockResolvedValueOnce(0); // .error_title
 
       const startTime = Date.now();
       await extractor.extract(mockPage);
@@ -116,16 +138,21 @@ describe("OliveyoungExtractor", () => {
         return Promise.reject(new Error("Not found"));
       });
 
+      // Mock button elements
+      const mockButton = {
+        textContent: jest.fn().mockResolvedValue("바로구매"),
+        isVisible: jest.fn().mockResolvedValue(true),
+      };
+      (mockPage.$$ as any).mockResolvedValue([mockButton]);
+      (mockPage.textContent as any).mockResolvedValue("정상 페이지");
+
       const mockLocator = {
         count: jest.fn(),
       };
       (mockPage.locator as any).mockReturnValue(mockLocator);
       (mockLocator.count as any)
         .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(1);
-
-      (mockPage.$eval as any).mockResolvedValueOnce("바로구매");
+        .mockResolvedValueOnce(0);
 
       const result = await extractor.extract(mockPage);
 
@@ -141,6 +168,10 @@ describe("OliveyoungExtractor", () => {
         if (selector === ".info-group__title") return Promise.resolve("상품명");
         return Promise.reject(new Error("Not found"));
       });
+
+      // Mock button elements - 버튼 없음
+      (mockPage.$$ as any).mockResolvedValue([]);
+      (mockPage.textContent as any).mockResolvedValue("정상 페이지");
 
       const mockLocator = {
         count: jest.fn(),
@@ -164,6 +195,8 @@ describe("OliveyoungExtractor", () => {
   describe("Edge Cases", () => {
     it("모든 추출 실패 시에도 기본 구조 반환", async () => {
       (mockPage.$eval as any).mockRejectedValue(new Error("Not found"));
+      (mockPage.$$ as any).mockResolvedValue([]);
+      (mockPage.textContent as any).mockResolvedValue("정상 페이지");
 
       const mockLocator = {
         count: jest.fn().mockResolvedValue(0),
@@ -184,6 +217,9 @@ describe("OliveyoungExtractor", () => {
           return Promise.resolve("15,000원");
         return Promise.reject(new Error("Not found"));
       });
+
+      (mockPage.$$ as any).mockResolvedValue([]);
+      (mockPage.textContent as any).mockResolvedValue("정상 페이지");
 
       const mockLocator = {
         count: jest.fn().mockResolvedValue(0),
@@ -210,16 +246,20 @@ describe("OliveyoungExtractor", () => {
         return Promise.reject(new Error("Not found"));
       });
 
+      const mockButton = {
+        textContent: jest.fn().mockResolvedValue("바로구매"),
+        isVisible: jest.fn().mockResolvedValue(true),
+      };
+      (mockPage.$$ as any).mockResolvedValue([mockButton]);
+      (mockPage.textContent as any).mockResolvedValue("정상 페이지");
+
       const mockLocator = {
         count: jest.fn(),
       };
       (mockPage.locator as any).mockReturnValue(mockLocator);
       (mockLocator.count as any)
         .mockResolvedValueOnce(1)
-        .mockResolvedValueOnce(0)
-        .mockResolvedValueOnce(1);
-
-      (mockPage.$eval as any).mockResolvedValueOnce("바로구매");
+        .mockResolvedValueOnce(0);
 
       const result: ProductData = await extractor.extract(mockPage);
 
