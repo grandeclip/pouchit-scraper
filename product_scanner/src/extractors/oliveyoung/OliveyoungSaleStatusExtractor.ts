@@ -28,31 +28,63 @@ import { DOMHelper } from "@/extractors/common/DOMHelper";
  * 7. 가격 존재 여부 체크 → InStock
  * 8. 기본값 → Discontinued
  */
+import { OliveyoungSelectors } from "@/core/domain/OliveyoungConfig";
+
 export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
   /**
    * Button Selector 목록
    */
-  private readonly BUTTON_SELECTORS = {
-    // Mobile (ID selector 우선)
-    mobileBuy:
-      "#publBtnBuy, #publBtnBasket, .btnBuy, .btn-buy, .btnBasket, .btn_basket",
-    mobileRestock: ".btnReStock, .restock-alert",
-
-    // Desktop
-    desktopBuy: ".btnBuy",
-    desktopBasket: ".btnBasket",
-    desktopSoldout: ".btnSoldout",
+  private readonly BUTTON_SELECTORS: {
+    mobileBuy: string;
+    mobileRestock: string;
+    desktopBuy: string;
+    desktopBasket: string;
+    desktopSoldout: string;
   };
 
   /**
    * 기타 Selector (Mobile 우선)
    */
-  private readonly SELECTORS = {
-    // CSS Modules로 클래스명이 동적이므로 태그 기반 selector 사용
-    productName: ["h3", ".info-group__title", ".prd_name"], // Mobile (h3), Desktop
-    errorPage: ".error_title",
-    price: [".info-group__price", ".prd_price"], // Mobile, Desktop
+  private readonly SELECTORS: {
+    productName: string[];
+    errorPage: string;
+    price: string[];
   };
+
+  constructor(selectors?: OliveyoungSelectors) {
+    if (selectors) {
+      this.BUTTON_SELECTORS = {
+        mobileBuy: selectors.saleStatus.mobileBuy,
+        mobileRestock: selectors.saleStatus.mobileRestock,
+        desktopBuy: selectors.saleStatus.desktopBuy,
+        desktopBasket: selectors.saleStatus.desktopBasket,
+        desktopSoldout: selectors.saleStatus.desktopSoldout,
+      };
+      this.SELECTORS = {
+        productName: selectors.productName,
+        errorPage: selectors.saleStatus.errorPage,
+        price: selectors.price,
+      };
+    } else {
+      this.BUTTON_SELECTORS = {
+        // Mobile (ID selector 우선)
+        mobileBuy:
+          "#publBtnBuy, #publBtnBasket, .btnBuy, .btn-buy, .btnBasket, .btn_basket",
+        mobileRestock: ".btnReStock, .restock-alert",
+
+        // Desktop
+        desktopBuy: ".btnBuy",
+        desktopBasket: ".btnBasket",
+        desktopSoldout: ".btnSoldout",
+      };
+      this.SELECTORS = {
+        // CSS Modules로 클래스명이 동적이므로 태그 기반 selector 사용
+        productName: ["h3", ".info-group__title", ".prd_name"], // Mobile (h3), Desktop
+        errorPage: ".error_title",
+        price: [".info-group__price", ".prd_price"], // Mobile, Desktop
+      };
+    }
+  }
 
   /**
    * 판매 상태 정보 추출

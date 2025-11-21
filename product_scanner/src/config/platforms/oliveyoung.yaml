@@ -3,7 +3,7 @@
 
 platform: oliveyoung
 name: "올리브영"
-baseUrl: "https://www.oliveyoung.co.kr"
+baseUrl: "https://m.oliveyoung.co.kr"
 
 # 엔드포인트 (Playwright 전용이므로 빈 객체)
 endpoints: {}
@@ -13,35 +13,129 @@ platform_settings:
   # Desktop 페이지 감지 및 새로고침 활성화
   requiresDesktopDetection: true
 
+  # URL 변환 규칙 (Desktop -> Mobile)
+  urlTransformation:
+    - type: "regex_replace"
+      pattern: "://www\\.oliveyoung\\.co\\.kr/store/G\\.do"
+      replacement: "://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do"
+    - type: "regex_replace"
+      pattern: "://www\\.oliveyoung\\.co\\.kr/store/goods/getGoodsDetail\\.do"
+      replacement: "://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do"
+
   # Desktop 감지 Timeout 설정
   desktopDetection:
     reloadTimeout: 30000      # 새로고침 timeout (ms)
     rerenderWaitTime: 1000    # 재렌더링 대기 시간 (ms)
 
-    # Mobile/Desktop 레이아웃 감지 셀렉터
-    mobileSelectors:
+# 공통 Selectors (TypeScript에서 참조)
+selectors:
+  productName:
+    - "h3"
+    - ".info-group__title"
+    - ".prd_name"
+
+  price:
+    - ".info-group__price"
+    - ".price"
+    - "[class*='price']"
+    - ".prd_price"
+  
+  saleStatus:
+    mobileBuy: "#publBtnBuy, #publBtnBasket, .btnBuy, .btn-buy, .btnBasket, .btn_basket"
+    mobileRestock: ".btnReStock, .restock-alert"
+    desktopBuy: ".btnBuy"
+    desktopBasket: ".btnBasket"
+    desktopSoldout: ".btnSoldout"
+    errorPage: ".error_title"
+  
+  layout:
+    mobile:
       - ".swiper-slide"
       - ".info-group__title"
-
-    desktopSelectors:
+    desktop:
       - ".prd_detail_top"
       - "#Contents"
       - ".prd_detail"
+  
+  images:
+    main: ".swiper-slide-active img"
+  
+  brand:
+    - ".top-utils__brand-link"
+    - ".prd_brand"
+    - "[class*='brand']"
+    - ".brand-name"
+
+  thumbnail:
+    - ".swiper-slide-active img"
+    - ".swiper-slide img"
+    - ".prd_img img"
+    - "#mainImg"
+    - "img"
+
+  banners:
+    - ".banner"
+    - ".popup"
+    - ".modal"
+    - ".coupon-banner"
+    - "[class*='banner']"
+    - "[class*='popup']"
 
 # 상수 정의 (Constants)
 constants:
-  # Timeout 설정
+  # Navigation Timeout (strategies에서 사용)
   PAGE_LOAD_TIMEOUT_MS: 30000
   RENDER_WAIT_MS: 3000
   POPUP_REMOVAL_WAIT_MS: 1000
 
-  # 모바일 뷰포트 설정
+  # Extractor Settings (TypeScript에서 참조)
+  Z_INDEX_OVERLAY_THRESHOLD: 100
+  MAIN_IMAGE_WAIT_MS: 5000
+  IMAGE_POLL_INTERVAL_MS: 200
+  MIN_PRODUCT_NAME_LENGTH: 3
+
+  # 모바일 뷰포트 설정 (strategies에서 사용)
   MOBILE_VIEWPORT_WIDTH: 430
   MOBILE_VIEWPORT_HEIGHT: 932
   MOBILE_DEVICE_SCALE: 3
 
-  # User Agent
+  # User Agent (strategies에서 사용)
   MOBILE_USER_AGENT: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.5 Mobile/15E148 Safari/604.1"
+
+# 버튼 텍스트 패턴 (Sale Status Detection)
+button_text_patterns:
+  in_stock:
+    - "바로구매"
+    - "구매하기"
+    - "장바구니"
+  out_of_stock:
+    - "일시품절"
+  sold_out:
+    - "품절"
+  discontinued:
+    - "전시기간"
+    - "판매중지"
+    - "단종"
+
+# 에러 메시지 패턴 (Error Detection)
+error_messages:
+  - "일시적인 오류"
+  - "페이지를 찾을 수 없습니다"
+  - "상품이 존재하지 않습니다"
+  - "삭제된 상품"
+  - "판매가 종료된 상품"
+
+# URL 패턴 (Error Detection)
+error_url_patterns:
+  - "invalid.do"
+  - "nogoods"
+
+# 썸네일 제외 패턴
+thumbnail_exclusions:
+  - "options/item"
+
+# 상품번호 정규식
+product_number_pattern: "A\\d{12}"
 
 # 스캔 전략 (Strategy Pattern)
 strategies:

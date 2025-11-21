@@ -18,40 +18,54 @@ import { DOMHelper } from "@/extractors/common/DOMHelper";
  * - 브랜드: 4개 selector 순차 시도
  * - 썸네일: 5가지 전략 + 상품번호 검증 (A\d{12})
  */
+import { OliveyoungSelectors } from "@/core/domain/OliveyoungConfig";
+
 export class OliveyoungMetadataExtractor implements IMetadataExtractor {
   /**
-   * 상품명 Selector 우선순위 (oliveyoung.yaml L209-235 기준)
+   * 상품명 Selector 우선순위
    */
-  private readonly PRODUCT_NAME_SELECTORS = [
-    ".info-group__title", // 1순위: Mobile
-    ".prd_name", // 2순위: Desktop
-    '[class*="goods"][class*="name"]', // 3순위
-    '[class*="product"][class*="name"]', // 4순위
-    '[class*="title"]', // 5순위
-    "h1", // 6순위
-    ".goods_name", // 7순위
-  ];
+  private readonly PRODUCT_NAME_SELECTORS: string[];
 
   /**
-   * 브랜드 Selector 우선순위 (oliveyoung.yaml L253-272 기준)
+   * 브랜드 Selector 우선순위
    */
-  private readonly BRAND_SELECTORS = [
-    ".top-utils__brand-link", // 1순위: Mobile
-    ".prd_brand", // 2순위: Desktop
-    '[class*="brand"]', // 3순위
-    ".brand-name", // 4순위
-  ];
+  private readonly BRAND_SELECTORS: string[];
 
   /**
-   * 썸네일 Selector 우선순위 (oliveyoung.yaml L274-342 기준)
+   * 썸네일 Selector 우선순위
    */
-  private readonly THUMBNAIL_SELECTORS = [
-    ".swiper-slide-active img", // 1순위: Swiper 활성
-    ".swiper-slide img", // 2순위: Swiper 첫 슬라이드
-    ".prd_img img", // 3순위: Desktop
-    "#mainImg", // 4순위: Desktop 메인
-    "img", // 5순위: Fallback
-  ];
+  private readonly THUMBNAIL_SELECTORS: string[];
+
+  constructor(selectors?: OliveyoungSelectors) {
+    if (selectors) {
+      this.PRODUCT_NAME_SELECTORS = selectors.productName;
+      this.BRAND_SELECTORS = selectors.brand;
+      this.THUMBNAIL_SELECTORS = selectors.thumbnail;
+    } else {
+      this.PRODUCT_NAME_SELECTORS = [
+        ".info-group__title", // 1순위: Mobile
+        ".prd_name", // 2순위: Desktop
+        '[class*="goods"][class*="name"]', // 3순위
+        '[class*="product"][class*="name"]', // 4순위
+        '[class*="title"]', // 5순위
+        "h1", // 6순위
+        ".goods_name", // 7순위
+      ];
+      this.BRAND_SELECTORS = [
+        ".top-utils__brand-link", // 1순위: Mobile
+        ".prd_brand", // 2순위: Desktop
+        '[class*="brand"]', // 3순위
+        ".brand-name", // 4순위
+      ];
+      this.THUMBNAIL_SELECTORS = [
+        ".swiper-slide-active img", // 1순위: Swiper 활성
+        ".swiper-slide img", // 2순위: Swiper 첫 슬라이드
+        ".prd_img img", // 3순위: Desktop
+        "#mainImg", // 4순위: Desktop 메인
+        "img", // 5순위: Fallback
+      ];
+    }
+  }
 
   /**
    * 올리브영 상품번호 패턴 (A + 12자리 숫자)

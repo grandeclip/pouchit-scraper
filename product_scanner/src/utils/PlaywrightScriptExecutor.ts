@@ -135,12 +135,39 @@ export class PlaywrightScriptExecutor {
   }
 
   /**
+   * Script 보안 검증
+   *
+   * Dangerous patterns 체크:
+   * - dynamic import/require
+   * - eval() 중첩
+   * - Function() 생성자
+   * - constructor 접근
+   *
+   * @param script 검증할 스크립트 문자열
+   * @returns 안전 여부
+   */
+  private static validateScript(script: string): boolean {
+    const dangerousPatterns = [
+      /import\s+/i, // dynamic import
+      /require\s*\(/i, // require() 호출
+      /eval\s*\(/i, // eval() 중첩
+      /Function\s*\(/i, // Function() 생성자
+      /\.constructor/i, // constructor 접근
+      /process\./i, // Node.js process 접근
+      /__dirname/i, // 파일시스템 접근
+      /__filename/i, // 파일시스템 접근
+    ];
+
+    return !dangerousPatterns.some((pattern) => pattern.test(script));
+  }
+
+  /**
    * Desktop 페이지 감지 및 새로고침 (Config 기반)
    */
   private static async detectAndReloadIfDesktop(
     page: Page,
     productId: string,
-    config: any,
+    config: PlatformConfig,
   ): Promise<void> {
     try {
       // YAML에서 설정 가져오기
@@ -266,17 +293,20 @@ export class PlaywrightScriptExecutor {
             .replace("${goodsId}", productId)
             .replace("${productId}", productId);
 
-          // 올리브영: Desktop URL → Mobile URL 변환
-          if (config.platform === "oliveyoung") {
-            targetUrl = targetUrl
-              .replace(
-                "://www.oliveyoung.co.kr/store/G.do",
-                "://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do",
-              )
-              .replace(
-                "://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do",
-                "://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do",
-              );
+          // URL Transformation (Generic)
+          const urlTransformations =
+            config.platform_settings?.urlTransformation;
+          if (urlTransformations && Array.isArray(urlTransformations)) {
+            for (const rule of urlTransformations) {
+              if (
+                rule.type === "regex_replace" &&
+                rule.pattern &&
+                rule.replacement
+              ) {
+                const regex = new RegExp(rule.pattern, "g");
+                targetUrl = targetUrl.replace(regex, rule.replacement);
+              }
+            }
           }
 
           // 페이지 이동 (domcontentloaded 사용 - networkidle보다 빠름)
@@ -326,6 +356,13 @@ export class PlaywrightScriptExecutor {
           // JavaScript 코드 실행 (팝업 제거 등)
           const { script } = step;
           if (script) {
+            // 보안 검증
+            if (!this.validateScript(script)) {
+              throw new Error(
+                `Dangerous script pattern detected in evaluate action: ${description}`,
+              );
+            }
+
             try {
               // eslint-disable-next-line no-new-func
               const evaluateFn = new Function(`return ${script}`)();
@@ -384,6 +421,13 @@ export class PlaywrightScriptExecutor {
           // JavaScript 함수가 true를 반환할 때까지 대기
           const { script } = step;
           if (script) {
+            // 보안 검증
+            if (!this.validateScript(script)) {
+              throw new Error(
+                `Dangerous script pattern detected in waitForFunction action: ${description}`,
+              );
+            }
+
             try {
               // eslint-disable-next-line no-new-func
               const waitFn = new Function(`return ${script}`)();
@@ -468,6 +512,13 @@ export class PlaywrightScriptExecutor {
     if (method === "evaluate") {
       if (!script) {
         throw new Error("Extraction script가 정의되지 않음");
+      }
+
+      // 보안 검증
+      if (!this.validateScript(script)) {
+        throw new Error(
+          "Dangerous script pattern detected in extraction script",
+        );
       }
 
       // YAML script를 함수로 변환 후 실행
