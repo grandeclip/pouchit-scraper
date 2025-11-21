@@ -83,99 +83,10 @@ strategies:
           timeout: 3000
           description: "페이지 렌더링 대기 (가격 정보 로드)"
 
-        # Step 2: 상단 배너/팝업 제거
-        - action: "evaluate"
-          script: |
-            () => {
-              // 쿠폰 배너, 광고 배너 제거
-              const banners = document.querySelectorAll('.banner, .popup, .modal, .coupon-banner, [class*="banner"], [class*="popup"]');
-              banners.forEach(el => el.remove());
-
-              // z-index 높은 overlay 제거
-              const allElements = document.querySelectorAll('*');
-              allElements.forEach(el => {
-                const zIndex = parseInt(window.getComputedStyle(el).zIndex);
-                if (zIndex > 100) {
-                  el.remove();
-                }
-              });
-            }
-          description: "상단 배너/팝업 제거"
-
-        # Step 3: 메인 이미지 완전 로드 대기 (실제 표시 이미지)
-        - action: "evaluate"
-          script: |
-            async () => {
-              window.scrollTo(0, 0);
-
-              // Swiper 활성 슬라이드의 메인 이미지 대기
-              const waitForImage = async () => {
-                const maxWait = 5000; // 5초
-                const startTime = Date.now();
-
-                while (Date.now() - startTime < maxWait) {
-                  const activeSlide = document.querySelector('.swiper-slide-active');
-                  const mainImg = activeSlide?.querySelector('img');
-
-                  if (mainImg && mainImg.complete && mainImg.naturalHeight > 0) {
-                    // 이미지 로드 완료 + 실제 크기 확인
-                    const currentSrc = mainImg.currentSrc || mainImg.src;
-                    if (currentSrc && currentSrc.includes('oliveyoung.co.kr')) {
-                      return true;
-                    }
-                  }
-
-                  await new Promise(resolve => setTimeout(resolve, 200));
-                }
-                return true;
-              };
-
-              return await waitForImage();
-            }
-          description: "메인 이미지 로드 완료 대기"
-
-        # Step 4: User-Agent 및 페이지 타입 확인 (디버깅)
-        - action: "evaluate"
-          script: |
-            () => {
-              const ua = navigator.userAgent;
-              const isMobileUA = /Mobile|iPhone|Android/i.test(ua);
-              const pathname = window.location.pathname;
-              const isMobilePath = pathname.includes('/m/goods/');
-
-              // Mobile/Desktop DOM 요소 감지
-              const hasMobileLayout = !!document.querySelector('.swiper-slide, .info-group__title');
-              const hasDesktopLayout = !!document.querySelector('.prd_detail_top, #Contents, .prd_detail');
-
-              console.log('=== Page Info ===');
-              console.log('User-Agent:', ua);
-              console.log('Is Mobile UA:', isMobileUA);
-              console.log('URL:', window.location.href);
-              console.log('Pathname:', pathname);
-              console.log('Is Mobile Path:', isMobilePath);
-              console.log('Viewport:', window.innerWidth, 'x', window.innerHeight);
-              console.log('Has Mobile Layout:', hasMobileLayout);
-              console.log('Has Desktop Layout:', hasDesktopLayout);
-
-              // 경고 출력
-              if (!isMobileUA) {
-                console.warn('⚠️ Desktop User-Agent 감지!');
-              }
-              if (hasDesktopLayout && !hasMobileLayout) {
-                console.warn('⚠️ Desktop Layout 감지! (새로고침 필요)');
-              }
-
-              return {
-                userAgent: ua,
-                isMobileUA,
-                pathname,
-                isMobilePath,
-                viewport: { width: window.innerWidth, height: window.innerHeight },
-                hasMobileLayout,
-                hasDesktopLayout
-              };
-            }
-          description: "User-Agent 및 페이지 타입 확인"
+        # Step 2-4: 페이지 전처리 (OliveyoungExtractor.preparePage()에서 처리)
+        # - 배너/팝업 제거
+        # - 메인 이미지 로드 대기
+        # - 페이지 타입 확인 (Mobile/Desktop)
 
       # 데이터 추출 전략
       extraction:

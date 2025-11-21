@@ -26,6 +26,7 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
           "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
       ),
       textContent: jest.fn(() => Promise.resolve("정상 페이지")),
+      evaluate: jest.fn(), // 전처리 메서드용
     } as any;
 
     // ExtractorRegistry 인스턴스

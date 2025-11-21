@@ -27,6 +27,7 @@ describe("OliveyoungExtractor", () => {
           "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
       ),
       textContent: jest.fn(),
+      evaluate: jest.fn().mockResolvedValue(undefined), // 전처리 메서드용
     } as any;
   });
 
