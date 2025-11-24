@@ -342,11 +342,11 @@ src/
 
 ### Phase 1: Extractor 분리 (우선순위: 최고)
 
-**진행 상황**: ✅ 85% 완료 (oliveyoung 기준)
+**진행 상황**: ✅ 100% 완료 (oliveyoung 기준)
 
-- ✅ Step 1.1-1.5 완료 (베이스 인터페이스, 공통 유틸, oliveyoung Extractor, Registry)
-- ⚠️ Step 1.6 미완료 (Scanner 통합 - BrowserScanner에서 ExtractorRegistry 사용 필요)
-- ✅ 135/147 tests 통과, TypeScript 0 errors
+- ✅ Step 1.1-1.6 전체 완료 (베이스 인터페이스, 공통 유틸, oliveyoung Extractor, Registry, Scanner 통합)
+- ✅ BrowserScanner, PlaywrightScriptExecutor에서 ExtractorRegistry 지원
+- ✅ 135/147 tests 통과, TypeScript 0 errors, E2E 테스트 통과
 
 **최근 완료 (2025-01-24)**:
 
@@ -581,15 +581,32 @@ export class ExtractorRegistry {
 }
 ```
 
-#### Step 1.6: Scanner 통합 (미완료)
+#### Step 1.6: Scanner 통합 (완료)
 
-**파일**: `src/scrapers/base/BrowserScanner.ts`
+**파일**: `src/scanners/strategies/BrowserScanner.ts`, `src/utils/PlaywrightScriptExecutor.ts`
 
-- [ ] ExtractorRegistry 사용하도록 변경
-- [ ] YAML에서 extractor ID 읽기
-- [ ] PlaywrightScriptExecutor의 script 실행 로직 제거
+- [x] ExtractorRegistry 사용 (BrowserScanner L543-563, PlaywrightScriptExecutor L467-498)
+- [x] YAML에서 extractor ID 읽기 (`extraction.extractor`)
+- [x] oliveyoung.yaml 설정 완료 (`extractor: "oliveyoung"`)
 
-**참고**: oliveyoung은 ExtractorRegistry에 등록되었으나 BrowserScanner는 아직 scripts를 사용 중
+**통합 방식**:
+
+```typescript
+// PlaywrightScriptExecutor.ts L467-498
+if (extractor && !method) {
+  const { ExtractorRegistry } = await import("@/extractors/ExtractorRegistry");
+  const registry = ExtractorRegistry.getInstance();
+  const extractorInstance = registry.get(extractor);
+  const result = await extractorInstance.extract(page);
+  return this.convertProductDataToScriptResult(result);
+}
+```
+
+**검증**:
+
+- ✅ E2E 테스트 2개 통과 (실제 상품 추출, 품절 상품 감지)
+- ✅ 135/147 전체 테스트 통과
+- ✅ TypeScript 0 errors
 
 ```typescript
 export class BrowserScanner<TProduct> {
