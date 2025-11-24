@@ -15,6 +15,8 @@ import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { HttpStrategyConfig } from "@/core/domain/StrategyConfig";
 import { MusinsaProduct } from "@/core/domain/MusinsaProduct";
+import { IProductExtractor } from "@/extractors/base";
+import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
 
 /**
  * 무신사 API 응답 타입
@@ -47,8 +49,13 @@ export class MusinsaHttpScanner extends BaseScanner<
   MusinsaProduct,
   PlatformConfig
 > {
+  private readonly extractor: IProductExtractor<MusinsaApiResponse>;
+
   constructor(config: PlatformConfig, strategy: HttpStrategyConfig) {
     super(config, strategy);
+    // DIP: Interface에 의존 (Singleton Registry로부터 조회)
+    const registry = ExtractorRegistry.getInstance();
+    this.extractor = registry.get(config.platform);
   }
 
   /**
@@ -80,6 +87,10 @@ export class MusinsaHttpScanner extends BaseScanner<
 
   /**
    * 데이터 파싱 (API 응답 → 도메인 모델)
+   *
+   * 전략:
+   * 1. MusinsaExtractor로 ProductData 추출
+   * 2. ProductData → MusinsaProduct 변환
    */
   protected async parseData(
     rawData: MusinsaApiResponse,
@@ -91,42 +102,14 @@ export class MusinsaHttpScanner extends BaseScanner<
       );
     }
 
-    const { data } = rawData;
+    // Extractor로 데이터 추출
+    const productData = await this.extractor.extract(rawData);
 
-    // 판매 상태 매핑 (YAML fieldMapping.saleStatus.mapping 필수)
-    const saleStatusMapping = this.config.fieldMapping?.saleStatus?.mapping;
-    if (!saleStatusMapping) {
-      throw new Error(
-        "Missing required config: fieldMapping.saleStatus.mapping",
-      );
-    }
-
-    // 썸네일 prefix (YAML fieldMapping.thumbnail.prefix 필수)
-    const imagePrefix = this.config.fieldMapping?.thumbnail?.prefix;
-    if (!imagePrefix) {
-      throw new Error("Missing required config: fieldMapping.thumbnail.prefix");
-    }
-
-    // 판매 상태 결정
-    const saleStatus =
-      saleStatusMapping[data.goodsSaleType] ||
-      saleStatusMapping["STOP_SALE"] ||
-      "off_sale";
-
-    // 할인가 결정: couponDiscount === true → couponPrice, false → salePrice
-    const discountedPrice = data.goodsPrice.couponDiscount
-      ? data.goodsPrice.couponPrice
-      : data.goodsPrice.salePrice;
-
-    return MusinsaProduct.fromApiResponse({
-      id: String(data.goodsNo),
-      productNo: String(data.goodsNo),
-      productName: data.goodsNm,
-      thumbnail: `${imagePrefix}${data.thumbnailImageUrl}`,
-      originalPrice: data.goodsPrice.normalPrice,
-      discountedPrice,
-      saleStatus,
-    });
+    // ProductData → MusinsaProduct 변환
+    return MusinsaProduct.fromProductData(
+      String(rawData.data.goodsNo),
+      productData,
+    );
   }
 
   /**

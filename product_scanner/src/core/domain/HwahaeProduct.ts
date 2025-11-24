@@ -169,16 +169,11 @@ export class HwahaeProduct implements IProduct {
     goodsId: string,
     productData: import("@/extractors/base").ProductData,
   ): HwahaeProduct {
-    // SaleStatus enum → CSV 형식 변환
-    const saleStatusMap = {
-      [0]: "on_sale", // InStock
-      [1]: "on_sale", // OutOfStock (화해는 OutOfStock 없음)
-      [2]: "sold_out", // SoldOut
-      [3]: "off_sale", // Discontinued
-    } as const;
-
-    const saleStatus =
-      saleStatusMap[productData.saleStatus.saleStatus as 0 | 1 | 2 | 3];
+    // SaleStatus enum → CSV 형식 변환 (공통 유틸 사용)
+    const { mapSaleStatusEnumToCSV } = require("@/utils/saleStatusMapper");
+    const saleStatus = mapSaleStatusEnumToCSV(
+      productData.saleStatus.saleStatus,
+    );
 
     return new HwahaeProduct(
       goodsId,

@@ -9,6 +9,7 @@
 import type { IProductExtractor } from "@/extractors/base";
 import { OliveyoungExtractor } from "@/extractors/oliveyoung/OliveyoungExtractor";
 import { HwahaeExtractor } from "@/extractors/hwahae/HwahaeExtractor";
+import { MusinsaExtractor } from "@/extractors/musinsa/MusinsaExtractor";
 
 /**
  * Extractor 중앙 관리 Registry (Singleton)
@@ -48,11 +49,13 @@ export class ExtractorRegistry {
    * 플랫폼별 Extractor를 기본 등록:
    * - oliveyoung: OliveyoungExtractor (Playwright 기반)
    * - hwahae: HwahaeExtractor (HTTP API 기반)
-   * - 향후 추가: musinsa, ably, zigzag, kurly 등
+   * - musinsa: MusinsaExtractor (HTTP API 기반)
+   * - 향후 추가: ably, zigzag, kurly 등
    */
   private registerDefaults(): void {
     this.register("oliveyoung", new OliveyoungExtractor());
     this.register("hwahae", new HwahaeExtractor());
+    this.register("musinsa", new MusinsaExtractor());
   }
 
   /**

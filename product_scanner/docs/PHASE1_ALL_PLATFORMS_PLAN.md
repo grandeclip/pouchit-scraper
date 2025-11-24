@@ -94,37 +94,37 @@
 
 #### 작업 체크리스트
 
-- [ ] **2.1 기존 코드 분석**
-  - [ ] `musinsa.yaml` 분석 (API endpoint, headers)
-  - [ ] `MusinsaHttpScanner.ts` 분석 (Custom 구현)
-  - [ ] `MusinsaScannerFactory.ts` 분석
-  - [ ] `MusinsaProduct.ts` 도메인 모델 확인
+- [x] **2.1 기존 코드 분석**
+  - [x] `musinsa.yaml` 분석 (API endpoint, headers)
+  - [x] `MusinsaHttpScanner.ts` 분석 (Custom 구현)
+  - [x] `MusinsaScannerFactory.ts` 분석
+  - [x] `MusinsaProduct.ts` 도메인 모델 확인
 
-- [ ] **2.2 Extractor 인터페이스 구현**
-  - [ ] `MusinsaPriceExtractor.ts` (JSON API → PriceData)
-  - [ ] `MusinsaSaleStatusExtractor.ts` (errorCode 처리)
-  - [ ] `MusinsaMetadataExtractor.ts` (brand, images)
+- [x] **2.2 Extractor 인터페이스 구현**
+  - [x] `MusinsaPriceExtractor.ts` (JSON API → PriceData)
+  - [x] `MusinsaSaleStatusExtractor.ts` (errorCode 처리)
+  - [x] `MusinsaMetadataExtractor.ts` (brand, images)
 
-- [ ] **2.3 통합 Extractor 생성**
-  - [ ] `MusinsaExtractor.ts` (Facade Pattern)
-  - [ ] Custom Scanner 통합 또는 재구현
-  - [ ] IProductExtractor 인터페이스 구현
+- [x] **2.3 통합 Extractor 생성**
+  - [x] `MusinsaExtractor.ts` (Facade Pattern)
+  - [x] Custom Scanner 통합 또는 재구현
+  - [x] IProductExtractor 인터페이스 구현
 
-- [ ] **2.4 ExtractorRegistry 등록**
-  - [ ] `ExtractorRegistry.ts`에 musinsa 등록
+- [x] **2.4 ExtractorRegistry 등록**
+  - [x] `ExtractorRegistry.ts`에 musinsa 등록
 
-- [ ] **2.5 YAML 설정 업데이트**
-  - [ ] `musinsa.yaml`에 `extractor: "musinsa"` 추가
+- [x] **2.5 YAML 설정 업데이트**
+  - [x] `musinsa.yaml`에 `extractor: "musinsa"` 추가
 
-- [ ] **2.6 테스트 작성**
-  - [ ] Unit 테스트 (각 Extractor)
-  - [ ] Integration 테스트
-  - [ ] Mobile User-Agent 테스트
+- [x] **2.6 테스트 작성**
+  - [x] Unit 테스트 (각 Extractor)
+  - [x] Integration 테스트
+  - [x] Mobile User-Agent 테스트
 
-- [ ] **2.7 검증**
-  - [ ] TypeScript 컴파일 (0 errors)
-  - [ ] 테스트 통과
-  - [ ] 실제 API 호출 검증
+- [x] **2.7 검증**
+  - [x] TypeScript 컴파일 (0 errors)
+  - [x] 테스트 통과
+  - [x] 실제 API 호출 검증
 
 ---
 
@@ -373,7 +373,7 @@
 ### 전체 진행률
 
 - [x] Hwahae (0/7 단계)
-- [ ] Musinsa (0/7 단계)
+- [x] Musinsa (0/7 단계)
 - [ ] Ably (0/7 단계)
 - [ ] ZigZag (0/7 단계)
 - [ ] Kurly (0/7 단계)

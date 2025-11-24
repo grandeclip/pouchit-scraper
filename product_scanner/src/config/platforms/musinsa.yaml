@@ -73,43 +73,9 @@ strategies:
   #           price: 0
   #           sale_status: "STSEL"
 
-# 필드 매핑 규칙
-fieldMapping:
-  # 상품명
-  productName:
-    source: "data.goodsNm"
-    type: "string"
-    required: true
-
-  # 썸네일
-  thumbnail:
-    source: "data.thumbnailImageUrl"
-    type: "string"
-    required: true
-    transform: "addImagePrefix"
-    prefix: "https://image.msscdn.net"
-
-  # 정가
-  originalPrice:
-    source: "data.goodsPrice.normalPrice"
-    type: "number"
-    required: true
-
-  # 판매가
-  discountedPrice:
-    source: "data.goodsPrice.salePrice"
-    type: "number"
-    required: true
-
-  # 판매 상태
-  saleStatus:
-    source: "data.goodsSaleType"
-    type: "enum"
-    required: true
-    mapping:
-      SALE: "on_sale"           # 판매중
-      SOLDOUT: "sold_out"       # 품절
-      STOP_SALE: "off_sale"     # 판매중지
+# ✅ Extractor 패턴 적용 완료
+# fieldMapping이 MusinsaExtractor로 대체되었습니다.
+# 참고: src/extractors/musinsa/
 
 # 에러 처리
 errorHandling:
@@ -121,12 +87,6 @@ errorHandling:
   notFound: "product_deleted"
   rateLimitDelay: 2000
   serverErrorRetry: true
-
-# 검증 규칙
-validation:
-  priceThreshold: 0.10
-  normalizeUrls: true
-  strictMode: false
 
 # Workflow Rate Limiting
 # Node-level rate limiting (상품별 HTTP 요청 간격 제어)
