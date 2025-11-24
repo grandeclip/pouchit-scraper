@@ -342,16 +342,30 @@ src/
 
 ### Phase 1: Extractor 분리 (우선순위: 최고)
 
+**진행 상황**: ✅ 85% 완료 (oliveyoung 기준)
+
+- ✅ Step 1.1-1.5 완료 (베이스 인터페이스, 공통 유틸, oliveyoung Extractor, Registry)
+- ⚠️ Step 1.6 미완료 (Scanner 통합 - BrowserScanner에서 ExtractorRegistry 사용 필요)
+- ✅ 135/147 tests 통과, TypeScript 0 errors
+
+**최근 완료 (2025-01-24)**:
+
+- SaleStatus enum 변환 (string → 0,1,2,3)
+- YAML 기반 button text pattern 매칭
+- Over-engineering 제거 (statusText, isSaleStatus)
+- Fail-fast YAML 검증 강화
+
+---
+
 #### Step 1.1: 베이스 인터페이스 정의
 
 **파일**: `src/extractors/base/`
 
-- [ ] `IExtractor.ts` - 통합 Extractor 인터페이스
-- [ ] `IPriceExtractor.ts` - 가격 추출 인터페이스
-- [ ] `IStockExtractor.ts` - 재고 추출 인터페이스
-- [ ] `IStatusExtractor.ts` - 상태 추출 인터페이스
-- [ ] `IMetadataExtractor.ts` - 메타데이터 인터페이스
-- [ ] `BaseExtractor.ts` - 추상 베이스 클래스
+- [x] ~~`IExtractor.ts`~~ → `IProductExtractor.ts` 구현 (통합 인터페이스)
+- [x] `IPriceExtractor.ts` - 가격 추출 인터페이스
+- [x] ~~`IStockExtractor.ts` + `IStatusExtractor.ts`~~ → `ISaleStatusExtractor.ts` 통합 구현
+- [x] `IMetadataExtractor.ts` - 메타데이터 인터페이스
+- [ ] `BaseExtractor.ts` - 추상 베이스 클래스 (보류: 각 플랫폼이 직접 구현)
 
 **인터페이스 예시**:
 
@@ -401,10 +415,10 @@ export abstract class BaseExtractor implements IExtractor {
 
 **파일**: `src/extractors/common/`
 
-- [ ] `DOMHelper.ts` - DOM 조회 헬퍼
-- [ ] `PriceParser.ts` - 가격 파싱
-- [ ] `DateHelper.ts` - 날짜 파싱
-- [ ] `TextNormalizer.ts` - 텍스트 정규화
+- [x] `DOMHelper.ts` - DOM 조회 헬퍼 (hasElement 구현)
+- [x] `PriceParser.ts` - 가격 파싱 (parse, parseWithUnit 구현)
+- [ ] `DateHelper.ts` - 날짜 파싱 (필요시 추가)
+- [ ] `TextNormalizer.ts` - 텍스트 정규화 (필요시 추가)
 
 **유틸리티 예시**:
 
@@ -441,11 +455,10 @@ export class DOMHelper {
 
 **파일**: `src/extractors/oliveyoung/`
 
-- [ ] `OliveyoungExtractor.ts` - 통합 Extractor
-- [ ] `extractors/PriceExtractor.ts`
-- [ ] `extractors/StockExtractor.ts`
-- [ ] `extractors/StatusExtractor.ts`
-- [ ] `extractors/MetadataExtractor.ts`
+- [x] `OliveyoungExtractor.ts` - 통합 Extractor (Facade 패턴)
+- [x] `OliveyoungPriceExtractor.ts` - 가격 추출 (7단계 fallback)
+- [x] `OliveyoungSaleStatusExtractor.ts` - 판매 상태 추출 (Stock + Status 통합, 8단계 체크)
+- [x] `OliveyoungMetadataExtractor.ts` - 메타데이터 추출 (상품명, 브랜드, 이미지)
 
 **구현 예시**:
 
@@ -488,14 +501,14 @@ export class OliveyoungExtractor extends BaseExtractor {
 }
 ```
 
-#### Step 1.4: YAML 구조 단순화
+#### Step 1.4: YAML 구조 개선
 
 **파일**: `config/platforms/oliveyoung.yaml`
 
-- [ ] `scripts` 항목 제거
-- [ ] `extractor` ID 참조 추가
-- [ ] `selectors` 선택자만 유지
-- [ ] `config` 플랫폼 설정 추가
+- [x] `selectors` 섹션 추가 (7단계 fallback 배열)
+- [x] `button_text_patterns`, `error_messages`, `thumbnail_exclusions`, `constants` 추가
+- [ ] `scripts` 항목 완전 제거 (BrowserScanner 통합 후)
+- [ ] `extractor` ID 참조 추가 (BrowserScanner 통합 시)
 
 **변경 예시**:
 
@@ -529,8 +542,8 @@ strategies:
 
 **파일**: `src/extractors/ExtractorRegistry.ts`
 
-- [ ] Singleton 패턴
-- [ ] Extractor 등록/조회
+- [x] Singleton 패턴 구현
+- [x] Extractor 등록/조회 (Map 기반, oliveyoung 자동 등록)
 
 ```typescript
 export class ExtractorRegistry {
@@ -568,13 +581,15 @@ export class ExtractorRegistry {
 }
 ```
 
-#### Step 1.6: Scanner 통합
+#### Step 1.6: Scanner 통합 (미완료)
 
 **파일**: `src/scrapers/base/BrowserScanner.ts`
 
-- [ ] ExtractorRegistry 사용
+- [ ] ExtractorRegistry 사용하도록 변경
 - [ ] YAML에서 extractor ID 읽기
-- [ ] script 실행 로직 제거
+- [ ] PlaywrightScriptExecutor의 script 실행 로직 제거
+
+**참고**: oliveyoung은 ExtractorRegistry에 등록되었으나 BrowserScanner는 아직 scripts를 사용 중
 
 ```typescript
 export class BrowserScanner<TProduct> {
