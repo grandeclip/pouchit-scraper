@@ -9,10 +9,14 @@
 import type { Page } from "playwright";
 import type { IProductExtractor, ProductData } from "@/extractors/base";
 import { ConfigLoader } from "@/config/ConfigLoader";
-import { OliveyoungConfig, OliveyoungSelectors } from "@/core/domain/OliveyoungConfig";
+import {
+  OliveyoungConfig,
+  OliveyoungSelectors,
+} from "@/core/domain/OliveyoungConfig";
 import { OliveyoungPriceExtractor } from "./OliveyoungPriceExtractor";
 import { OliveyoungSaleStatusExtractor } from "./OliveyoungSaleStatusExtractor";
 import { OliveyoungMetadataExtractor } from "./OliveyoungMetadataExtractor";
+import { logger } from "@/config/logger";
 
 /**
  * 올리브영 통합 추출기
@@ -28,13 +32,41 @@ export class OliveyoungExtractor implements IProductExtractor {
   private readonly metadataExtractor: OliveyoungMetadataExtractor;
   private readonly selectors?: OliveyoungSelectors;
 
+  // Constants from YAML
+  private readonly Z_INDEX_THRESHOLD: number;
+  private readonly MAIN_IMAGE_WAIT_MS: number;
+
   constructor() {
-    const config = ConfigLoader.getInstance().loadConfig("oliveyoung") as OliveyoungConfig;
+    const config = ConfigLoader.getInstance().loadConfig(
+      "oliveyoung",
+    ) as OliveyoungConfig;
     this.selectors = config.selectors;
 
+    // Load constants from YAML (required values)
+    if (
+      !config.constants?.Z_INDEX_OVERLAY_THRESHOLD ||
+      !config.constants?.MAIN_IMAGE_WAIT_MS
+    ) {
+      throw new Error(
+        "Missing required constants in oliveyoung.yaml: Z_INDEX_OVERLAY_THRESHOLD, MAIN_IMAGE_WAIT_MS",
+      );
+    }
+    this.Z_INDEX_THRESHOLD = config.constants.Z_INDEX_OVERLAY_THRESHOLD;
+    this.MAIN_IMAGE_WAIT_MS = config.constants.MAIN_IMAGE_WAIT_MS;
+
     this.priceExtractor = new OliveyoungPriceExtractor(config.selectors?.price);
-    this.saleStatusExtractor = new OliveyoungSaleStatusExtractor(config.selectors);
-    this.metadataExtractor = new OliveyoungMetadataExtractor(config.selectors);
+    this.saleStatusExtractor = new OliveyoungSaleStatusExtractor(
+      config.selectors,
+      config.error_messages,
+      config.error_url_patterns,
+      config.button_text_patterns,
+    );
+    this.metadataExtractor = new OliveyoungMetadataExtractor(
+      config.selectors,
+      config.error_messages,
+      config.thumbnail_exclusions,
+      config.product_number_pattern,
+    );
   }
 
   /**
@@ -90,25 +122,27 @@ export class OliveyoungExtractor implements IProductExtractor {
    * - z-index 높은 overlay 제거 (z-index > 100)
    */
   private async removeBannersAndPopups(page: Page): Promise<void> {
-    const bannerSelectors = this.selectors?.banners || [
-      ".banner", ".popup", ".modal", ".coupon-banner", '[class*="banner"]', '[class*="popup"]'
-    ];
+    const bannerSelectors = this.selectors?.banners || [];
     const selectorString = bannerSelectors.join(", ");
+    const zIndexThreshold = this.Z_INDEX_THRESHOLD;
 
-    await page.evaluate((selectorString) => {
-      // 쿠폰 배너, 광고 배너 제거
-      const banners = document.querySelectorAll(selectorString);
-      banners.forEach((el) => el.remove());
+    await page.evaluate(
+      ({ selectorString, zIndexThreshold }) => {
+        // 쿠폰 배너, 광고 배너 제거
+        const banners = document.querySelectorAll(selectorString);
+        banners.forEach((el) => el.remove());
 
-      // z-index 높은 overlay 제거
-      const allElements = document.querySelectorAll("*");
-      allElements.forEach((el) => {
-        const zIndex = parseInt(window.getComputedStyle(el).zIndex);
-        if (zIndex > 100) {
-          el.remove();
-        }
-      });
-    }, selectorString);
+        // z-index 높은 overlay 제거
+        const allElements = document.querySelectorAll("*");
+        allElements.forEach((el) => {
+          const zIndex = parseInt(window.getComputedStyle(el).zIndex);
+          if (zIndex > zIndexThreshold) {
+            el.remove();
+          }
+        });
+      },
+      { selectorString, zIndexThreshold },
+    );
   }
 
   /**
@@ -120,31 +154,36 @@ export class OliveyoungExtractor implements IProductExtractor {
    * - 최대 5초 대기
    */
   private async waitForMainImage(page: Page): Promise<void> {
-    const mainImageSelector = this.selectors?.images?.main || ".swiper-slide-active img";
+    const mainImageSelector = this.selectors?.images?.main || "";
+    const maxWaitMs = this.MAIN_IMAGE_WAIT_MS;
 
-    await page.evaluate((mainImageSelector) => {
-      return (async () => {
-        window.scrollTo(0, 0);
+    await page.evaluate(
+      ({ mainImageSelector, maxWaitMs }) => {
+        return (async () => {
+          window.scrollTo(0, 0);
 
-        const maxWait = 5000; // 5초
-        const startTime = Date.now();
+          const startTime = Date.now();
 
-        while (Date.now() - startTime < maxWait) {
-          const mainImg = document.querySelector(mainImageSelector) as HTMLImageElement;
+          while (Date.now() - startTime < maxWaitMs) {
+            const mainImg = document.querySelector(
+              mainImageSelector,
+            ) as HTMLImageElement;
 
-          if (mainImg && mainImg.complete && mainImg.naturalHeight > 0) {
-            // 이미지 로드 완료 + 실제 크기 확인
-            const currentSrc = mainImg.currentSrc || mainImg.src;
-            if (currentSrc && currentSrc.includes("oliveyoung.co.kr")) {
-              return true;
+            if (mainImg && mainImg.complete && mainImg.naturalHeight > 0) {
+              // 이미지 로드 완료 + 실제 크기 확인
+              const currentSrc = mainImg.currentSrc || mainImg.src;
+              if (currentSrc && currentSrc.includes("oliveyoung.co.kr")) {
+                return true;
+              }
             }
-          }
 
-          await new Promise((resolve) => setTimeout(resolve, 200));
-        }
-        return true;
-      })();
-    }, mainImageSelector);
+            await new Promise((resolve) => setTimeout(resolve, 200));
+          }
+          return true;
+        })();
+      },
+      { mainImageSelector, maxWaitMs },
+    );
   }
 
   /**
@@ -157,49 +196,58 @@ export class OliveyoungExtractor implements IProductExtractor {
    * - Desktop 레이아웃 감지 시 경고
    */
   private async detectPageType(page: Page): Promise<void> {
-    const mobileSelectors = this.selectors?.layout?.mobile || [".swiper-slide", ".info-group__title"];
-    const desktopSelectors = this.selectors?.layout?.desktop || [".prd_detail_top", "#Contents", ".prd_detail"];
-    
+    const mobileSelectors = this.selectors?.layout?.mobile || [];
+    const desktopSelectors = this.selectors?.layout?.desktop || [];
+
     const mobileSelectorStr = mobileSelectors.join(", ");
     const desktopSelectorStr = desktopSelectors.join(", ");
 
-    await page.evaluate(({ mobileSelectorStr, desktopSelectorStr }) => {
-      const ua = navigator.userAgent;
-      const isMobileUA = /Mobile|iPhone|Android/i.test(ua);
-      const pathname = window.location.pathname;
-      const isMobilePath = pathname.includes("/m/goods/");
+    const pageInfo = await page.evaluate(
+      ({ mobileSelectorStr, desktopSelectorStr }) => {
+        const ua = navigator.userAgent;
+        const isMobileUA = /Mobile|iPhone|Android/i.test(ua);
+        const pathname = window.location.pathname;
+        const isMobilePath = pathname.includes("/m/goods/");
 
-      // Mobile/Desktop DOM 요소 감지
-      const hasMobileLayout = !!document.querySelector(mobileSelectorStr);
-      const hasDesktopLayout = !!document.querySelector(desktopSelectorStr);
+        // Mobile/Desktop DOM 요소 감지
+        const hasMobileLayout = !!document.querySelector(mobileSelectorStr);
+        const hasDesktopLayout = !!document.querySelector(desktopSelectorStr);
 
-      console.log("=== Page Info ===");
-      console.log("User-Agent:", ua);
-      console.log("Is Mobile UA:", isMobileUA);
-      console.log("URL:", window.location.href);
-      console.log("Pathname:", pathname);
-      console.log("Is Mobile Path:", isMobilePath);
-      console.log("Viewport:", window.innerWidth, "x", window.innerHeight);
-      console.log("Has Mobile Layout:", hasMobileLayout);
-      console.log("Has Desktop Layout:", hasDesktopLayout);
+        return {
+          userAgent: ua,
+          isMobileUA,
+          pathname,
+          isMobilePath,
+          url: window.location.href,
+          viewport: { width: window.innerWidth, height: window.innerHeight },
+          hasMobileLayout,
+          hasDesktopLayout,
+        };
+      },
+      { mobileSelectorStr, desktopSelectorStr },
+    );
 
-      // 경고 출력
-      if (!isMobileUA) {
-        console.warn("⚠️ Desktop User-Agent 감지!");
-      }
-      if (hasDesktopLayout && !hasMobileLayout) {
-        console.warn("⚠️ Desktop Layout 감지! (새로고침 필요)");
-      }
+    // 로거를 통한 구조화된 로깅
+    logger.debug(
+      {
+        user_agent: pageInfo.userAgent,
+        is_mobile_ua: pageInfo.isMobileUA,
+        url: pageInfo.url,
+        pathname: pageInfo.pathname,
+        is_mobile_path: pageInfo.isMobilePath,
+        viewport: pageInfo.viewport,
+        has_mobile_layout: pageInfo.hasMobileLayout,
+        has_desktop_layout: pageInfo.hasDesktopLayout,
+      },
+      "Page type detection completed",
+    );
 
-      return {
-        userAgent: ua,
-        isMobileUA,
-        pathname,
-        isMobilePath,
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-        hasMobileLayout,
-        hasDesktopLayout,
-      };
-    }, { mobileSelectorStr, desktopSelectorStr });
+    // 경고 로깅
+    if (!pageInfo.isMobileUA) {
+      logger.warn("Desktop User-Agent detected");
+    }
+    if (pageInfo.hasDesktopLayout && !pageInfo.hasMobileLayout) {
+      logger.warn("Desktop layout detected - page reload may be required");
+    }
   }
 }

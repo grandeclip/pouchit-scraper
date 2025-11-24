@@ -8,7 +8,7 @@ export type { IPriceExtractor, PriceData } from "./IPriceExtractor";
 export type {
   ISaleStatusExtractor,
   SaleStatusData,
-  SaleStatus,
 } from "./ISaleStatusExtractor";
+export { SaleStatus } from "./ISaleStatusExtractor";
 export type { IMetadataExtractor, MetadataData } from "./IMetadataExtractor";
 export type { IProductExtractor, ProductData } from "./IProductExtractor";

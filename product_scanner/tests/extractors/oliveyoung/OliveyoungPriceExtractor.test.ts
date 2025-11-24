@@ -9,13 +9,19 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 import type { Page } from "playwright";
 import { OliveyoungPriceExtractor } from "@/extractors/oliveyoung/OliveyoungPriceExtractor";
 import type { PriceData } from "@/extractors/base";
+import { ConfigLoader } from "@/config/ConfigLoader";
+import type { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
 
 describe("OliveyoungPriceExtractor", () => {
   let extractor: OliveyoungPriceExtractor;
   let mockPage: Page;
 
   beforeEach(() => {
-    extractor = new OliveyoungPriceExtractor();
+    // Load from YAML
+    const config = ConfigLoader.getInstance().loadConfig(
+      "oliveyoung",
+    ) as OliveyoungConfig;
+    extractor = new OliveyoungPriceExtractor(config.selectors?.price);
     mockPage = {
       $eval: jest.fn(),
       $$eval: jest.fn(),

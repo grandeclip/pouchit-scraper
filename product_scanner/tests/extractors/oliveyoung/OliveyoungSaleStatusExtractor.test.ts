@@ -10,6 +10,9 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 import type { Page } from "playwright";
 import { OliveyoungSaleStatusExtractor } from "@/extractors/oliveyoung/OliveyoungSaleStatusExtractor";
 import type { SaleStatusData } from "@/extractors/base";
+import { SaleStatus } from "@/extractors/base";
+import { ConfigLoader } from "@/config/ConfigLoader";
+import type { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
 
 describe("OliveyoungSaleStatusExtractor", () => {
   let extractor: OliveyoungSaleStatusExtractor;
@@ -22,7 +25,16 @@ describe("OliveyoungSaleStatusExtractor", () => {
   });
 
   beforeEach(() => {
-    extractor = new OliveyoungSaleStatusExtractor();
+    // Load from YAML
+    const config = ConfigLoader.getInstance().loadConfig(
+      "oliveyoung",
+    ) as OliveyoungConfig;
+    extractor = new OliveyoungSaleStatusExtractor(
+      config.selectors,
+      config.error_messages,
+      config.error_url_patterns,
+      config.button_text_patterns,
+    );
     mockPage = {
       $eval: jest.fn(),
       $$eval: jest.fn(),
@@ -46,9 +58,8 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("Discontinued");
+        expect(result.saleStatus).toBe(SaleStatus.Discontinued);
         expect(result.isAvailable).toBe(false);
-        expect(result.statusText).toBe("판매 중지");
       });
     });
 
@@ -66,7 +77,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("Discontinued");
+        expect(result.saleStatus).toBe(SaleStatus.Discontinued);
         expect(result.isAvailable).toBe(false);
       });
     });
@@ -86,9 +97,8 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("OutOfStock");
+        expect(result.saleStatus).toBe(SaleStatus.OutOfStock);
         expect(result.isAvailable).toBe(false);
-        expect(result.statusText).toBe("일시품절");
       });
 
       it('버튼 텍스트가 "바로구매"면 InStock 반환', async () => {
@@ -105,9 +115,8 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("InStock");
+        expect(result.saleStatus).toBe(SaleStatus.InStock);
         expect(result.isAvailable).toBe(true);
-        expect(result.statusText).toBe("판매중");
       });
 
       it('버튼 텍스트가 "전시기간 종료"면 Discontinued 반환', async () => {
@@ -124,9 +133,8 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("Discontinued");
+        expect(result.saleStatus).toBe(SaleStatus.Discontinued);
         expect(result.isAvailable).toBe(false);
-        expect(result.statusText).toBe("판매 중지");
       });
     });
 
@@ -144,7 +152,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("InStock");
+        expect(result.saleStatus).toBe(SaleStatus.InStock);
         expect(result.isAvailable).toBe(true);
       });
 
@@ -162,7 +170,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("InStock");
+        expect(result.saleStatus).toBe(SaleStatus.InStock);
         expect(result.isAvailable).toBe(true);
       });
     });
@@ -183,7 +191,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("OutOfStock");
+        expect(result.saleStatus).toBe(SaleStatus.OutOfStock);
         expect(result.isAvailable).toBe(false);
       });
     });
@@ -205,9 +213,8 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("SoldOut");
+        expect(result.saleStatus).toBe(SaleStatus.SoldOut);
         expect(result.isAvailable).toBe(false);
-        expect(result.statusText).toBe("품절");
       });
     });
 
@@ -229,7 +236,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("InStock");
+        expect(result.saleStatus).toBe(SaleStatus.InStock);
         expect(result.isAvailable).toBe(true);
       });
 
@@ -245,7 +252,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
         const result: SaleStatusData = await extractor.extract(mockPage);
 
-        expect(result.saleStatus).toBe("Discontinued");
+        expect(result.saleStatus).toBe(SaleStatus.Discontinued);
         expect(result.isAvailable).toBe(false);
       });
     });
@@ -266,7 +273,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
       const result = await extractor.extract(mockPage);
 
-      expect(result.saleStatus).toBe("InStock");
+      expect(result.saleStatus).toBe(SaleStatus.InStock);
       expect(mockPage.locator).toHaveBeenCalledWith("#publBtnBuy");
     });
   });
@@ -283,7 +290,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
       const result = await extractor.extract(mockPage);
 
-      expect(result.saleStatus).toBe("Discontinued");
+      expect(result.saleStatus).toBe(SaleStatus.Discontinued);
       expect(result.isAvailable).toBe(false);
     });
 
@@ -301,8 +308,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
       const result = await extractor.extract(mockPage);
 
-      expect(result.saleStatus).toBe("InStock");
-      expect(result.statusText).toBe("판매중");
+      expect(result.saleStatus).toBe(SaleStatus.InStock);
     });
   });
 
@@ -321,7 +327,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
       const result = await extractor.extract(mockPage);
 
-      expect(result.saleStatus).toBe("InStock");
+      expect(result.saleStatus).toBe(SaleStatus.InStock);
       expect(result.isAvailable).toBe(true);
     });
 
@@ -339,7 +345,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
       const result = await extractor.extract(mockPage);
 
-      expect(result.saleStatus).toBe("OutOfStock");
+      expect(result.saleStatus).toBe(SaleStatus.OutOfStock);
       expect(result.isAvailable).toBe(false);
     });
 
@@ -359,7 +365,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
       const result = await extractor.extract(mockPage);
 
-      expect(result.saleStatus).toBe("SoldOut");
+      expect(result.saleStatus).toBe(SaleStatus.SoldOut);
       expect(result.isAvailable).toBe(false);
     });
 
@@ -371,7 +377,7 @@ describe("OliveyoungSaleStatusExtractor", () => {
 
       const result = await extractor.extract(mockPage);
 
-      expect(result.saleStatus).toBe("Discontinued");
+      expect(result.saleStatus).toBe(SaleStatus.Discontinued);
       expect(result.isAvailable).toBe(false);
     });
   });

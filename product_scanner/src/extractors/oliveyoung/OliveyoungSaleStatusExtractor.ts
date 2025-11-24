@@ -8,11 +8,8 @@
  */
 
 import type { Page } from "playwright";
-import type {
-  ISaleStatusExtractor,
-  SaleStatusData,
-  SaleStatus,
-} from "@/extractors/base";
+import type { ISaleStatusExtractor, SaleStatusData } from "@/extractors/base";
+import { SaleStatus } from "@/extractors/base";
 import { DOMHelper } from "@/extractors/common/DOMHelper";
 
 /**
@@ -28,7 +25,10 @@ import { DOMHelper } from "@/extractors/common/DOMHelper";
  * 7. 가격 존재 여부 체크 → InStock
  * 8. 기본값 → Discontinued
  */
-import { OliveyoungSelectors } from "@/core/domain/OliveyoungConfig";
+import {
+  OliveyoungSelectors,
+  ButtonTextPatterns,
+} from "@/core/domain/OliveyoungConfig";
 
 export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
   /**
@@ -51,39 +51,62 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
     price: string[];
   };
 
-  constructor(selectors?: OliveyoungSelectors) {
-    if (selectors) {
-      this.BUTTON_SELECTORS = {
-        mobileBuy: selectors.saleStatus.mobileBuy,
-        mobileRestock: selectors.saleStatus.mobileRestock,
-        desktopBuy: selectors.saleStatus.desktopBuy,
-        desktopBasket: selectors.saleStatus.desktopBasket,
-        desktopSoldout: selectors.saleStatus.desktopSoldout,
-      };
-      this.SELECTORS = {
-        productName: selectors.productName,
-        errorPage: selectors.saleStatus.errorPage,
-        price: selectors.price,
-      };
-    } else {
-      this.BUTTON_SELECTORS = {
-        // Mobile (ID selector 우선)
-        mobileBuy:
-          "#publBtnBuy, #publBtnBasket, .btnBuy, .btn-buy, .btnBasket, .btn_basket",
-        mobileRestock: ".btnReStock, .restock-alert",
+  /**
+   * Error Messages & Patterns from YAML
+   */
+  private readonly ERROR_MESSAGES: string[];
+  private readonly ERROR_URL_PATTERNS: string[];
 
-        // Desktop
-        desktopBuy: ".btnBuy",
-        desktopBasket: ".btnBasket",
-        desktopSoldout: ".btnSoldout",
-      };
-      this.SELECTORS = {
-        // CSS Modules로 클래스명이 동적이므로 태그 기반 selector 사용
-        productName: ["h3", ".info-group__title", ".prd_name"], // Mobile (h3), Desktop
-        errorPage: ".error_title",
-        price: [".info-group__price", ".prd_price"], // Mobile, Desktop
-      };
-    }
+  /**
+   * Button Text Patterns from YAML
+   */
+  private readonly BUTTON_TEXT_PATTERNS: ButtonTextPatterns;
+
+  constructor(
+    selectors?: OliveyoungSelectors,
+    errorMessages?: string[],
+    errorUrlPatterns?: string[],
+    buttonTextPatterns?: ButtonTextPatterns,
+  ) {
+    // Load from YAML (no hardcoded defaults)
+    this.BUTTON_SELECTORS = selectors
+      ? {
+          mobileBuy: selectors.saleStatus.mobileBuy,
+          mobileRestock: selectors.saleStatus.mobileRestock,
+          desktopBuy: selectors.saleStatus.desktopBuy,
+          desktopBasket: selectors.saleStatus.desktopBasket,
+          desktopSoldout: selectors.saleStatus.desktopSoldout,
+        }
+      : {
+          mobileBuy: "",
+          mobileRestock: "",
+          desktopBuy: "",
+          desktopBasket: "",
+          desktopSoldout: "",
+        };
+
+    this.SELECTORS = selectors
+      ? {
+          productName: selectors.productName,
+          errorPage: selectors.saleStatus.errorPage,
+          price: selectors.price,
+        }
+      : {
+          productName: [],
+          errorPage: "",
+          price: [],
+        };
+
+    this.ERROR_MESSAGES = errorMessages || [];
+    this.ERROR_URL_PATTERNS = errorUrlPatterns || [];
+
+    // Button text patterns from YAML
+    this.BUTTON_TEXT_PATTERNS = buttonTextPatterns || {
+      in_stock: [],
+      out_of_stock: [],
+      sold_out: [],
+      discontinued: [],
+    };
   }
 
   /**
@@ -96,13 +119,13 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
     // 1단계: 상품 정보 없음 체크
     const hasProduct = await this.hasProductInfo(page);
     if (!hasProduct) {
-      return this.createStatus("Discontinued", "판매 중지");
+      return this.createStatus(SaleStatus.Discontinued);
     }
 
     // 2단계: 404 페이지 체크
     const is404 = await this.is404Page(page);
     if (is404) {
-      return this.createStatus("Discontinued", "판매 중지");
+      return this.createStatus(SaleStatus.Discontinued);
     }
 
     // 3단계: Mobile 구매 버튼 체크
@@ -123,7 +146,7 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
       this.BUTTON_SELECTORS.mobileRestock,
     );
     if (hasRestock) {
-      return this.createStatus("OutOfStock", "일시품절");
+      return this.createStatus(SaleStatus.OutOfStock);
     }
 
     // 6단계: Desktop 품절 버튼 체크
@@ -132,17 +155,17 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
       this.BUTTON_SELECTORS.desktopSoldout,
     );
     if (hasSoldout) {
-      return this.createStatus("SoldOut", "품절");
+      return this.createStatus(SaleStatus.SoldOut);
     }
 
     // 7단계: 가격 존재 여부 체크 (Mobile 우선)
     const hasPrice = await this.hasAnyElement(page, this.SELECTORS.price);
     if (hasPrice) {
-      return this.createStatus("InStock", "판매중");
+      return this.createStatus(SaleStatus.InStock);
     }
 
     // 8단계: 기본값
-    return this.createStatus("Discontinued", "판매 중지");
+    return this.createStatus(SaleStatus.Discontinued);
   }
 
   /**
@@ -186,19 +209,23 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
    */
   private async is404Page(page: Page): Promise<boolean> {
     // 1. URL 체크
-    if (page.url().includes("invalid.do") || page.url().includes("nogoods")) {
+    const url = page.url();
+    const hasErrorUrl = this.ERROR_URL_PATTERNS.some((pattern) =>
+      url.includes(pattern),
+    );
+    if (hasErrorUrl) {
       return true;
     }
 
     // 2. 에러 메시지 체크
     const bodyText = await page.textContent("body");
-    if (
-      bodyText?.includes("상품을 찾을 수 없습니다") ||
-      bodyText?.includes("상품을 찾을 수 없어요") ||
-      bodyText?.includes("판매종료") ||
-      bodyText?.includes("판매 중지")
-    ) {
-      return true;
+    if (bodyText) {
+      const hasErrorMessage = this.ERROR_MESSAGES.some((message) =>
+        bodyText.includes(message),
+      );
+      if (hasErrorMessage) {
+        return true;
+      }
     }
 
     return await DOMHelper.hasElement(page, this.SELECTORS.errorPage);
@@ -234,22 +261,39 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
       const text = (await button.textContent())?.trim() || "";
       const isVisible = await button.isVisible();
 
-      // 버튼 텍스트 기반 상태 판단
+      // 버튼 텍스트 기반 상태 판단 (YAML 패턴 사용)
       let status: SaleStatusData | null = null;
 
-      if (text.includes("일시품절")) {
-        status = this.createStatus("OutOfStock", "일시품절");
-      } else if (text.includes("품절")) {
-        // "일시품절"이 아닌 일반 "품절"
-        status = this.createStatus("SoldOut", "품절");
-      } else if (
-        text.includes("바로구매") ||
-        text.includes("구매하기") ||
-        text.includes("장바구니")
+      // OutOfStock 체크 (우선순위: "일시품절"을 먼저 체크)
+      const isOutOfStock = this.BUTTON_TEXT_PATTERNS.out_of_stock.some(
+        (pattern) => text.includes(pattern),
+      );
+      if (isOutOfStock) {
+        status = this.createStatus(SaleStatus.OutOfStock);
+      }
+      // SoldOut 체크 ("일시품절"이 아닌 일반 "품절")
+      else if (
+        this.BUTTON_TEXT_PATTERNS.sold_out.some((pattern) =>
+          text.includes(pattern),
+        )
       ) {
-        status = this.createStatus("InStock", "판매중");
-      } else if (text.includes("전시기간") || text.includes("판매중지")) {
-        status = this.createStatus("Discontinued", "판매 중지");
+        status = this.createStatus(SaleStatus.SoldOut);
+      }
+      // InStock 체크
+      else if (
+        this.BUTTON_TEXT_PATTERNS.in_stock.some((pattern) =>
+          text.includes(pattern),
+        )
+      ) {
+        status = this.createStatus(SaleStatus.InStock);
+      }
+      // Discontinued 체크
+      else if (
+        this.BUTTON_TEXT_PATTERNS.discontinued.some((pattern) =>
+          text.includes(pattern),
+        )
+      ) {
+        status = this.createStatus(SaleStatus.Discontinued);
       }
 
       if (status) {
@@ -283,7 +327,7 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
       this.BUTTON_SELECTORS.desktopBuy,
     );
     if (hasBuyButton) {
-      return this.createStatus("InStock", "판매중");
+      return this.createStatus(SaleStatus.InStock);
     }
 
     // .btnBasket 체크
@@ -292,7 +336,7 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
       this.BUTTON_SELECTORS.desktopBasket,
     );
     if (hasBasketButton) {
-      return this.createStatus("InStock", "판매중");
+      return this.createStatus(SaleStatus.InStock);
     }
 
     return null;
@@ -302,17 +346,12 @@ export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
    * 판매 상태 데이터 생성
    *
    * @param saleStatus 판매 상태 코드
-   * @param statusText 상태 텍스트
    * @returns 판매 상태 데이터
    */
-  private createStatus(
-    saleStatus: SaleStatus,
-    statusText: string,
-  ): SaleStatusData {
+  private createStatus(saleStatus: SaleStatus): SaleStatusData {
     return {
       saleStatus,
-      statusText,
-      isAvailable: saleStatus === "InStock",
+      isAvailable: saleStatus === SaleStatus.InStock,
     };
   }
 }

@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, jest } from "@jest/globals";
 import type { Page } from "playwright";
 import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
 import type { ProductData } from "@/extractors/base";
+import { SaleStatus } from "@/extractors/base";
 
 describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
   let mockPage: Page;
@@ -26,8 +27,21 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
           "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
       ),
       textContent: jest.fn(() => Promise.resolve("정상 페이지")),
-      evaluate: jest.fn(), // 전처리 메서드용
+      evaluate: jest.fn() as any,
     } as any;
+
+    // evaluate mock 설정
+    (mockPage.evaluate as any).mockResolvedValue({
+      // detectPageType용 mock 응답
+      userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X)",
+      isMobileUA: true,
+      pathname: "/m/goods/getGoodsDetail.do",
+      isMobilePath: true,
+      url: "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
+      viewport: { width: 430, height: 932 },
+      hasMobileLayout: true,
+      hasDesktopLayout: false,
+    });
 
     // ExtractorRegistry 인스턴스
     registry = ExtractorRegistry.getInstance();
@@ -109,7 +123,7 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
       expect(result.price.currency).toBe("KRW");
 
       // SaleStatus 검증
-      expect(result.saleStatus.saleStatus).toBe("InStock");
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.InStock);
       expect(result.saleStatus.isAvailable).toBe(true);
     });
 
@@ -136,7 +150,7 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
       expect(result.price.price).toBe(0);
 
       // SaleStatus 실패 (기본값)
-      expect(result.saleStatus.saleStatus).toBe("Discontinued");
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.Discontinued);
       expect(result.saleStatus.isAvailable).toBe(false);
     });
   });
@@ -173,7 +187,7 @@ describe("BrowserScanner Integration - ExtractorRegistry 연동", () => {
 
       expect(result.metadata.productName).toBe("테스트");
       expect(result.price.price).toBe(10000);
-      expect(result.saleStatus.saleStatus).toBe("InStock");
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.InStock);
     });
 
     it("잘못된 extractor ID 시 에러 발생", () => {

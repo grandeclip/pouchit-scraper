@@ -11,17 +11,17 @@ import { describe, it, expect } from "@jest/globals";
 import type {
   ISaleStatusExtractor,
   SaleStatusData,
-  SaleStatus,
 } from "@/extractors/base/ISaleStatusExtractor";
+import { SaleStatus } from "@/extractors/base/ISaleStatusExtractor";
 
 describe("ISaleStatusExtractor Interface", () => {
   describe("SaleStatus 타입 검증", () => {
     it("schema.org ItemAvailability 표준 값만 허용해야 함", () => {
       const validStatuses: SaleStatus[] = [
-        "InStock",
-        "OutOfStock",
-        "SoldOut",
-        "Discontinued",
+        SaleStatus.InStock,
+        SaleStatus.OutOfStock,
+        SaleStatus.SoldOut,
+        SaleStatus.Discontinued,
       ];
 
       validStatuses.forEach((status) => {
@@ -37,66 +37,52 @@ describe("ISaleStatusExtractor Interface", () => {
   describe("SaleStatusData 타입 검증", () => {
     it("필수 필드를 포함해야 함", () => {
       const validData: SaleStatusData = {
-        saleStatus: "InStock",
+        saleStatus: SaleStatus.InStock,
         isAvailable: true,
       };
 
-      expect(validData.saleStatus).toBe("InStock");
+      expect(validData.saleStatus).toBe(SaleStatus.InStock);
       expect(validData.isAvailable).toBe(true);
     });
 
     it("재고 있음(InStock) 상태를 표현할 수 있음", () => {
       const inStockData: SaleStatusData = {
-        saleStatus: "InStock",
-        statusText: "판매중",
+        saleStatus: SaleStatus.InStock,
         isAvailable: true,
       };
 
-      expect(inStockData.saleStatus).toBe("InStock");
+      expect(inStockData.saleStatus).toBe(SaleStatus.InStock);
       expect(inStockData.isAvailable).toBe(true);
-      expect(inStockData.statusText).toBe("판매중");
     });
 
     it("일시품절(OutOfStock) 상태를 표현할 수 있음", () => {
       const outOfStockData: SaleStatusData = {
-        saleStatus: "OutOfStock",
-        statusText: "일시품절",
+        saleStatus: SaleStatus.OutOfStock,
         isAvailable: false,
       };
 
-      expect(outOfStockData.saleStatus).toBe("OutOfStock");
+      expect(outOfStockData.saleStatus).toBe(SaleStatus.OutOfStock);
       expect(outOfStockData.isAvailable).toBe(false);
     });
 
     it("완판(SoldOut) 상태를 표현할 수 있음", () => {
       const soldOutData: SaleStatusData = {
-        saleStatus: "SoldOut",
-        statusText: "품절",
+        saleStatus: SaleStatus.SoldOut,
         isAvailable: false,
       };
 
-      expect(soldOutData.saleStatus).toBe("SoldOut");
+      expect(soldOutData.saleStatus).toBe(SaleStatus.SoldOut);
       expect(soldOutData.isAvailable).toBe(false);
     });
 
     it("판매종료(Discontinued) 상태를 표현할 수 있음", () => {
       const discontinuedData: SaleStatusData = {
-        saleStatus: "Discontinued",
-        statusText: "판매종료",
+        saleStatus: SaleStatus.Discontinued,
         isAvailable: false,
       };
 
-      expect(discontinuedData.saleStatus).toBe("Discontinued");
+      expect(discontinuedData.saleStatus).toBe(SaleStatus.Discontinued);
       expect(discontinuedData.isAvailable).toBe(false);
-    });
-
-    it("statusText는 선택 필드임", () => {
-      const minimalData: SaleStatusData = {
-        saleStatus: "InStock",
-        isAvailable: true,
-      };
-
-      expect(minimalData.statusText).toBeUndefined();
     });
   });
 
@@ -104,7 +90,7 @@ describe("ISaleStatusExtractor Interface", () => {
     it("extract 메서드를 구현해야 함", async () => {
       const mockExtractor: ISaleStatusExtractor = {
         extract: async () => ({
-          saleStatus: "InStock",
+          saleStatus: SaleStatus.InStock,
           isAvailable: true,
         }),
       };
@@ -117,16 +103,14 @@ describe("ISaleStatusExtractor Interface", () => {
     it("Promise<SaleStatusData>를 반환해야 함", async () => {
       const mockExtractor: ISaleStatusExtractor = {
         extract: async () => ({
-          saleStatus: "OutOfStock",
-          statusText: "일시품절",
+          saleStatus: SaleStatus.OutOfStock,
           isAvailable: false,
         }),
       };
 
       const result = await mockExtractor.extract({} as any);
       expect(result).toMatchObject({
-        saleStatus: "OutOfStock",
-        statusText: "일시품절",
+        saleStatus: SaleStatus.OutOfStock,
         isAvailable: false,
       });
     });

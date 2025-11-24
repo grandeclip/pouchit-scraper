@@ -10,16 +10,21 @@
 import type { Page } from "playwright";
 
 /**
- * 판매 상태 타입 (schema.org ItemAvailability 기반)
+ * 판매 상태 Enum (schema.org ItemAvailability 기반)
  *
  * @see https://schema.org/ItemAvailability
  *
- * - InStock: 재고 있음 (판매 중)
- * - OutOfStock: 일시 품절
- * - SoldOut: 완판
- * - Discontinued: 판매 종료
+ * - InStock: 재고 있음 (판매 중) = 0
+ * - OutOfStock: 일시 품절 = 1
+ * - SoldOut: 완판 = 2
+ * - Discontinued: 판매 종료 = 3
  */
-export type SaleStatus = "InStock" | "OutOfStock" | "SoldOut" | "Discontinued";
+export enum SaleStatus {
+  InStock,
+  OutOfStock,
+  SoldOut,
+  Discontinued,
+}
 
 /**
  * 판매 상태 데이터 구조
@@ -27,9 +32,6 @@ export type SaleStatus = "InStock" | "OutOfStock" | "SoldOut" | "Discontinued";
 export interface SaleStatusData {
   /** 판매 상태 코드 (필수) */
   saleStatus: SaleStatus;
-
-  /** 판매 상태 텍스트 (예: "판매중", "일시품절") */
-  statusText?: string;
 
   /** 구매 가능 여부 (필수) */
   isAvailable: boolean;

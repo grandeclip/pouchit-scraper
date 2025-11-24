@@ -9,13 +9,24 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 import type { Page } from "playwright";
 import { OliveyoungMetadataExtractor } from "@/extractors/oliveyoung/OliveyoungMetadataExtractor";
 import type { MetadataData } from "@/extractors/base";
+import { ConfigLoader } from "@/config/ConfigLoader";
+import type { OliveyoungConfig } from "@/core/domain/OliveyoungConfig";
 
 describe("OliveyoungMetadataExtractor", () => {
   let extractor: OliveyoungMetadataExtractor;
   let mockPage: Page;
 
   beforeEach(() => {
-    extractor = new OliveyoungMetadataExtractor();
+    // Load from YAML
+    const config = ConfigLoader.getInstance().loadConfig(
+      "oliveyoung",
+    ) as OliveyoungConfig;
+    extractor = new OliveyoungMetadataExtractor(
+      config.selectors,
+      config.error_messages,
+      config.thumbnail_exclusions,
+      config.product_number_pattern,
+    );
     mockPage = {
       $eval: jest.fn(),
       $$eval: jest.fn(),

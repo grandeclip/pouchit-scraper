@@ -15,6 +15,7 @@ import { describe, it, expect, beforeAll, afterAll } from "@jest/globals";
 import { chromium, Browser, BrowserContext, Page } from "playwright";
 import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
 import type { ProductData } from "@/extractors/base";
+import { SaleStatus } from "@/extractors/base";
 
 describe("Oliveyoung Extractor E2E Test (실제 상품)", () => {
   let browser: Browser;
@@ -146,9 +147,12 @@ describe("Oliveyoung Extractor E2E Test (실제 상품)", () => {
     }
 
     // SaleStatus 검증
-    expect(["InStock", "OutOfStock", "SoldOut", "Discontinued"]).toContain(
-      result.saleStatus.saleStatus,
-    );
+    expect([
+      SaleStatus.InStock,
+      SaleStatus.OutOfStock,
+      SaleStatus.SoldOut,
+      SaleStatus.Discontinued,
+    ]).toContain(result.saleStatus.saleStatus);
     expect(typeof result.saleStatus.isAvailable).toBe("boolean");
   }, 60000); // 테스트 timeout 60초
 
@@ -174,9 +178,11 @@ describe("Oliveyoung Extractor E2E Test (실제 상품)", () => {
 
       // 품절 상태 검증
       expect(result.saleStatus.isAvailable).toBe(false);
-      expect(["OutOfStock", "SoldOut", "Discontinued"]).toContain(
-        result.saleStatus.saleStatus,
-      );
+      expect([
+        SaleStatus.OutOfStock,
+        SaleStatus.SoldOut,
+        SaleStatus.Discontinued,
+      ]).toContain(result.saleStatus.saleStatus);
     } catch (error) {
       console.warn("품절 상품 테스트 스킵 (URL 무효):", error);
       // 테스트 스킵 (품절 상품 URL이 유효하지 않을 수 있음)

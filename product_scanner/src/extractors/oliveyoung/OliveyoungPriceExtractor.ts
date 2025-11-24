@@ -22,20 +22,12 @@ import { PriceParser } from "@/extractors/common/PriceParser";
  */
 export class OliveyoungPriceExtractor implements IPriceExtractor {
   /**
-   * 가격 Selector 우선순위 (oliveyoung.yaml L350-353 기준)
-   */
-  /**
-   * 가격 Selector 우선순위 (Config 주입 또는 기본값)
+   * 가격 Selector 우선순위 (YAML에서 주입)
    */
   private readonly PRICE_SELECTORS: string[];
 
   constructor(selectors?: string[]) {
-    this.PRICE_SELECTORS = selectors && selectors.length > 0 ? selectors : [
-      ".info-group__price", // 1순위: Mobile
-      ".price", // 2순위: Desktop
-      '[class*="price"]', // 3순위: price 포함
-      ".prd_price", // 4순위
-    ];
+    this.PRICE_SELECTORS = selectors || [];
   }
 
   /**

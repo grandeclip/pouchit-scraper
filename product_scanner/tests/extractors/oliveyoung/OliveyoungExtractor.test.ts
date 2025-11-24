@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach } from "@jest/globals";
 import type { Page } from "playwright";
 import { OliveyoungExtractor } from "@/extractors/oliveyoung/OliveyoungExtractor";
 import type { ProductData } from "@/extractors/base";
+import { SaleStatus } from "@/extractors/base";
 
 describe("OliveyoungExtractor", () => {
   let extractor: OliveyoungExtractor;
@@ -27,7 +28,17 @@ describe("OliveyoungExtractor", () => {
           "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
       ),
       textContent: jest.fn(),
-      evaluate: jest.fn().mockResolvedValue(undefined), // 전처리 메서드용
+      evaluate: jest.fn().mockResolvedValue({
+        // detectPageType용 mock 응답
+        userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X)",
+        isMobileUA: true,
+        pathname: "/m/goods/getGoodsDetail.do",
+        isMobilePath: true,
+        url: "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=A000000231509",
+        viewport: { width: 430, height: 932 },
+        hasMobileLayout: true,
+        hasDesktopLayout: false,
+      }),
     } as any;
   });
 
@@ -90,7 +101,7 @@ describe("OliveyoungExtractor", () => {
       expect(result.price.discountRate).toBe(30);
 
       // SaleStatus 검증
-      expect(result.saleStatus.saleStatus).toBe("InStock");
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.InStock);
       expect(result.saleStatus.isAvailable).toBe(true);
     });
 
@@ -189,7 +200,7 @@ describe("OliveyoungExtractor", () => {
       expect(result.price.price).toBe(0);
 
       // SaleStatus 실패 (Discontinued)
-      expect(result.saleStatus.saleStatus).toBe("Discontinued");
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.Discontinued);
     });
   });
 
@@ -208,7 +219,7 @@ describe("OliveyoungExtractor", () => {
 
       expect(result.metadata.productName).toBe("");
       expect(result.price.price).toBe(0);
-      expect(result.saleStatus.saleStatus).toBe("Discontinued");
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.Discontinued);
     });
 
     it("부분 성공 시에도 정상 동작", async () => {
@@ -234,7 +245,7 @@ describe("OliveyoungExtractor", () => {
       expect(result.price.price).toBe(15000);
 
       // 실패한 부분 (기본값)
-      expect(result.saleStatus.saleStatus).toBe("Discontinued");
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.Discontinued);
     });
   });
 
@@ -274,7 +285,7 @@ describe("OliveyoungExtractor", () => {
           currency: expect.any(String),
         }),
         saleStatus: expect.objectContaining({
-          saleStatus: expect.any(String),
+          saleStatus: expect.any(Number), // Numeric enum
           isAvailable: expect.any(Boolean),
         }),
       });

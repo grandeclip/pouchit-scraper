@@ -30,14 +30,18 @@ platform_settings:
 # 공통 Selectors (TypeScript에서 참조)
 selectors:
   productName:
-    - "h3"
-    - ".info-group__title"
-    - ".prd_name"
+    - ".info-group__title"  # 1순위: Mobile
+    - ".prd_name"  # 2순위: Desktop
+    - '[class*="goods"][class*="name"]'  # 3순위
+    - '[class*="product"][class*="name"]'  # 4순위
+    - '[class*="title"]'  # 5순위
+    - "h1"  # 6순위
+    - ".goods_name"  # 7순위
 
   price:
     - ".info-group__price"
     - ".price"
-    - "[class*='price']"
+    - '[class*="price"]'  # 큰따옴표로 통일
     - ".prd_price"
   
   saleStatus:
@@ -63,7 +67,7 @@ selectors:
   brand:
     - ".top-utils__brand-link"
     - ".prd_brand"
-    - "[class*='brand']"
+    - '[class*="brand"]'  # 큰따옴표로 통일
     - ".brand-name"
 
   thumbnail:
@@ -78,8 +82,8 @@ selectors:
     - ".popup"
     - ".modal"
     - ".coupon-banner"
-    - "[class*='banner']"
-    - "[class*='popup']"
+    - '[class*="banner"]'  # 큰따옴표로 통일
+    - '[class*="popup"]'  # 큰따옴표로 통일
 
 # 상수 정의 (Constants)
 constants:
@@ -118,12 +122,15 @@ button_text_patterns:
     - "단종"
 
 # 에러 메시지 패턴 (Error Detection)
+# 실전 검증됨 (OliveyoungSaleStatusExtractor, OliveyoungMetadataExtractor)
 error_messages:
-  - "일시적인 오류"
+  # 404 에러 메시지
+  - "상품을 찾을 수 없습니다"
+  - "상품을 찾을 수 없어요"
   - "페이지를 찾을 수 없습니다"
-  - "상품이 존재하지 않습니다"
-  - "삭제된 상품"
-  - "판매가 종료된 상품"
+  # 판매 중지 메시지
+  - "판매종료"
+  - "판매 중지"
 
 # URL 패턴 (Error Detection)
 error_url_patterns:
