@@ -141,6 +141,7 @@ export class HwahaeProduct implements IProduct {
 
   /**
    * 팩토리 메서드: API 응답으로부터 HwahaeProduct 생성
+   * @deprecated Use fromProductData() with HwahaeExtractor instead
    */
   static fromApiResponse(apiData: HwahaeApiResponse): HwahaeProduct {
     return new HwahaeProduct(
@@ -150,6 +151,42 @@ export class HwahaeProduct implements IProduct {
       apiData.consumer_price,
       apiData.price,
       HwahaeProduct.mapSaleStatus(apiData.sale_status),
+    );
+  }
+
+  /**
+   * 팩토리 메서드: ProductData로부터 HwahaeProduct 생성 (Extractor 기반)
+   *
+   * 전략:
+   * - HwahaeExtractor로 추출된 ProductData 사용
+   * - YAML fieldMapping 준수
+   * - SaleStatus enum (InStock/SoldOut/Discontinued) → CSV 형식 변환
+   *
+   * @param goodsId 상품 ID (API response.id)
+   * @param productData Extractor로 추출된 상품 데이터
+   */
+  static fromProductData(
+    goodsId: string,
+    productData: import("@/extractors/base").ProductData,
+  ): HwahaeProduct {
+    // SaleStatus enum → CSV 형식 변환
+    const saleStatusMap = {
+      [0]: "on_sale", // InStock
+      [1]: "on_sale", // OutOfStock (화해는 OutOfStock 없음)
+      [2]: "sold_out", // SoldOut
+      [3]: "off_sale", // Discontinued
+    } as const;
+
+    const saleStatus =
+      saleStatusMap[productData.saleStatus.saleStatus as 0 | 1 | 2 | 3];
+
+    return new HwahaeProduct(
+      goodsId,
+      productData.metadata.productName,
+      productData.metadata.thumbnail || "",
+      productData.price.originalPrice || productData.price.price,
+      productData.price.price,
+      saleStatus,
     );
   }
 }

@@ -30,7 +30,12 @@ import {
   ButtonTextPatterns,
 } from "@/core/domain/OliveyoungConfig";
 
-export class OliveyoungSaleStatusExtractor implements ISaleStatusExtractor {
+/**
+ * @implements {ISaleStatusExtractor<Page>} Playwright Page 기반 추출
+ */
+export class OliveyoungSaleStatusExtractor
+  implements ISaleStatusExtractor<Page>
+{
   /**
    * Button Selector 목록
    */

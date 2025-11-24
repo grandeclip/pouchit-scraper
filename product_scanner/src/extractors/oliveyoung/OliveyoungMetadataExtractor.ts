@@ -17,10 +17,12 @@ import { DOMHelper } from "@/extractors/common/DOMHelper";
  * - 상품명: 7개 selector 순차 시도 (3글자 이상)
  * - 브랜드: 4개 selector 순차 시도
  * - 썸네일: 5가지 전략 + 상품번호 검증 (A\d{12})
+ *
+ * @implements {IMetadataExtractor<Page>} Playwright Page 기반 추출
  */
 import { OliveyoungSelectors } from "@/core/domain/OliveyoungConfig";
 
-export class OliveyoungMetadataExtractor implements IMetadataExtractor {
+export class OliveyoungMetadataExtractor implements IMetadataExtractor<Page> {
   /**
    * 상품명 Selector 우선순위
    */

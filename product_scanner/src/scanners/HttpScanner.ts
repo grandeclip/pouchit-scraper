@@ -15,6 +15,8 @@ import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { HwahaeConfig } from "@/core/domain/HwahaeConfig";
 import { HttpStrategyConfig } from "@/core/domain/StrategyConfig";
 import { HwahaeProduct, HwahaeApiResponse } from "@/core/domain/HwahaeProduct";
+import { IProductExtractor } from "@/extractors/base";
+import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
 
 /**
  * HTTP 스캐너
@@ -24,8 +26,13 @@ export class HttpScanner extends BaseScanner<
   HwahaeProduct,
   HwahaeConfig
 > {
+  private readonly extractor: IProductExtractor<HwahaeApiResponse>;
+
   constructor(config: HwahaeConfig, strategy: HttpStrategyConfig) {
     super(config, strategy);
+    // DIP: Interface에 의존 (Singleton Registry로부터 조회)
+    const registry = ExtractorRegistry.getInstance();
+    this.extractor = registry.get(config.platform);
   }
 
   /**
@@ -57,11 +64,19 @@ export class HttpScanner extends BaseScanner<
 
   /**
    * 데이터 파싱 (API 응답 → 도메인 모델)
+   *
+   * 전략:
+   * 1. HwahaeExtractor로 ProductData 추출 (YAML 기반)
+   * 2. ProductData → HwahaeProduct 변환
    */
   protected async parseData(
     rawData: HwahaeApiResponse,
   ): Promise<HwahaeProduct> {
-    return HwahaeProduct.fromApiResponse(rawData);
+    // Extractor로 데이터 추출 (YAML fieldMapping 준수)
+    const productData = await this.extractor.extract(rawData);
+
+    // ProductData → HwahaeProduct 변환
+    return HwahaeProduct.fromProductData(String(rawData.id), productData);
   }
 
   /**

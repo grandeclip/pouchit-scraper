@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
 import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
 import { OliveyoungExtractor } from "@/extractors/oliveyoung/OliveyoungExtractor";
+import { HwahaeExtractor } from "@/extractors/hwahae/HwahaeExtractor";
 import type { IProductExtractor } from "@/extractors/base";
 
 describe("ExtractorRegistry", () => {
@@ -95,12 +96,23 @@ describe("ExtractorRegistry", () => {
       expect(extractor).toBeInstanceOf(OliveyoungExtractor);
     });
 
+    it("hwahae Extractor가 기본 등록되어 있어야 함", () => {
+      const extractor = registry.get("hwahae");
+
+      expect(extractor).toBeDefined();
+      expect(extractor).toBeInstanceOf(HwahaeExtractor);
+    });
+
     it("기본 등록된 Extractor는 즉시 사용 가능해야 함", () => {
-      const extractor = registry.get("oliveyoung");
+      const oliveyoungExtractor = registry.get("oliveyoung");
+      const hwahaeExtractor = registry.get("hwahae");
 
       // extract 메서드 존재 확인
-      expect(extractor.extract).toBeDefined();
-      expect(typeof extractor.extract).toBe("function");
+      expect(oliveyoungExtractor.extract).toBeDefined();
+      expect(typeof oliveyoungExtractor.extract).toBe("function");
+
+      expect(hwahaeExtractor.extract).toBeDefined();
+      expect(typeof hwahaeExtractor.extract).toBe("function");
     });
   });
 

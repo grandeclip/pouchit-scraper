@@ -159,54 +159,10 @@ strategies:
   #         }
 
 # 필드 매핑 규칙
-fieldMapping:
-  # 상품명
-  productName:
-    source: "name"
-    type: "string"
-    required: true
-
-  # 썸네일 (첫 번째 타이틀 이미지)
-  thumbnail:
-    source: "title_images[0]"
-    type: "string"
-    required: true
-    # URL 정규화: 쿼리 파라미터 제거
-    normalize: true
-
-  # 정가 (consumer_price)
-  originalPrice:
-    source: "consumer_price"
-    type: "number"
-    required: true
-
-  # 판매가 (price)
-  discountedPrice:
-    source: "price"
-    type: "number"
-    required: true
-
-  # 판매 상태
-  saleStatus:
-    source: "sale_status"
-    type: "enum"
-    required: true
-    # API → CSV 매핑
-    mapping:
-      SELNG: "on_sale"      # 판매중
-      SLDOT: "sold_out"     # 솔드아웃
-      STSEL: "off_sale"     # 판매중지
-
-# 검증 규칙
-validation:
-  # 가격 변동 임계값 (10% 이상 차이나면 warning)
-  priceThreshold: 0.10
-
-  # URL 정규화 (쿼리 파라미터 제거)
-  normalizeUrls: true
-
-  # 엄격한 매칭 모드
-  strictMode: false
+# NOTE: 실제 매핑은 HwahaeExtractor에서 처리
+# - HwahaePriceExtractor: consumer_price → originalPrice, price → discountedPrice
+# - HwahaeSaleStatusExtractor: SELNG/SLDOT/STSEL → InStock/SoldOut/Discontinued
+# - HwahaeMetadataExtractor: name → productName, title_images[0] → thumbnail
 
 # 에러 처리
 errorHandling:

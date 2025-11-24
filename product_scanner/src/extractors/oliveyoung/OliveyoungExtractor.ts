@@ -25,8 +25,10 @@ import { logger } from "@/config/logger";
  * - Facade Pattern으로 3개 전문 Extractor 조합
  * - 병렬 처리로 성능 최적화
  * - 각 Extractor는 독립적으로 동작
+ *
+ * @implements {IProductExtractor<Page>} Playwright Page 기반 추출
  */
-export class OliveyoungExtractor implements IProductExtractor {
+export class OliveyoungExtractor implements IProductExtractor<Page> {
   private readonly priceExtractor: OliveyoungPriceExtractor;
   private readonly saleStatusExtractor: OliveyoungSaleStatusExtractor;
   private readonly metadataExtractor: OliveyoungMetadataExtractor;

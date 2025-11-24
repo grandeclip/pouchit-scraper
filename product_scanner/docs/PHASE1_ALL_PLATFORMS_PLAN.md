@@ -41,39 +41,42 @@
 
 #### 작업 체크리스트
 
-- [ ] **1.1 기존 코드 분석**
-  - [ ] `hwahae.yaml` 분석 (API endpoint, headers)
-  - [ ] `HwahaeScannerFactory.ts` 분석 (parseDOM 로직)
-  - [ ] `HwahaeProduct.ts` 도메인 모델 확인
-  - [ ] 현재 API response 구조 파악
+- [x] **1.1 기존 코드 분석** ✅ 2025-01-24
+  - [x] `hwahae.yaml` 분석 (API endpoint, headers)
+  - [x] `HwahaeScannerFactory.ts` 분석 (HttpScanner 사용)
+  - [x] `HwahaeProduct.ts` 도메인 모델 확인
+  - [x] 현재 API response 구조 파악 (HwahaeApiResponse)
 
-- [ ] **1.2 Extractor 인터페이스 구현**
-  - [ ] `HwahaePriceExtractor.ts` (API response → PriceData)
-  - [ ] `HwahaeSaleStatusExtractor.ts` (API response → SaleStatusData)
-  - [ ] `HwahaeMetadataExtractor.ts` (API response → MetadataData)
+- [x] **1.2 Extractor 인터페이스 구현** ✅ 2025-01-24
+  - [x] `HwahaePriceExtractor.ts` (API response → PriceData)
+  - [x] `HwahaeSaleStatusExtractor.ts` (SELNG/SLDOT/STSEL → SaleStatus enum)
+  - [x] `HwahaeMetadataExtractor.ts` (name, title_images → MetadataData)
 
-- [ ] **1.3 통합 Extractor 생성**
-  - [ ] `HwahaeExtractor.ts` (Facade Pattern)
-  - [ ] API Fetcher 통합 (기존 HttpScanner 재사용)
-  - [ ] IProductExtractor 인터페이스 구현
+- [x] **1.3 통합 Extractor 생성** ✅ 2025-01-24
+  - [x] `HwahaeExtractor.ts` (Facade Pattern - 3개 전문 Extractor 조합)
+  - [x] HttpScanner에 Extractor 통합 (`parseData()` 수정)
+  - [x] IProductExtractor<HwahaeApiResponse> 구현
 
-- [ ] **1.4 ExtractorRegistry 등록**
-  - [ ] `ExtractorRegistry.ts`에 hwahae 등록
-  - [ ] Singleton 패턴 유지
+- [x] **1.4 ExtractorRegistry 등록** ✅ 2025-01-24
+  - [x] `ExtractorRegistry.ts`에 hwahae 등록 (`IProductExtractor<any>`)
+  - [x] Singleton 패턴 유지
 
-- [ ] **1.5 YAML 설정 업데이트**
-  - [ ] `hwahae.yaml`에 `extractor: "hwahae"` 추가
-  - [ ] API 전략 우선순위 유지
+- [x] **1.5 YAML 설정 업데이트** ✅ 2025-01-24
+  - [x] `hwahae.yaml` 불필요 fieldMapping 제거
+  - [x] Extractor 매핑 정보 주석으로 문서화
+  - [x] API 전략 우선순위 유지
 
-- [ ] **1.6 테스트 작성**
-  - [ ] Unit 테스트 (각 Extractor)
-  - [ ] Integration 테스트 (HwahaeExtractor)
-  - [ ] E2E 테스트 (선택적)
+- [x] **1.6 테스트 작성** ✅ 2025-01-24
+  - [x] Unit 테스트 (HwahaePriceExtractor: 5 tests)
+  - [x] Unit 테스트 (HwahaeSaleStatusExtractor: 4 tests)
+  - [x] Unit 테스트 (HwahaeMetadataExtractor: 8 tests)
+  - [x] Integration 테스트 (HwahaeExtractor: 4 tests)
+  - [x] ExtractorRegistry 테스트 업데이트 (2 tests 추가)
 
-- [ ] **1.7 검증**
-  - [ ] TypeScript 컴파일 (0 errors)
-  - [ ] 테스트 통과
-  - [ ] 실제 API 호출 검증
+- [x] **1.7 검증** ✅ 2025-01-24
+  - [x] TypeScript 컴파일 (0 errors)
+  - [x] 테스트 통과 (21 hwahae tests, 157 total)
+  - [x] 실제 워크플로우 검증 (`LIMIT=4 test-hwahae-workflow.sh` - 4/4 성공)
 
 ---
 
@@ -369,7 +372,7 @@
 
 ### 전체 진행률
 
-- [ ] Hwahae (0/7 단계)
+- [x] Hwahae (0/7 단계)
 - [ ] Musinsa (0/7 단계)
 - [ ] Ably (0/7 단계)
 - [ ] ZigZag (0/7 단계)

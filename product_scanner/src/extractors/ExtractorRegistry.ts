@@ -8,24 +8,25 @@
 
 import type { IProductExtractor } from "@/extractors/base";
 import { OliveyoungExtractor } from "@/extractors/oliveyoung/OliveyoungExtractor";
+import { HwahaeExtractor } from "@/extractors/hwahae/HwahaeExtractor";
 
 /**
  * Extractor 중앙 관리 Registry (Singleton)
  *
  * 전략:
  * - Singleton Pattern으로 전역 단일 인스턴스
- * - Map<string, IProductExtractor>로 Extractor 저장
- * - 기본 Extractor 자동 등록 (oliveyoung 등)
+ * - Map<string, IProductExtractor<any>>로 다양한 타입 Extractor 저장
+ * - 기본 Extractor 자동 등록 (oliveyoung, hwahae 등)
  */
 export class ExtractorRegistry {
   private static instance: ExtractorRegistry;
-  private readonly extractors: Map<string, IProductExtractor>;
+  private readonly extractors: Map<string, IProductExtractor<any>>;
 
   /**
    * Private constructor (Singleton)
    */
   private constructor() {
-    this.extractors = new Map<string, IProductExtractor>();
+    this.extractors = new Map<string, IProductExtractor<any>>();
     this.registerDefaults();
   }
 
@@ -45,34 +46,37 @@ export class ExtractorRegistry {
    * 기본 Extractor 등록
    *
    * 플랫폼별 Extractor를 기본 등록:
-   * - oliveyoung: OliveyoungExtractor
-   * - 향후 추가: hwahae, musinsa, kurly 등
+   * - oliveyoung: OliveyoungExtractor (Playwright 기반)
+   * - hwahae: HwahaeExtractor (HTTP API 기반)
+   * - 향후 추가: musinsa, ably, zigzag, kurly 등
    */
   private registerDefaults(): void {
     this.register("oliveyoung", new OliveyoungExtractor());
+    this.register("hwahae", new HwahaeExtractor());
   }
 
   /**
    * Extractor 등록
    *
    * @param id Extractor ID (플랫폼명)
-   * @param extractor IProductExtractor 구현체
+   * @param extractor IProductExtractor 구현체 (모든 입력 타입 지원)
    */
-  register(id: string, extractor: IProductExtractor): void {
+  register(id: string, extractor: IProductExtractor<any>): void {
     this.extractors.set(id, extractor);
   }
 
   /**
    * Extractor 조회
    *
-   * @param id Extractor ID (예: "oliveyoung")
-   * @returns IProductExtractor 구현체
+   * @param id Extractor ID (예: "oliveyoung", "hwahae")
+   * @returns IProductExtractor 구현체 (모든 입력 타입 지원)
    * @throws {Error} Extractor가 없는 경우 (등록된 ID 목록 포함)
    *
    * @example
-   * const extractor = registry.get("oliveyoung");
+   * const extractor = registry.get("oliveyoung"); // IProductExtractor<Page>
+   * const hwahaeExtractor = registry.get("hwahae"); // IProductExtractor<HwahaeApiResponse>
    */
-  get(id: string): IProductExtractor {
+  get(id: string): IProductExtractor<any> {
     const extractor = this.extractors.get(id);
 
     if (!extractor) {

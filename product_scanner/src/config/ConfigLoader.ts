@@ -79,7 +79,7 @@ export class ConfigLoader {
     if (!config.platform) throw new Error("platform is required");
     if (!config.baseUrl) throw new Error("baseUrl is required");
     if (!config.endpoints) throw new Error("endpoints is required");
-    if (!config.fieldMapping) throw new Error("fieldMapping is required");
+    // fieldMapping은 optional (Extractor 패턴 사용 시 불필요)
 
     // 다중 전략 검증
     if (!config.strategies || config.strategies.length === 0) {

@@ -27,15 +27,19 @@ export interface PriceData {
 /**
  * 가격 정보 추출기 인터페이스
  *
- * 구현체는 Playwright Page에서 가격 정보를 추출하여
- * PriceData 구조로 반환해야 함
+ * Generic 타입으로 다양한 입력 형식 지원:
+ * - Page: Playwright DOM 기반 추출 (oliveyoung, ably, kurly)
+ * - ApiResponse: HTTP API 기반 추출 (hwahae, musinsa)
+ * - GraphQLResponse: GraphQL 기반 추출 (zigzag)
+ *
+ * @template TInput 입력 데이터 타입 (기본값: Page)
  */
-export interface IPriceExtractor {
+export interface IPriceExtractor<TInput = Page> {
   /**
    * 가격 정보 추출
    *
-   * @param page Playwright Page 객체
+   * @param input 입력 데이터 (Page, ApiResponse, GraphQLResponse 등)
    * @returns 추출된 가격 데이터
    */
-  extract(page: Page): Promise<PriceData>;
+  extract(input: TInput): Promise<PriceData>;
 }

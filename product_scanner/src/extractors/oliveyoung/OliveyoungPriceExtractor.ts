@@ -19,8 +19,10 @@ import { PriceParser } from "@/extractors/common/PriceParser";
  * 3. 가격 분리:
  *    - 할인 있음: 정가(첫번째), 판매가(마지막)
  *    - 할인 없음: 단일 가격
+ *
+ * @implements {IPriceExtractor<Page>} Playwright Page 기반 추출
  */
-export class OliveyoungPriceExtractor implements IPriceExtractor {
+export class OliveyoungPriceExtractor implements IPriceExtractor<Page> {
   /**
    * 가격 Selector 우선순위 (YAML에서 주입)
    */
