@@ -59,6 +59,7 @@ export interface ProductSetSearchResult {
 export interface ProductSetSearchRequest {
   link_url_pattern?: string; // ILIKE 검색용
   sale_status?: string; // = 검색용
+  product_id?: string; // UUID (Multi-Platform 조회용)
   limit?: number; // 결과 개수 제한 (기본값: 3)
 }
 

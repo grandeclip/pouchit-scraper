@@ -33,3 +33,5 @@ export { UrlTemplateEngine } from "./url/UrlTemplateEngine";
 // Services
 export { ExtractByProductSetService } from "./ExtractByProductSetService";
 export { ExtractByUrlService } from "./ExtractByUrlService";
+export { ExtractByProductIdService } from "./ExtractByProductIdService";
+export type { MultiPlatformValidationResult } from "./ExtractByProductIdService";

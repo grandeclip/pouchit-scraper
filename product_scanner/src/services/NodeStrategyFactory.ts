@@ -20,6 +20,7 @@ import { ResultWriterNode } from "@/strategies/ResultWriterNode";
 import { UpdateProductSetNode } from "@/strategies/UpdateProductSetNode";
 import { ExtractSingleProductNode } from "@/strategies/ExtractSingleProductNode";
 import { ExtractUrlNode } from "@/strategies/ExtractUrlNode";
+import { ExtractMultiPlatformNode } from "@/strategies/ExtractMultiPlatformNode";
 import { logger } from "@/config/logger";
 
 /**
@@ -44,6 +45,8 @@ export class NodeStrategyFactory {
     this.registerStrategy(new ExtractSingleProductNode());
     // Phase 2: URL 기반 상품 추출 노드
     this.registerStrategy(new ExtractUrlNode());
+    // Phase 2: Multi-Platform 상품 추출 노드
+    this.registerStrategy(new ExtractMultiPlatformNode());
   }
 
   /**

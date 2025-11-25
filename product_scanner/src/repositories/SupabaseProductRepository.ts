@@ -71,6 +71,7 @@ export class SupabaseProductRepository implements IProductRepository {
     const {
       link_url_pattern,
       sale_status,
+      product_id,
       limit = API_CONFIG.DEFAULT_SEARCH_LIMIT,
     } = request;
 
@@ -78,6 +79,7 @@ export class SupabaseProductRepository implements IProductRepository {
       {
         link_url_pattern,
         sale_status,
+        product_id,
         limit,
       },
       "[Repository] 상품 검색 시작",
@@ -90,6 +92,10 @@ export class SupabaseProductRepository implements IProductRepository {
         .select(this.defaultFields.join(", "));
 
       // WHERE 조건 추가
+      if (product_id) {
+        query = query.eq("product_id", product_id);
+      }
+
       if (link_url_pattern) {
         query = query.ilike("link_url", `%${link_url_pattern}%`);
       }

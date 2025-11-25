@@ -92,6 +92,47 @@ export class ProductSearchService implements IProductSearchService {
   }
 
   /**
+   * product_id로 상품 목록 조회 (Multi-Platform용)
+   * @param productId Supabase product_id (UUID)
+   * @param saleStatus 판매 상태 필터 (optional: "on_sale" | "off_sale" | undefined=전체)
+   * @returns 해당 product_id를 가진 상품 목록
+   */
+  async searchByProductId(
+    productId: string,
+    saleStatus?: string,
+  ): Promise<ProductSetSearchResult[]> {
+    logger.info({ productId, saleStatus }, "product_id 기반 상품 검색 시작");
+
+    try {
+      // product_id로 검색 (limit 100으로 충분히)
+      const request: ProductSetSearchRequest = {
+        product_id: productId,
+        limit: 100,
+      };
+
+      // saleStatus가 있으면 필터 추가 (all인 경우 undefined로 전체 검색)
+      if (saleStatus && saleStatus !== "all") {
+        request.sale_status = saleStatus;
+      }
+
+      const results = await this.searchProducts(request);
+
+      logger.info(
+        { productId, saleStatus, count: results.length },
+        "product_id 기반 상품 검색 완료",
+      );
+
+      return results;
+    } catch (error) {
+      logger.error(
+        { error, productId, saleStatus },
+        "product_id 기반 상품 검색 실패",
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Supabase 연결 상태 확인
    * @returns 연결 여부
    */

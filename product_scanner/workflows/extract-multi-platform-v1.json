@@ -1,0 +1,37 @@
+{
+  "defaults": {
+    "platform": "multi_platform",
+    "product_id": "",
+    "sale_status": ""
+  },
+  "description": "product_id 기반 멀티 플랫폼 상품 추출 (플랫폼별 그룹화 + 순차 처리)",
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-11-25",
+    "tags": [
+      "extract",
+      "multi-platform",
+      "phase2"
+    ]
+  },
+  "name": "Extract Multi-Platform Products",
+  "nodes": {
+    "1": {
+      "config": {
+        "product_id": "${product_id}",
+        "sale_status": "${sale_status}"
+      },
+      "name": "Extract Products by ProductId (Multi-Platform)",
+      "next_nodes": [],
+      "retry": {
+        "backoff_ms": 2000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 300000,
+      "type": "extract_multi_platform"
+    }
+  },
+  "start_node": "1",
+  "version": "1.0.0",
+  "workflow_id": "extract-multi-platform-v1"
+}
