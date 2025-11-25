@@ -11,6 +11,7 @@ import { OliveyoungExtractor } from "@/extractors/oliveyoung/OliveyoungExtractor
 import { HwahaeExtractor } from "@/extractors/hwahae/HwahaeExtractor";
 import { MusinsaExtractor } from "@/extractors/musinsa/MusinsaExtractor";
 import { AblyExtractor } from "@/extractors/ably/AblyExtractor";
+import { KurlyExtractor } from "@/extractors/kurly/KurlyExtractor";
 
 /**
  * Extractor 중앙 관리 Registry (Singleton)
@@ -52,13 +53,15 @@ export class ExtractorRegistry {
    * - hwahae: HwahaeExtractor (HTTP API 기반)
    * - musinsa: MusinsaExtractor (HTTP API 기반)
    * - ably: AblyExtractor (Playwright 기반, SSR 데이터 파싱)
-   * - 향후 추가: zigzag, kurly 등
+   * - kurly: KurlyExtractor (Playwright 기반, SSR 데이터 파싱)
+   * - 향후 추가: zigzag 등
    */
   private registerDefaults(): void {
     this.register("oliveyoung", new OliveyoungExtractor());
     this.register("hwahae", new HwahaeExtractor());
     this.register("musinsa", new MusinsaExtractor());
     this.register("ably", new AblyExtractor());
+    this.register("kurly", new KurlyExtractor());
   }
 
   /**

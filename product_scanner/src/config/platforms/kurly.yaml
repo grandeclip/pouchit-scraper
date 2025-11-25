@@ -67,94 +67,10 @@ strategies:
           timeout: 2000
           description: "__NEXT_DATA__ 렌더링 대기"
 
-      # 데이터 추출 전략
+      # 데이터 추출 전략 (KurlyExtractor 사용)
       extraction:
-        method: "evaluate"
-        description: "Next.js __NEXT_DATA__에서 상품 정보 추출"
-        script: |
-          () => {
-            try {
-              // __NEXT_DATA__ script 태그 추출
-              const nextDataScript = document.querySelector('#__NEXT_DATA__');
-
-              if (!nextDataScript || !nextDataScript.textContent) {
-                // __NEXT_DATA__ 없음 = 상품 정보 없음
-                return {
-                  name: '상품 정보 없음',
-                  mainImageUrl: '',
-                  retailPrice: 0,
-                  discountedPrice: 0,
-                  isSoldOut: null,
-                  status: 'NOT_FOUND',
-                  _source: 'next_data_missing',
-                  _error: null
-                };
-              }
-
-              const nextData = JSON.parse(nextDataScript.textContent);
-              const product = nextData?.props?.pageProps?.product;
-
-              if (!product) {
-                // product 객체 없음 = 상품 정보 없음 or 변경됨
-                return {
-                  name: '상품 정보 없음',
-                  mainImageUrl: '',
-                  retailPrice: 0,
-                  discountedPrice: 0,
-                  isSoldOut: null,
-                  status: 'NOT_FOUND',
-                  _source: 'product_missing',
-                  _error: null
-                };
-              }
-
-              // 상품 상태 판단
-              const detectStatus = () => {
-                // isSoldOut이 null이면 상품 정보 변경/없음 상태
-                if (product.isSoldOut === null || product.isSoldOut === undefined) {
-                  return 'INFO_CHANGED';
-                }
-
-                // 재고 없음
-                if (product.isSoldOut === true) {
-                  return 'SOLD_OUT';
-                }
-
-                // 판매중
-                return 'ON_SALE';
-              };
-
-              // discountedPrice 추출 로직
-              // 1. product.discountedPrice가 있으면 사용
-              // 2. 없으면 product.basePrice 사용
-              // 3. 둘 다 없으면 0
-              const extractedDiscountedPrice = product.discountedPrice || product.basePrice || 0;
-
-              return {
-                name: product.name || '상품명 없음',
-                mainImageUrl: product.mainImageUrl || '',
-                retailPrice: product.retailPrice,
-                basePrice: product.basePrice || 0,
-                discountedPrice: extractedDiscountedPrice,
-                isSoldOut: product.isSoldOut,
-                status: detectStatus(),
-                _source: 'next_data',
-                _error: null
-              };
-
-            } catch (error) {
-              return {
-                name: '추출 실패',
-                mainImageUrl: '',
-                retailPrice: 0,
-                discountedPrice: 0,
-                isSoldOut: null,
-                status: 'ERROR',
-                _source: 'error',
-                _error: error.message || String(error)
-              };
-            }
-          }
+        extractor: "kurly"
+        description: "KurlyExtractor - Next.js __NEXT_DATA__ 파싱 기반"
 
 # 필드 매핑 규칙
 fieldMapping:
@@ -183,14 +99,14 @@ fieldMapping:
     type: "number"
     required: true
 
-  # 판매 상태
+  # 판매 상태 (시스템 정책: sold_out → off_sale)
   saleStatus:
     source: "status"
     type: "enum"
     required: true
     mapping:
       ON_SALE: "on_sale"          # 판매중
-      SOLD_OUT: "sold_out"        # 품절/재고없음
+      SOLD_OUT: "off_sale"        # 품절 → 시스템 정책상 off_sale
       INFO_CHANGED: "off_sale"    # 상품정보변경
       NOT_FOUND: "off_sale"       # 상품정보없음
       ERROR: "off_sale"           # 추출 실패

@@ -8,6 +8,7 @@
  */
 
 import { IProduct, SaleStatus } from "@/core/interfaces/IProduct";
+import type { ScriptExecutionResult } from "@/utils/PlaywrightScriptExecutor";
 
 /**
  * DOM 추출 판매 상태 (컬리 원본)
@@ -75,11 +76,12 @@ export class KurlyProduct implements IProduct {
 
   /**
    * DOM 판매 상태 → CSV 판매 상태 변환
+   * (시스템 정책: sold_out → off_sale)
    */
   static mapSaleStatus(domStatus: KurlyDomSaleStatus): SaleStatus {
     const mapping: Record<KurlyDomSaleStatus, SaleStatus> = {
       ON_SALE: "on_sale",
-      SOLD_OUT: "sold_out",
+      SOLD_OUT: "off_sale", // 시스템 정책: sold_out 미사용
       INFO_CHANGED: "off_sale",
       NOT_FOUND: "off_sale",
       ERROR: "off_sale",
@@ -104,9 +106,38 @@ export class KurlyProduct implements IProduct {
 
   /**
    * 팩토리 메서드: DOM 데이터로부터 KurlyProduct 생성
+   *
+   * 지원 형식:
+   * 1. KurlyDOMResponse (YAML script 원본)
+   * 2. ScriptExecutionResult (Extractor 기반)
+   *
+   * ScriptExecutionResult 필드 매핑:
+   * - name → productName
+   * - title_images[0] → thumbnail
+   * - consumer_price → originalPrice
+   * - price → discountedPrice
+   * - sale_status → saleStatus
    */
-  static fromDOMData(domData: KurlyDOMResponse): KurlyProduct {
-    // 정가 결정: retailPrice가 있으면 사용, 없으면 basePrice 사용
+  static fromDOMData(
+    domData: KurlyDOMResponse | ScriptExecutionResult,
+  ): KurlyProduct {
+    // ScriptExecutionResult 형식 감지 (_source === "extractor" 또는 title_images 존재)
+    const isExtractorResult =
+      domData._source === "extractor" || Array.isArray(domData.title_images);
+
+    if (isExtractorResult) {
+      // ScriptExecutionResult → KurlyProduct 변환
+      return new KurlyProduct(
+        String(domData.productId || "unknown"),
+        domData.name || "",
+        domData.title_images?.[0] || "",
+        Number(domData.consumer_price || 0),
+        Number(domData.price || 0),
+        KurlyProduct.mapSaleStatusFromCSV(domData.sale_status || "off_sale"),
+      );
+    }
+
+    // 기존 KurlyDOMResponse 형식 처리
     const originalPrice = domData.retailPrice ?? domData.basePrice;
 
     return new KurlyProduct(
@@ -117,6 +148,19 @@ export class KurlyProduct implements IProduct {
       domData.discountedPrice ?? domData.basePrice,
       KurlyProduct.mapSaleStatus(domData.status),
     );
+  }
+
+  /**
+   * CSV 판매 상태 → SaleStatus 변환
+   * (Extractor 결과용)
+   */
+  static mapSaleStatusFromCSV(csvStatus: string): SaleStatus {
+    const mapping: Record<string, SaleStatus> = {
+      on_sale: "on_sale",
+      sold_out: "sold_out",
+      off_sale: "off_sale",
+    };
+    return mapping[csvStatus] || "off_sale";
   }
 }
 

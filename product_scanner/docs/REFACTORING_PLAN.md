@@ -342,28 +342,28 @@ src/
 
 ### Phase 1: Extractor 분리 (우선순위: 최고)
 
-**진행 상황**: ✅ 60% 완료 (3/5 플랫폼)
+**진행 상황**: ✅ 80% 완료 (4/5 플랫폼)
 
-**완료된 플랫폼** (2025-01-24):
+**완료된 플랫폼**:
 
-1. **Oliveyoung** ✅
+1. **Oliveyoung** ✅ (2025-01-24)
    - 4개 Extractor (Price, SaleStatus, Metadata, Facade)
    - 570줄 YAML script → TypeScript 클래스
    - 135 tests 통과
    - E2E 테스트 통과
 
-2. **Hwahae** ✅
+2. **Hwahae** ✅ (2025-01-24)
    - HTTP API 기반 Extractor
    - 3개 전문 Extractor + Facade
    - 21 tests 통과
    - 실제 워크플로우 검증 (4/4 성공)
 
-3. **Musinsa** ✅
+3. **Musinsa** ✅ (2025-01-24)
    - HTTP API 기반 (Custom Scanner)
    - 3개 전문 Extractor + Facade
    - 테스트 통과
 
-4. **Ably** ✅
+4. **Ably** ✅ (2025-01-24)
    - Playwright 기반 (API 캡처 + SSR fallback)
    - 4개 Extractor (Price, SaleStatus, Metadata, Facade)
    - 146줄 YAML script → TypeScript 클래스
@@ -372,16 +372,22 @@ src/
    - Pino logger 통합
    - 실제 워크플로우 검증 (4/4 성공, 100% match)
 
+5. **Kurly** ✅ (2025-01-25)
+   - Playwright 기반 (**NEXT_DATA** SSR 파싱)
+   - 4개 Extractor (Price, SaleStatus, Metadata, Facade)
+   - 29 tests 통과
+   - isSoldOut null → INFO_CHANGED 특수 처리
+   - Pino logger 통합
+
 **공통 완료사항**:
 
 - ✅ Step 1.1-1.6 전체 완료 (베이스 인터페이스, 공통 유틸, Registry, Scanner 통합)
 - ✅ BrowserScanner, PlaywrightScriptExecutor에서 ExtractorRegistry 지원
-- ✅ 227 tests (215 passed, 12 skipped), TypeScript 0 errors
+- ✅ 250+ tests, TypeScript 0 errors
 
 **남은 플랫폼**:
 
 - [ ] ZigZag (GraphQL 기반)
-- [ ] Kurly (Playwright 기반)
 
 ---
 

@@ -16,12 +16,22 @@ import { ProductSetSearchResult } from "@/core/domain/ProductSet";
 import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
 import type { Page } from "playwright";
-import { PlaywrightScriptExecutor } from "@/utils/PlaywrightScriptExecutor";
+import {
+  PlaywrightScriptExecutor,
+  ScriptExecutionResult,
+} from "@/utils/PlaywrightScriptExecutor";
 import {
   KurlyProduct,
   KurlyDomSaleStatus,
   KurlyDOMResponse,
 } from "@/core/domain/KurlyProduct";
+
+/**
+ * Kurly 스크래핑 결과 타입 (Union)
+ * - KurlyDOMResponse: 기존 YAML script 결과
+ * - ScriptExecutionResult: Extractor 결과
+ */
+type KurlyScrapeResult = KurlyDOMResponse | ScriptExecutionResult;
 
 /**
  * Kurly Validation Node Strategy
@@ -31,11 +41,23 @@ export class KurlyValidationNode extends BaseValidationNode {
 
   /**
    * NOT_FOUND 응답 체크 (중복 로직 제거)
+   *
+   * 지원 형식:
+   * 1. KurlyDOMResponse: status === "NOT_FOUND"
+   * 2. ScriptExecutionResult (Extractor): sale_status === "off_sale" + name 체크
    */
-  private isNotFoundResponse(domData: KurlyDOMResponse): boolean {
+  private isNotFoundResponse(domData: KurlyScrapeResult): boolean {
     const notFoundMessages = ["상품 정보 없음", "추출 실패"];
     const notFoundSources = ["next_data_missing", "product_missing"];
 
+    // Extractor 결과는 name이 비어있거나 기본값이면 NOT_FOUND로 처리
+    if (domData._source === "extractor") {
+      // Extractor는 상품이 없으면 빈 name 또는 price=0 반환
+      const hasNoData = !domData.name || domData.name === "";
+      return hasNoData;
+    }
+
+    // 기존 KurlyDOMResponse 형식
     return (
       notFoundMessages.includes(domData.name) ||
       domData.status === "NOT_FOUND" ||
@@ -170,27 +192,39 @@ export class KurlyValidationNode extends BaseValidationNode {
             type: this.type,
             productSetId: product.product_set_id,
             productId,
-            reason: `name=${domData.name}, status=${domData.status}, source=${domData._source}`,
+            reason: `name=${domData.name}, status=${domData.status || domData.sale_status}, source=${domData._source}`,
           },
           "Not found 처리",
         );
         return this.createNotFoundValidation(product, "Kurly");
       }
 
-      // KurlyProduct 도메인 객체로 변환 (Type Validation 추가)
-      const validatedStatus = this.validateSaleStatus(domData.status);
-      const kurlyProduct = KurlyProduct.fromDOMData({
-        productId,
-        name: domData.name,
-        mainImageUrl: domData.mainImageUrl || "",
-        retailPrice: domData.retailPrice,
-        basePrice: domData.basePrice || 0,
-        discountedPrice: domData.discountedPrice,
-        isSoldOut: domData.isSoldOut,
-        status: validatedStatus,
-        _source: domData._source,
-        _error: domData._error,
-      });
+      // KurlyProduct 도메인 객체로 변환
+      // Extractor 결과 (ScriptExecutionResult)와 기존 KurlyDOMResponse 모두 지원
+      let kurlyProduct: KurlyProduct;
+
+      if (domData._source === "extractor") {
+        // Extractor 결과: productId 추가 후 fromDOMData 호출
+        kurlyProduct = KurlyProduct.fromDOMData({
+          ...domData,
+          productId,
+        });
+      } else {
+        // 기존 KurlyDOMResponse 형식
+        const validatedStatus = this.validateSaleStatus(domData.status);
+        kurlyProduct = KurlyProduct.fromDOMData({
+          productId,
+          name: domData.name,
+          mainImageUrl: domData.mainImageUrl || "",
+          retailPrice: domData.retailPrice,
+          basePrice: domData.basePrice || 0,
+          discountedPrice: domData.discountedPrice,
+          isSoldOut: domData.isSoldOut,
+          status: validatedStatus,
+          _source: domData._source,
+          _error: domData._error,
+        });
+      }
       const plainObject = kurlyProduct.toPlainObject();
 
       // 비교 결과 생성
