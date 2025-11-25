@@ -403,34 +403,34 @@ export abstract class BaseScanner<TProduct extends IProduct>
 
 **Day 1-2**: 인터페이스 정의 및 기본 구조
 
-- [ ] `src/scrapers/controllers/IBrowserController.ts` 생성
-- [ ] `src/scrapers/controllers/BrowserConfig.ts` 타입 정의
-- [ ] `src/scrapers/controllers/NavigationStep.ts` 타입 정의
+- [x] `src/scrapers/controllers/IBrowserController.ts` 생성
+- [x] `src/scrapers/controllers/BrowserConfig.ts` 타입 정의 (IBrowserController.ts 내 포함)
+- [x] `src/scrapers/controllers/NavigationStep.ts` 타입 정의 (IBrowserController.ts 내 포함)
 
 **Day 3-4**: BrowserController 구현
 
-- [ ] `src/scrapers/controllers/BrowserController.ts` 구현
-- [ ] BrowserScanner에서 코드 이전 (doInitialize, cleanup 등)
-- [ ] BrowserPool 연동 로직 유지
+- [x] `src/scrapers/controllers/BrowserController.ts` 구현
+- [x] BrowserScanner에서 코드 이전 (doInitialize, cleanup 등)
+- [x] BrowserPool 연동 로직 유지
 
 **Day 5**: 테스트 및 통합
 
 - [ ] BrowserController 단위 테스트
-- [ ] BrowserScanner → BrowserController 호출 변경
-- [ ] 기존 테스트 통과 확인
+- [x] BrowserScanner → BrowserController 호출 변경
+- [x] 기존 테스트 통과 확인
 
 ### Week 2: Step 3.2 & 3.3 - Mapper & Validator
 
 **Day 1-2**: IProductMapper 및 플랫폼별 Mapper
 
-- [ ] `src/scrapers/mappers/IProductMapper.ts` 인터페이스
-- [ ] 6개 플랫폼 Mapper 구현
-- [ ] BrowserScanner의 parseDOM 콜백 대체
+- [x] `src/scrapers/mappers/IProductMapper.ts` 인터페이스
+- [x] 6개 플랫폼 Mapper 구현
+- [x] BrowserScanner의 parseDOM 콜백 대체 (parseDOM deprecated, mapper 권장)
 
 **Day 3-4**: ProductValidator 구현
 
-- [ ] `src/scrapers/validators/IProductValidator.ts` 인터페이스
-- [ ] `src/scrapers/validators/ProductValidator.ts` 공통 검증기
+- [x] `src/scrapers/validators/IProductValidator.ts` 인터페이스
+- [x] `src/scrapers/validators/ProductValidator.ts` 공통 검증기
 - [ ] 플랫폼별 추가 검증 로직 (필요시)
 
 **Day 5**: 통합 테스트
@@ -443,19 +443,21 @@ export abstract class BaseScanner<TProduct extends IProduct>
 
 **Day 1-2**: BaseScanner 리팩토링
 
-- [ ] 의존성 주입 구조로 변경
-- [ ] Template Method 패턴 적용
-- [ ] 기존 BrowserScanner 코드 정리
+- [x] 의존성 주입 구조로 변경 (BrowserController DI, Mapper optional DI)
+- [x] Template Method 패턴 적용 (BaseScanner.generic.ts 유지)
+- [x] 기존 BrowserScanner 코드 정리 (631줄 → 333줄)
 
 **Day 3-4**: 플랫폼별 Scanner 수정
 
-- [ ] OliveyoungScanner 수정 (신규 구조)
-- [ ] 나머지 플랫폼 Scanner 수정
+- [x] OliveyoungScannerFactory 수정 (Mapper 패턴)
+- [x] KurlyScannerFactory 수정 (Mapper 패턴)
+- [x] MusinsaScannerFactory 수정 (Mapper 패턴)
+- [x] Hwahae/Zigzag/Ably - 다른 Scanner 사용 (제외)
 
 **Day 5**: 검증 및 마무리
 
 - [ ] 모든 플랫폼 E2E 테스트
-- [ ] TypeScript 0 errors 확인
+- [x] TypeScript 0 errors 확인
 - [ ] 기존 Workflow 정상 동작 확인
 
 ---
@@ -577,12 +579,76 @@ class NewPlatformScanner extends BaseScanner<NewPlatformProduct> {
 
 ### Phase 3 완료 기준
 
-- [ ] BrowserController 분리 및 테스트
-- [ ] IProductMapper 인터페이스 및 6개 Mapper 구현
-- [ ] ProductValidator 구현
-- [ ] BaseScanner 리팩토링
-- [ ] 모든 플랫폼 Scanner 수정
-- [ ] TypeScript 0 errors
+- [x] BrowserController 분리 및 테스트
+- [x] IProductMapper 인터페이스 및 6개 Mapper 구현
+- [x] ProductValidator 구현
+- [x] BaseScanner 리팩토링
+- [x] BrowserScanner 기반 플랫폼 Scanner 수정 (Oliveyoung, Kurly, Musinsa)
+- [x] TypeScript 0 errors
 - [ ] 기존 테스트 100% 통과
 - [ ] 신규 단위 테스트 추가
-- [ ] 문서 업데이트
+- [x] 문서 업데이트
+
+---
+
+## 📝 구현 vs 계획 차이점 (2025-11-25)
+
+### 1. IBrowserController 인터페이스 차이
+
+| 항목        | 계획                             | 실제 구현                                             |
+| ----------- | -------------------------------- | ----------------------------------------------------- |
+| 페이지 생성 | `createPage(): Page` 별도 메서드 | 내부 관리 (`getPage()` 조회만)                        |
+| 네비게이션  | `navigate(page, steps, id)`      | `executeNavigation(id)` - Page 내부 관리              |
+| 초기화      | `initialize(BrowserConfig)`      | `initialize(BrowserInitOptions)` - strategy 직접 전달 |
+
+**이유**: BrowserController가 Page 생명주기 완전 캡슐화 → 더 단순한 API
+
+### 2. ProductValidator 확장
+
+| 항목      | 계획                                                   | 실제 구현                                                        |
+| --------- | ------------------------------------------------------ | ---------------------------------------------------------------- |
+| 결과 타입 | `valid: boolean`                                       | `isValid: boolean`                                               |
+| 경고 지원 | 없음                                                   | `warnings: ValidationWarning[]` 추가                             |
+| 판매 상태 | `["on_sale", "off_sale", "info_changed", "not_found"]` | `["on_sale", "sold_out", "off_sale"]` (IProduct.SaleStatus 일치) |
+| 옵션      | 없음                                                   | `ValidationOptions` (strict mode, maxDiscountRate 등)            |
+
+**이유**: 더 유연한 검증 (경고/에러 분리), IProduct 타입과 일관성
+
+### 3. BaseScanner DI 수준
+
+| 항목           | 계획                                               | 실제 구현                                  |
+| -------------- | -------------------------------------------------- | ------------------------------------------ |
+| 의존성 주입    | 완전 DI (controller, extractor, mapper, validator) | 부분 DI (mapper optional, controller 생성) |
+| Validator 통합 | scan() 내 validation 호출                          | 외부 사용 가능 (scan에는 미통합)           |
+| parseDOM       | 제거                                               | `@deprecated` 마킹, 하위 호환 유지         |
+
+**이유**: 기존 코드 하위 호환성 유지, 점진적 마이그레이션
+
+### 4. 플랫폼별 Scanner 범위
+
+| 플랫폼     | 계획 | 실제    | 비고                               |
+| ---------- | ---- | ------- | ---------------------------------- |
+| Oliveyoung | 수정 | ✅ 완료 | BrowserScanner + Mapper            |
+| Kurly      | 수정 | ✅ 완료 | BrowserScanner + Mapper            |
+| Musinsa    | 수정 | ✅ 완료 | BrowserScanner + Mapper            |
+| Hwahae     | 수정 | ⏭️ 제외 | HttpScanner/PlaywrightScanner 사용 |
+| Zigzag     | 수정 | ⏭️ 제외 | GraphQL/PlaywrightScanner 사용     |
+| Ably       | 수정 | ⏭️ 제외 | AblyBrowserScanner (커스텀) 사용   |
+
+**이유**: BrowserScanner 직접 사용하는 플랫폼만 수정, 다른 Scanner 클래스는 별도 리팩토링 필요
+
+### 5. 코드 감소율
+
+| 항목                   | 계획           | 실제                     |
+| ---------------------- | -------------- | ------------------------ |
+| BrowserScanner 라인 수 | 631줄 → ~150줄 | 631줄 → 333줄 (47% 감소) |
+
+**이유**: 하위 호환성 유지로 parseDOM 지원 코드 존재, 에러 처리 로직 유지
+
+### 6. 미완료 항목
+
+- [ ] BrowserController 단위 테스트
+- [ ] Mapper 단위 테스트
+- [ ] Validator 단위 테스트
+- [ ] E2E 테스트 검증
+- [ ] Hwahae/Zigzag/Ably Scanner 리팩토링 (Phase 4 후보)

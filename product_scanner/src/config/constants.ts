@@ -226,6 +226,13 @@ export const SCRAPER_CONFIG = {
    * 동적 콘텐츠 로딩 대기용
    */
   PAGE_RENDER_DELAY_MS: 3000,
+
+  /**
+   * 스크린샷 저장 디렉토리
+   * 환경변수: SCREENSHOT_DIR
+   * 기본값: /app/results/screenshots (Docker 환경)
+   */
+  SCREENSHOT_DIR: process.env.SCREENSHOT_DIR || "/app/results/screenshots",
 } as const;
 
 /**

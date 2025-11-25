@@ -5,44 +5,47 @@
  * Strategy Pattern 구현체 - Browser 전략
  * BaseScanner의 Template Method 패턴을 따름
  *
+ * Phase 3 리팩토링:
+ * - BrowserController에 브라우저 생명주기 위임
+ * - 데이터 추출/파싱 로직만 담당 (SRP)
+ *
  * SOLID 원칙:
- * - SRP: 브라우저 스크래핑만 담당
+ * - SRP: 데이터 추출/파싱만 담당 (브라우저 제어는 BrowserController)
  * - LSP: BaseScanner를 대체 가능
- * - DIP: 추상화에 의존 (IProduct, PlatformConfig)
+ * - DIP: IBrowserController, IProduct에 의존
  *
  * @template TDomData DOM 추출 데이터 타입
  * @template TProduct Product 타입 (IProduct 구현체)
  * @template TConfig Platform Config 타입
  */
 
-import { chromium as playwrightChromium } from "playwright";
-import { chromium } from "playwright-extra";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import type { Browser, BrowserContext, Page } from "playwright";
-import * as path from "path";
-import * as fs from "fs/promises";
+import type { Browser, Page } from "playwright";
 
 import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { IProduct } from "@/core/interfaces/IProduct";
 import { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
-import {
-  PlaywrightStrategyConfig,
-  StrategyConfig,
-} from "@/core/domain/StrategyConfig";
+import { PlaywrightStrategyConfig } from "@/core/domain/StrategyConfig";
 import { isPlaywrightStrategy } from "@/core/domain/StrategyConfig.guards";
 import { logger } from "@/config/logger";
-import { SCRAPER_CONFIG } from "@/config/constants";
 import {
   JsonLdSchemaExtractor,
   JsonLdConfig,
 } from "@/extractors/JsonLdSchemaExtractor";
-
-// Stealth 플러그인 적용
-chromium.use(StealthPlugin());
+import {
+  BrowserController,
+  IBrowserController,
+  ScreenshotOptions,
+} from "@/scrapers/controllers";
+import type { IProductMapper } from "@/scrapers/mappers";
+import type { ProductData } from "@/extractors/base";
 
 /**
  * Browser 스캐너 옵션
+ *
+ * parseDOM과 mapper 중 하나 선택:
+ * - parseDOM: 기존 콜백 방식 (하위 호환성)
+ * - mapper: IProductMapper 기반 (권장)
  */
 export interface BrowserScannerOptions<
   TDomData,
@@ -53,8 +56,16 @@ export interface BrowserScannerOptions<
   config: TConfig;
   /** Playwright 전략 설정 */
   strategy: PlaywrightStrategyConfig;
-  /** DOM 데이터 → Product 변환 함수 */
-  parseDOM: (domData: TDomData, id: string) => Promise<TProduct>;
+  /**
+   * DOM 데이터 → Product 변환 함수 (Legacy)
+   * @deprecated Use mapper instead
+   */
+  parseDOM?: (domData: TDomData, id: string) => Promise<TProduct>;
+  /**
+   * Product Mapper (권장)
+   * ProductData → Product 변환
+   */
+  mapper?: IProductMapper<TProduct>;
   /** 스크린샷 옵션 */
   screenshot?: {
     /** 스크린샷 활성화 여부 */
@@ -66,6 +77,8 @@ export interface BrowserScannerOptions<
   };
   /** 외부 Browser 인스턴스 (Pool 사용 시) */
   externalBrowser?: Browser;
+  /** 외부 BrowserController (DI용, 테스트 등) */
+  browserController?: IBrowserController;
 }
 
 /**
@@ -76,32 +89,36 @@ export class BrowserScanner<
   TProduct extends IProduct,
   TConfig extends PlatformConfig = PlatformConfig,
 > extends BaseScanner<TDomData, TProduct, TConfig> {
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
-  private page: Page | null = null;
-  private parseDOM: (domData: TDomData, id: string) => Promise<TProduct>;
+  private browserController: IBrowserController;
+  private parseDOM?: (domData: TDomData, id: string) => Promise<TProduct>;
+  private mapper?: IProductMapper<TProduct>;
   private lastScanId: string = "";
   private screenshotOptions?: {
     enabled: boolean;
     outputDir: string;
     jobId?: string;
   };
-  private externalBrowser: Browser | null = null;
-  private usingExternalBrowser: boolean = false;
-  private interceptedApiData: any = null; // Network intercept된 API 응답 저장
+  private externalBrowser?: Browser;
 
   constructor(options: BrowserScannerOptions<TDomData, TProduct, TConfig>) {
     super(options.config, options.strategy);
     this.parseDOM = options.parseDOM;
+    this.mapper = options.mapper;
     this.screenshotOptions = options.screenshot;
-    this.externalBrowser = options.externalBrowser || null;
-    this.usingExternalBrowser = !!options.externalBrowser;
+    this.externalBrowser = options.externalBrowser;
+
+    // mapper 또는 parseDOM 중 하나 필수
+    if (!this.mapper && !this.parseDOM) {
+      throw new Error("BrowserScanner requires either mapper or parseDOM");
+    }
+
+    // BrowserController 주입 (DI) 또는 기본 생성
+    this.browserController =
+      options.browserController || new BrowserController();
   }
 
   /**
    * Playwright 전략 설정 반환 (Type Guard)
-   *
-   * @throws {Error} Playwright 전략이 아닌 경우
    */
   private get playwrightStrategy(): PlaywrightStrategyConfig {
     if (!isPlaywrightStrategy(this.strategy)) {
@@ -113,58 +130,40 @@ export class BrowserScanner<
   }
 
   /**
-   * 초기화 (브라우저 실행)
+   * 현재 페이지 반환 (helper)
+   */
+  private get page(): Page | null {
+    return this.browserController.getPage();
+  }
+
+  /**
+   * 스크린샷 옵션 변환
+   */
+  private getScreenshotOptions(): ScreenshotOptions {
+    const platformId =
+      (this.config as { platform?: { id?: string }; id?: string }).platform
+        ?.id ||
+      (this.config as { id?: string }).id ||
+      "unknown";
+
+    return {
+      enabled: this.screenshotOptions?.enabled || false,
+      outputDir: this.screenshotOptions?.outputDir || "/tmp",
+      platformId,
+      jobId: this.screenshotOptions?.jobId,
+    };
+  }
+
+  /**
+   * 초기화 (브라우저 실행) - BrowserController에 위임
    */
   protected async doInitialize(): Promise<void> {
-    logger.info({ strategyId: this.strategy.id }, "브라우저 실행 중...");
+    logger.info({ strategyId: this.strategy.id }, "브라우저 초기화 시작");
 
-    const pwConfig = this.playwrightStrategy.playwright;
-
-    // 외부 Browser 사용 시 (Pool에서 주입)
-    if (this.usingExternalBrowser && this.externalBrowser) {
-      logger.info(
-        { strategyId: this.strategy.id },
-        "외부 Browser 사용 (Pool에서 주입)",
-      );
-      this.browser = this.externalBrowser;
-    } else {
-      // Stealth Plugin 적용 (Cloudflare 우회)
-      chromium.use(StealthPlugin());
-
-      // 자체 Browser 생성
-      this.browser = await chromium.launch({
-        headless: pwConfig.headless,
-        args: pwConfig.browserOptions?.args || [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-blink-features=AutomationControlled",
-        ],
-      });
-    }
-
-    // 컨텍스트 생성
-    const contextOptions = pwConfig.contextOptions || {};
-    this.context = await this.browser.newContext({
-      viewport: contextOptions.viewport || SCRAPER_CONFIG.DEFAULT_VIEWPORT,
-      userAgent: contextOptions.userAgent || SCRAPER_CONFIG.DEFAULT_USER_AGENT,
-      locale: contextOptions.locale || "ko-KR",
-      timezoneId: contextOptions.timezoneId || "Asia/Seoul",
-      isMobile: contextOptions.isMobile || false,
-      hasTouch: contextOptions.hasTouch || false,
-      deviceScaleFactor: contextOptions.deviceScaleFactor || 1,
+    await this.browserController.initialize({
+      strategy: this.playwrightStrategy,
+      externalBrowser: this.externalBrowser,
     });
-
-    // 추가 anti-detection 설정
-    await this.context.addInitScript(() => {
-      // webdriver 속성 제거
-      Object.defineProperty(navigator, "webdriver", {
-        get: () => false,
-      });
-    });
-
-    // 페이지 생성
-    this.page = await this.context.newPage();
 
     logger.info({ strategyId: this.strategy.id }, "브라우저 준비 완료");
   }
@@ -179,86 +178,64 @@ export class BrowserScanner<
       );
     }
 
+    const screenshotOpts = this.getScreenshotOptions();
+
     try {
-      // Network Intercept 설정 (API 응답 캡처)
-      await this.setupNetworkIntercept(id);
+      // 1. Network Intercept 설정 (API 응답 캡처)
+      await this.browserController.setupNetworkIntercept(id);
 
-      // 네비게이션 스텝 실행
-      await this.executeNavigationSteps(id);
+      // 2. 네비게이션 스텝 실행
+      await this.browserController.executeNavigation(id);
 
-      // 에러 페이지 감지
-      await this.detectErrorPage(id);
+      // 3. 에러 페이지 감지
+      const errorResult = await this.browserController.detectErrorPage(id);
+      if (errorResult.isError) {
+        throw new Error(errorResult.message);
+      }
 
-      // 데이터 추출
+      // 4. 데이터 추출
       const data = await this.extractFromPage();
-      await this.takeScreenshot(id, false);
+
+      // 5. 성공 스크린샷
+      await this.browserController.takeScreenshot(id, screenshotOpts, false);
+
       return data;
     } catch (error) {
-      await this.takeScreenshot(id, true);
+      // 에러 스크린샷
+      await this.browserController.takeScreenshot(id, screenshotOpts, true);
+
       // Playwright 타임아웃 에러 처리
-      if (error instanceof Error) {
-        if (error.message.includes("Timeout")) {
-          throw new Error(
-            `페이지 로딩 시간 초과 - strategy: ${this.strategy.id}, productId: ${id}`,
-          );
-        }
+      if (error instanceof Error && error.message.includes("Timeout")) {
+        throw new Error(
+          `페이지 로딩 시간 초과 - strategy: ${this.strategy.id}, productId: ${id}`,
+        );
       }
       throw error;
     }
   }
 
   /**
-   * 에러 페이지 감지 (404, 500 등)
-   */
-  private async detectErrorPage(id: string): Promise<void> {
-    if (!this.page) return;
-
-    const pageTitle = await this.page.title();
-    const pageUrl = this.page.url();
-
-    // 404 Not Found 감지
-    if (
-      pageTitle.includes("404") ||
-      pageTitle.includes("Not Found") ||
-      pageTitle.includes("페이지를 찾을 수 없습니다") ||
-      pageUrl.includes("/error") ||
-      pageUrl.includes("/404")
-    ) {
-      throw new Error(
-        `상품을 찾을 수 없음 (삭제되었거나 존재하지 않음) - strategy: ${this.strategy.id}, productId: ${id}`,
-      );
-    }
-
-    // 500 Server Error 감지
-    if (
-      pageTitle.includes("500") ||
-      pageTitle.includes("Server Error") ||
-      pageTitle.includes("서버 오류")
-    ) {
-      throw new Error(
-        `서버 에러 발생 - strategy: ${this.strategy.id}, productId: ${id}`,
-      );
-    }
-
-    // Rate Limiting 감지 (일부 사이트는 차단 페이지로 리다이렉트)
-    if (
-      pageTitle.includes("Access Denied") ||
-      pageTitle.includes("차단") ||
-      pageTitle.includes("Blocked") ||
-      pageUrl.includes("/blocked")
-    ) {
-      throw new Error(
-        `Rate limit 또는 접근 차단 - strategy: ${this.strategy.id}, productId: ${id}`,
-      );
-    }
-  }
-
-  /**
    * 데이터 파싱 (DOM 데이터 → 도메인 모델)
+   *
+   * 전략:
+   * - mapper가 있으면 mapper.map() 사용 (권장)
+   * - parseDOM이 있으면 parseDOM() 사용 (하위 호환성)
    */
   protected async parseData(rawData: TDomData): Promise<TProduct> {
-    // 플랫폼별 파싱 로직은 외부에서 주입받음
-    return await this.parseDOM(rawData, this.lastScanId);
+    // mapper 우선 사용 (rawData가 ProductData 형식이어야 함)
+    if (this.mapper) {
+      return this.mapper.map(
+        this.lastScanId,
+        rawData as unknown as ProductData,
+      );
+    }
+
+    // parseDOM 사용 (하위 호환성)
+    if (this.parseDOM) {
+      return await this.parseDOM(rawData, this.lastScanId);
+    }
+
+    throw new Error("No mapper or parseDOM available");
   }
 
   /**
@@ -269,257 +246,79 @@ export class BrowserScanner<
   }
 
   /**
-   * 리소스 정리 (브라우저 종료)
+   * 리소스 정리 - BrowserController에 위임
    */
   async cleanup(): Promise<void> {
-    logger.info({ strategyId: this.strategy.id }, "브라우저 정리 중...");
-
-    if (this.page) {
-      await this.page.close();
-      this.page = null;
-    }
-
-    if (this.context) {
-      await this.context.close();
-      this.context = null;
-    }
-
-    // 외부 Browser 사용 시 종료하지 않음 (Pool에서 관리)
-    if (this.browser && !this.usingExternalBrowser) {
-      await this.browser.close();
-      this.browser = null;
-    } else if (this.usingExternalBrowser) {
-      logger.info(
-        { strategyId: this.strategy.id },
-        "외부 Browser는 Pool에서 관리 - 종료 스킵",
-      );
-      this.browser = null; // 참조만 제거
-    }
-
+    logger.info({ strategyId: this.strategy.id }, "브라우저 정리 시작");
+    await this.browserController.cleanup();
     logger.info({ strategyId: this.strategy.id }, "브라우저 정리 완료");
   }
 
   /**
-   * 네비게이션 스텝 실행
-   */
-  private async executeNavigationSteps(id: string): Promise<void> {
-    if (!this.page) {
-      throw new Error(
-        `Page가 초기화되지 않음 - strategy: ${this.strategy.id}, productId: ${id}`,
-      );
-    }
-
-    const steps = this.playwrightStrategy.playwright.navigationSteps;
-
-    for (const step of steps) {
-      // 플랫폼별 ID placeholder 치환 (goodsId, productId 등)
-      const url = this.replaceIdPlaceholder(step.url, id);
-
-      switch (step.action) {
-        case "navigate":
-          if (url) {
-            logger.info({ strategyId: this.strategy.id, url }, "페이지 이동");
-            await this.page.goto(url, {
-              waitUntil: (step.waitUntil as any) || "networkidle",
-              timeout: step.timeout || SCRAPER_CONFIG.NAVIGATION_TIMEOUT_MS,
-            });
-          }
-          break;
-
-        case "waitForSelector":
-          if (step.selector) {
-            logger.info(
-              { strategyId: this.strategy.id, selector: step.selector },
-              "selector 대기 중",
-            );
-            await this.page.waitForSelector(step.selector, {
-              timeout: step.timeout || SCRAPER_CONFIG.SELECTOR_TIMEOUT_MS,
-            });
-          }
-          break;
-
-        case "wait":
-          const waitTime = step.timeout || SCRAPER_CONFIG.DEFAULT_WAIT_TIME_MS;
-          logger.info(
-            { strategyId: this.strategy.id, waitTimeMs: waitTime },
-            "대기 중",
-          );
-          await this.page.waitForTimeout(waitTime);
-          break;
-
-        case "click":
-          if (step.selector) {
-            logger.info(
-              { strategyId: this.strategy.id, selector: step.selector },
-              "요소 클릭",
-            );
-            await this.page.click(step.selector);
-          }
-          break;
-
-        case "type":
-          if (step.selector && step.value) {
-            logger.info(
-              { strategyId: this.strategy.id, selector: step.selector },
-              "텍스트 입력",
-            );
-            await this.page.fill(step.selector, step.value);
-          }
-          break;
-
-        default:
-          logger.warn(
-            { strategyId: this.strategy.id, action: step.action },
-            "알 수 없는 action",
-          );
-      }
-    }
-  }
-
-  /**
-   * ID placeholder 치환 (플랫폼별 변수명 대응)
-   */
-  private replaceIdPlaceholder(
-    template: string | undefined,
-    id: string,
-  ): string | undefined {
-    if (!template) return undefined;
-
-    // 다양한 ID 변수명 지원
-    return template
-      .replace("${goodsId}", id)
-      .replace("${goodsNo}", id)
-      .replace("${productId}", id)
-      .replace("${id}", id);
-  }
-
-  /**
-   * Network Intercept 설정 (API 응답 캡처)
-   * Response 이벤트 리스너 방식 사용 (비차단)
-   */
-  private async setupNetworkIntercept(id: string): Promise<void> {
-    if (!this.page) {
-      return;
-    }
-
-    // 무신사 상품 API URL 패턴 (도메인 포함)
-    const apiUrlPattern = `/api2/goods/${id}`;
-
-    this.interceptedApiData = null; // 초기화
-
-    // Response 이벤트 리스너 등록 (비차단 방식)
-    this.page.on("response", async (response) => {
-      try {
-        const url = response.url();
-
-        // API URL 매칭 (goods-detail.musinsa.com/api2/goods/{id} 패턴)
-        if (
-          url.includes(apiUrlPattern) &&
-          !url.includes("/options") &&
-          !url.includes("/curation")
-        ) {
-          const bodyText = await response.text();
-
-          // JSON 파싱 시도
-          try {
-            this.interceptedApiData = JSON.parse(bodyText);
-
-            logger.info(
-              {
-                strategyId: this.strategy.id,
-                url,
-                status: response.status(),
-                hasData: !!this.interceptedApiData?.data,
-              },
-              "API 응답 intercept 완료",
-            );
-          } catch {
-            this.interceptedApiData = null;
-            logger.warn(
-              { strategyId: this.strategy.id, url },
-              "API 응답 JSON 파싱 실패",
-            );
-          }
-        }
-      } catch (error) {
-        // 에러 발생해도 무시 (페이지 로딩 차단하지 않음)
-        logger.debug(
-          { strategyId: this.strategy.id, error },
-          "Response intercept 에러 (무시)",
-        );
-      }
-    });
-
-    logger.debug(
-      { strategyId: this.strategy.id, pattern: apiUrlPattern },
-      "Network intercept 설정 완료 (response listener)",
-    );
-  }
-
-  /**
-   * 페이지에서 데이터 추출
+   * 페이지에서 데이터 추출 (BrowserScanner의 핵심 책임)
    */
   private async extractFromPage(): Promise<TDomData> {
-    if (!this.page) {
+    const currentPage = this.page;
+    if (!currentPage) {
       throw new Error(`Page가 초기화되지 않음 - strategy: ${this.strategy.id}`);
     }
 
     const extractionConfig = this.playwrightStrategy.playwright.extraction;
 
+    // 1. evaluate 방식
     if (extractionConfig.method === "evaluate" && extractionConfig.script) {
-      // page.evaluate 방식
       logger.info(
         { strategyId: this.strategy.id, method: "evaluate" },
         "데이터 추출 중 (evaluate)",
       );
+
       const evalFunction = new Function(
         `return (${extractionConfig.script})`,
       )();
 
-      // Debug: Check page title before extraction
-      const pageTitle = await this.page.title();
+      const pageTitle = await currentPage.title();
       logger.debug(
         { strategyId: this.strategy.id, pageTitle },
         "페이지 제목 확인",
       );
 
-      const result = await this.page.evaluate(evalFunction);
+      const result = await currentPage.evaluate(evalFunction);
       logger.debug(
         { strategyId: this.strategy.id, data: JSON.stringify(result) },
         "데이터 추출 완료",
       );
+
       return result as TDomData;
     }
 
+    // 2. selector 방식
     if (extractionConfig.method === "selector" && extractionConfig.selectors) {
-      // Playwright selector 방식
       logger.info(
         { strategyId: this.strategy.id, method: "selector" },
         "데이터 추출 중 (selector)",
       );
-      const result: Record<string, string | null> = {};
 
+      const result: Record<string, string | null> = {};
       for (const [key, selector] of Object.entries(
         extractionConfig.selectors,
       )) {
-        const element = await this.page.$(selector);
+        const element = await currentPage.$(selector);
         result[key] = element ? await element.textContent() : null;
       }
 
       return result as TDomData;
     }
 
+    // 3. json_ld_schema 방식
     if (
       extractionConfig.method === "json_ld_schema" &&
       extractionConfig.config
     ) {
-      // JSON-LD Schema.org 추출 방식
       logger.info(
         { strategyId: this.strategy.id, method: "json_ld_schema" },
         "데이터 추출 중 (json_ld_schema)",
       );
 
-      // Type guard: JsonLdConfig validation
       const config = extractionConfig.config;
       if (
         !config ||
@@ -535,16 +334,16 @@ export class BrowserScanner<
       const extractor = new JsonLdSchemaExtractor(
         config as unknown as JsonLdConfig,
       );
-      const result = await extractor.extract(
-        this.page,
-        this.interceptedApiData,
-      );
+
+      // BrowserController에서 intercept된 데이터 사용
+      const interceptedData = this.browserController.getInterceptedData();
+      const result = await extractor.extract(currentPage, interceptedData);
 
       return result as TDomData;
     }
 
+    // 4. extractor 방식 (Facade Pattern)
     if (extractionConfig.extractor) {
-      // ExtractorRegistry 방식 (Facade Pattern)
       logger.info(
         {
           strategyId: this.strategy.id,
@@ -555,7 +354,7 @@ export class BrowserScanner<
 
       const registry = ExtractorRegistry.getInstance();
       const extractor = registry.get(extractionConfig.extractor);
-      const result = await extractor.extract(this.page);
+      const result = await extractor.extract(currentPage);
 
       logger.debug(
         { strategyId: this.strategy.id, data: JSON.stringify(result) },
@@ -568,63 +367,5 @@ export class BrowserScanner<
     throw new Error(
       `잘못된 extraction 설정 - strategy: ${this.strategy.id}. method는 'evaluate'(+script), 'selector'(+selectors), 'json_ld_schema'(+config), 또는 extractor 필요`,
     );
-  }
-
-  /**
-   * 스크린샷 저장
-   */
-  private async takeScreenshot(
-    id: string,
-    isError: boolean = false,
-  ): Promise<void> {
-    // 스크린샷 비활성화 시 스킵
-    if (!this.screenshotOptions?.enabled || !this.page) {
-      console.log(
-        `[Screenshot] Skipped: enabled=${this.screenshotOptions?.enabled}, page=${!!this.page}`,
-      );
-      return;
-    }
-
-    try {
-      const { outputDir, jobId } = this.screenshotOptions;
-      console.log(`[Screenshot] Taking screenshot for ${id} in ${outputDir}`);
-
-      // Platform ID 추출 (config에서)
-      const platform =
-        (this.config as any).platform?.id ||
-        (this.config as any).id ||
-        "unknown";
-
-      // 디렉토리 생성: outputDir/platform/
-      const platformDir = path.join(outputDir, platform);
-      await fs.mkdir(platformDir, { recursive: true, mode: 0o777 });
-
-      // 파일명 생성: {jobId}_{product_set_id}_{status}.png
-      const status = isError ? "error" : "success";
-      const filename = jobId
-        ? `${jobId}_${id}_${status}.png`
-        : `${id}_${status}.png`;
-
-      const filepath = path.join(platformDir, filename);
-
-      // 스크린샷 저장
-      await this.page.screenshot({
-        path: filepath,
-      });
-
-      // 파일 권한 설정 (666)
-      await fs.chmod(filepath, 0o666);
-
-      logger.debug(
-        { strategyId: this.strategy.id, filepath, status },
-        "스크린샷 저장 완료",
-      );
-    } catch (error) {
-      // 스크린샷 실패는 무시 (원래 작업에 영향 주지 않음)
-      logger.warn(
-        { strategyId: this.strategy.id, error },
-        "스크린샷 저장 실패 - 무시",
-      );
-    }
   }
 }
