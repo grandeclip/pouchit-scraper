@@ -5,6 +5,9 @@ platform: zigzag
 name: "지그재그"
 baseUrl: "https://zigzag.kr"
 
+# Extractor 설정 (Phase 1 리팩터링)
+extractor: "zigzag"
+
 # 엔드포인트 (Playwright 전용이므로 빈 객체)
 endpoints: {}
 
@@ -31,6 +34,9 @@ strategies:
               id
               name
               shop_name
+              sales_status
+              display_status
+              is_purchasable
               product_price {
                 max_price_info { price }
                 final_discount_info { discount_price }

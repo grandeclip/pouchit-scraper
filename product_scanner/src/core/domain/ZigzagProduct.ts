@@ -151,6 +151,42 @@ export class ZigzagProduct implements IProduct {
   }
 
   /**
+   * 팩토리 메서드: ProductData로부터 ZigzagProduct 생성 (Extractor 기반)
+   *
+   * 전략:
+   * - ZigzagExtractor로 추출된 ProductData 사용
+   * - YAML fieldMapping 불필요 (Extractor가 처리)
+   * - SaleStatus enum (InStock/SoldOut/Discontinued) → CSV 형식 변환
+   *
+   * @param productId 상품 ID (GraphQL response.catalog_product.id)
+   * @param productData Extractor로 추출된 상품 데이터
+   * @param displayStatus 노출 상태 (기본: VISIBLE)
+   */
+  static fromProductData(
+    productId: string,
+    productData: import("@/extractors/base").ProductData,
+    displayStatus: ZigzagDisplayStatus = "VISIBLE",
+  ): ZigzagProduct {
+    // SaleStatus enum → CSV 형식 변환 (공통 유틸 사용)
+    const { mapSaleStatusEnumToCSV } = require("@/utils/saleStatusMapper");
+    const saleStatus = mapSaleStatusEnumToCSV(
+      productData.saleStatus.saleStatus,
+    );
+
+    return new ZigzagProduct(
+      productId,
+      productData.metadata.productName,
+      productData.metadata.brand || "",
+      productData.metadata.thumbnail || "",
+      productData.price.originalPrice || productData.price.price,
+      productData.price.price,
+      saleStatus,
+      productData.saleStatus.isAvailable,
+      displayStatus,
+    );
+  }
+
+  /**
    * 팩토리 메서드: __NEXT_DATA__ 데이터로부터 ZigzagProduct 생성
    *
    * NextDataSchemaExtractor가 반환하는 NextDataProductData를 받음

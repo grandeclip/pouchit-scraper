@@ -14,64 +14,26 @@
 import { BaseScanner } from "@/scanners/base/BaseScanner.generic";
 import { ZigzagConfig } from "@/core/domain/ZigzagConfig";
 import { GraphQLStrategyConfig } from "@/core/domain/StrategyConfig";
-import {
-  ZigzagProduct,
-  ZigzagSalesStatus,
-  ZigzagDisplayStatus,
-} from "@/core/domain/ZigzagProduct";
-import { ZIGZAG_CONSTANTS } from "@/config/constants";
-
-/**
- * GraphQL 응답 타입 (GetCatalogProductDetailPageOption)
- */
-interface GraphQLResponse {
-  data?: {
-    pdp_option_info?: {
-      catalog_product?: {
-        id: string;
-        name: string;
-        shop_name: string;
-        product_price: {
-          max_price_info: { price: number };
-          final_discount_info: { discount_price: number };
-          display_final_price: {
-            final_price: {
-              price: number;
-              badge: { text: string } | null;
-            };
-            final_price_additional: {
-              price: number;
-              badge: { text: string };
-            } | null;
-          };
-        };
-        matched_item_list?: Array<{
-          sales_status: ZigzagSalesStatus;
-          display_status: ZigzagDisplayStatus;
-        }>;
-        product_image_list?: Array<{
-          image_type: string;
-          pdp_thumbnail_url: string;
-        }>;
-      } | null;
-    } | null;
-  } | null;
-  errors?: Array<{
-    message: string;
-    extensions?: Record<string, string | number | boolean>;
-  }>;
-}
+import { ZigzagProduct } from "@/core/domain/ZigzagProduct";
+import type { IProductExtractor } from "@/extractors/base";
+import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
+import type { ZigzagGraphQLResponse } from "@/extractors/zigzag/ZigzagPriceExtractor";
 
 /**
  * ZigZag GraphQL 스캐너
  */
 export class ZigzagGraphQLScanner extends BaseScanner<
-  GraphQLResponse,
+  ZigzagGraphQLResponse,
   ZigzagProduct,
   ZigzagConfig
 > {
+  private readonly extractor: IProductExtractor<ZigzagGraphQLResponse>;
+
   constructor(config: ZigzagConfig, strategy: GraphQLStrategyConfig) {
     super(config, strategy);
+    // DIP: Interface에 의존 (Singleton Registry로부터 조회)
+    const registry = ExtractorRegistry.getInstance();
+    this.extractor = registry.get(config.platform);
   }
 
   /**
@@ -91,7 +53,9 @@ export class ZigzagGraphQLScanner extends BaseScanner<
   /**
    * 데이터 추출 (GraphQL API 호출)
    */
-  protected async extractData(productId: string): Promise<GraphQLResponse> {
+  protected async extractData(
+    productId: string,
+  ): Promise<ZigzagGraphQLResponse> {
     // Rate limiting 방지: requestDelay 설정이 있으면 대기
     if (this.graphqlStrategy.graphql.requestDelay) {
       await this.sleep(this.graphqlStrategy.graphql.requestDelay);
@@ -102,10 +66,16 @@ export class ZigzagGraphQLScanner extends BaseScanner<
 
   /**
    * 데이터 파싱 (GraphQL 응답 → 도메인 모델)
+   *
+   * 전략:
+   * 1. ZigzagExtractor로 ProductData 추출
+   * 2. ProductData → ZigzagProduct 변환
    */
-  protected async parseData(rawData: GraphQLResponse): Promise<ZigzagProduct> {
+  protected async parseData(
+    rawData: ZigzagGraphQLResponse,
+  ): Promise<ZigzagProduct> {
     // GraphQL 에러 체크
-    if (rawData.errors) {
+    if (rawData.errors && rawData.errors.length > 0) {
       const errorMessages = rawData.errors.map((e) => e.message).join(", ");
       throw new Error(`GraphQL Error: ${errorMessages}`);
     }
@@ -122,84 +92,23 @@ export class ZigzagGraphQLScanner extends BaseScanner<
       throw new Error("Product not found (catalog_product is null)");
     }
 
-    // 브랜드
-    const brand = catalogProduct.shop_name || "";
+    // Extractor로 데이터 추출
+    const productData = await this.extractor.extract(rawData);
 
-    // 썸네일 추출 (MAIN 이미지)
-    const thumbnail =
-      catalogProduct.product_image_list?.find(
-        (img) => img.image_type === "MAIN",
-      )?.pdp_thumbnail_url || "";
-
-    // 가격 정보
-    const priceData = catalogProduct.product_price;
-    const originalPrice = priceData?.max_price_info?.price || 0;
-
-    // 첫구매 제외 가격 계산 (조건부)
-    const displayPrice = priceData?.display_final_price;
-    const badge = displayPrice?.final_price_additional?.badge?.text;
-    const isFirstPurchase =
-      ZIGZAG_CONSTANTS.FIRST_PURCHASE_BADGE_KEYWORDS.some((keyword) =>
-        badge?.includes(keyword),
-      ) ?? false;
-
-    let discountedPrice: number;
-
-    if (isFirstPurchase) {
-      // 첫구매 제외 가격 = display_final_price.final_price.price
-      discountedPrice = displayPrice?.final_price?.price || originalPrice;
-    } else {
-      // 일반 할인가 = final_discount_info.discount_price
-      discountedPrice =
-        priceData?.final_discount_info?.discount_price || originalPrice;
-    }
-
-    // 판매 상태 (matched_item_list 전체 확인)
-    // - 하나라도 ON_SALE이면 판매중
-    // - 모두 SOLD_OUT이면 품절
+    // displayStatus 계산 (Extractor에서 처리하지 않는 정보)
     const items = catalogProduct.matched_item_list || [];
-
-    let salesStatus: ZigzagSalesStatus = "SUSPENDED";
-    let displayStatus: ZigzagDisplayStatus = "HIDDEN";
-
+    let displayStatus: "VISIBLE" | "HIDDEN" = "HIDDEN";
     if (items.length > 0) {
-      // 하나라도 ON_SALE이면 판매중
-      const hasOnSale = items.some((item) => item.sales_status === "ON_SALE");
-      // 모두 SOLD_OUT인지 확인
-      const allSoldOut = items.every(
-        (item) => item.sales_status === "SOLD_OUT",
-      );
-
-      if (hasOnSale) {
-        salesStatus = "ON_SALE";
-      } else if (allSoldOut) {
-        salesStatus = "SOLD_OUT";
-      } else {
-        // 그 외의 경우 첫 번째 아이템 상태 사용
-        salesStatus = items[0].sales_status;
-      }
-
-      // display_status: 하나라도 VISIBLE이면 노출 중
       const hasVisible = items.some(
         (item) => item.display_status === "VISIBLE",
       );
       displayStatus = hasVisible ? "VISIBLE" : items[0].display_status;
     }
 
-    // 구매 가능 여부 (판매중이고 노출 중이면 true)
-    const isPurchasable =
-      salesStatus === "ON_SALE" && displayStatus === "VISIBLE";
-
-    // ZigzagProduct 생성
-    return new ZigzagProduct(
+    // ProductData → ZigzagProduct 변환
+    return ZigzagProduct.fromProductData(
       catalogProduct.id,
-      catalogProduct.name,
-      brand,
-      thumbnail,
-      originalPrice,
-      discountedPrice,
-      ZigzagProduct.mapSaleStatus(salesStatus),
-      isPurchasable,
+      productData,
       displayStatus,
     );
   }
@@ -217,7 +126,7 @@ export class ZigzagGraphQLScanner extends BaseScanner<
   private async fetchWithRetry(
     productId: string,
     attempt: number = 1,
-  ): Promise<GraphQLResponse> {
+  ): Promise<ZigzagGraphQLResponse> {
     try {
       // 변수 치환 (${productId})
       const variables = this.replaceVariables(
@@ -237,7 +146,7 @@ export class ZigzagGraphQLScanner extends BaseScanner<
 
       // 성공
       if (response.ok) {
-        return (await response.json()) as GraphQLResponse;
+        return (await response.json()) as ZigzagGraphQLResponse;
       }
 
       // 404 Not Found
