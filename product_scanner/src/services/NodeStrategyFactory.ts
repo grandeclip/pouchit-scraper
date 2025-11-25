@@ -19,6 +19,7 @@ import { KurlyValidationNode } from "@/strategies/KurlyValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
 import { UpdateProductSetNode } from "@/strategies/UpdateProductSetNode";
 import { ExtractSingleProductNode } from "@/strategies/ExtractSingleProductNode";
+import { ExtractUrlNode } from "@/strategies/ExtractUrlNode";
 import { logger } from "@/config/logger";
 
 /**
@@ -41,6 +42,8 @@ export class NodeStrategyFactory {
     this.registerStrategy(new UpdateProductSetNode());
     // Phase 2: 단일 상품 추출 노드
     this.registerStrategy(new ExtractSingleProductNode());
+    // Phase 2: URL 기반 상품 추출 노드
+    this.registerStrategy(new ExtractUrlNode());
   }
 
   /**

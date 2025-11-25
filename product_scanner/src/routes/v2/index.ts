@@ -19,12 +19,11 @@ logger.info(
   {
     endpoints: [
       "POST /api/v2/products/extract-by-product-set",
-      "POST /api/v2/products/extract-by-url (not implemented)",
+      "POST /api/v2/products/extract-by-url",
       "POST /api/v2/products/extract-by-id (not implemented)",
     ],
   },
-  "[v2Router] API v2 라우터 등록"
+  "[v2Router] API v2 라우터 등록",
 );
 
 export default router;
-

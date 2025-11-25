@@ -3,9 +3,7 @@
  */
 
 // Interfaces
-export type {
-  IExtractService,
-} from "./interfaces/IExtractService";
+export type { IExtractService } from "./interfaces/IExtractService";
 
 export type {
   ExtractServiceType,
@@ -34,4 +32,4 @@ export { UrlTemplateEngine } from "./url/UrlTemplateEngine";
 
 // Services
 export { ExtractByProductSetService } from "./ExtractByProductSetService";
-
+export { ExtractByUrlService } from "./ExtractByUrlService";
