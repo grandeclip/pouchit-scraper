@@ -5,6 +5,15 @@ platform: ably
 name: "에이블리"
 baseUrl: "https://m.a-bly.com"
 
+# URL 템플릿 (Phase 2: Extract Service)
+urlTemplates:
+  productDetail: "https://m.a-bly.com/goods/${productId}"
+
+# 상품 ID 추출 패턴
+productIdPattern:
+  regex: "/goods/(\\d+)"
+  group: 1
+
 # 엔드포인트 (Playwright 전용이므로 빈 객체)
 endpoints: {}
 

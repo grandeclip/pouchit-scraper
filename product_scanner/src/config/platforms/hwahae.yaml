@@ -6,6 +6,15 @@ name: "화해"
 baseUrl: "https://gateway.hwahae.co.kr"
 apiVersion: "v14"
 
+# URL 템플릿 (Phase 2: Extract Service)
+urlTemplates:
+  productDetail: "https://www.hwahae.co.kr/goods/${productId}"
+
+# 상품 ID 추출 패턴
+productIdPattern:
+  regex: "/(?:goods|products)/(?:.+/)?(\\d+)"
+  group: 1
+
 # API 엔드포인트
 endpoints:
   goodsDetail: "${baseUrl}/${apiVersion}/commerce/goods/${goodsId}"

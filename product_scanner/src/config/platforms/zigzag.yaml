@@ -5,6 +5,15 @@ platform: zigzag
 name: "지그재그"
 baseUrl: "https://zigzag.kr"
 
+# URL 템플릿 (Phase 2: Extract Service)
+urlTemplates:
+  productDetail: "https://zigzag.kr/catalog/products/${productId}"
+
+# 상품 ID 추출 패턴
+productIdPattern:
+  regex: "/catalog/products/(\\d+)"
+  group: 1
+
 # Extractor 설정 (Phase 1 리팩터링)
 extractor: "zigzag"
 

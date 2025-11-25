@@ -18,6 +18,7 @@ import { AblyValidationNode } from "@/strategies/AblyValidationNode";
 import { KurlyValidationNode } from "@/strategies/KurlyValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
 import { UpdateProductSetNode } from "@/strategies/UpdateProductSetNode";
+import { ExtractSingleProductNode } from "@/strategies/ExtractSingleProductNode";
 import { logger } from "@/config/logger";
 
 /**
@@ -38,6 +39,8 @@ export class NodeStrategyFactory {
     this.registerStrategy(new KurlyValidationNode());
     this.registerStrategy(new ResultWriterNode());
     this.registerStrategy(new UpdateProductSetNode());
+    // Phase 2: 단일 상품 추출 노드
+    this.registerStrategy(new ExtractSingleProductNode());
   }
 
   /**

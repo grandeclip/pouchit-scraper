@@ -5,6 +5,15 @@ platform: musinsa
 name: "무신사"
 baseUrl: "https://goods-detail.musinsa.com"
 
+# URL 템플릿 (Phase 2: Extract Service)
+urlTemplates:
+  productDetail: "https://www.musinsa.com/products/${productId}"
+
+# 상품 ID 추출 패턴
+productIdPattern:
+  regex: "/products/(\\d+)"
+  group: 1
+
 # API 엔드포인트
 endpoints:
   goodsDetail: "${baseUrl}/api2/goods/${goodsId}"

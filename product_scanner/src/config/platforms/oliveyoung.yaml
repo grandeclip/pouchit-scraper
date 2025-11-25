@@ -5,6 +5,15 @@ platform: oliveyoung
 name: "올리브영"
 baseUrl: "https://m.oliveyoung.co.kr"
 
+# URL 템플릿 (Phase 2: Extract Service)
+urlTemplates:
+  productDetail: "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=${productId}"
+
+# 상품 ID 추출 패턴
+productIdPattern:
+  regex: "goodsNo=([A-Z0-9]+)"
+  group: 1
+
 # 엔드포인트 (Playwright 전용이므로 빈 객체)
 endpoints: {}
 

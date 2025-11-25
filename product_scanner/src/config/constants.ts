@@ -159,7 +159,7 @@ export const WORKFLOW_CONFIG = {
    */
   PLATFORMS: (
     process.env.WORKFLOW_PLATFORMS ||
-    "default,hwahae,oliveyoung,coupang,zigzag,musinsa,ably,kurly,naver"
+    "default,hwahae,oliveyoung,coupang,zigzag,musinsa,ably,kurly,naver,single_product"
   )
     .split(",")
     .map((p) => p.trim())

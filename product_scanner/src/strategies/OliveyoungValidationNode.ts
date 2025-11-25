@@ -21,10 +21,6 @@ import type { PlatformConfig } from "@/core/domain/PlatformConfig";
 import { logger } from "@/config/logger";
 import type { Page } from "playwright";
 import { PlaywrightScriptExecutor } from "@/utils/PlaywrightScriptExecutor";
-import {
-  OliveyoungProduct,
-  OliveyoungDomSaleStatus,
-} from "@/core/domain/OliveyoungProduct";
 
 /**
  * Oliveyoung Validation Node Strategy
@@ -37,6 +33,33 @@ export class OliveyoungValidationNode extends BaseValidationNode {
    */
   protected extractPlatform(params: Record<string, unknown>): string {
     return (params.platform as string) || "oliveyoung";
+  }
+
+  /**
+   * sale_status 정규화
+   * 
+   * PlaywrightScriptExecutor가 반환하는 값:
+   * - "on_sale", "off_sale", "pre_order", "backorder" (이미 변환됨)
+   * 
+   * 원본 DOM 값 (fallback):
+   * - "SELNG" → "on_sale", "SLDOT"/"STSEL" → "off_sale"
+   */
+  private normalizeSaleStatus(status: string | undefined): string {
+    if (!status) return "off_sale";
+    
+    // 이미 정규화된 값인 경우
+    if (["on_sale", "off_sale", "sold_out", "pre_order", "backorder"].includes(status)) {
+      return status;
+    }
+    
+    // 원본 DOM 값인 경우 (legacy)
+    const domStatusMap: Record<string, string> = {
+      "SELNG": "on_sale",
+      "SLDOT": "off_sale",
+      "STSEL": "off_sale",
+    };
+    
+    return domStatusMap[status] || "off_sale";
   }
 
   /**
@@ -103,14 +126,18 @@ export class OliveyoungValidationNode extends BaseValidationNode {
         return this.createNotFoundValidation(product, "Oliveyoung");
       }
 
-      // OliveyoungProduct 도메인 객체로 변환
-      const oliveyoungProduct = OliveyoungProduct.fromDOMData({
-        ...domData,
-        id: goodsNo,
-        goodsNo,
-        sale_status: domData.sale_status as OliveyoungDomSaleStatus,
-      });
-      const plainObject = oliveyoungProduct.toPlainObject();
+      // PlaywrightScriptExecutor가 이미 sale_status를 "on_sale"/"off_sale"로 변환함
+      // OliveyoungProduct.fromDOMData()는 원본 DOM 값("SELNG" 등)을 기대하므로 직접 사용
+      const saleStatus = this.normalizeSaleStatus(domData.sale_status);
+
+      // PlatformProductData로 직접 변환 (fromDOMData 우회)
+      const plainObject = {
+        productName: domData.name,
+        thumbnail: domData.title_images?.[0] || "",
+        originalPrice: domData.consumer_price,
+        discountedPrice: domData.price,
+        saleStatus,
+      };
 
       // 비교 결과 생성
       const platformData: PlatformProductData = {
