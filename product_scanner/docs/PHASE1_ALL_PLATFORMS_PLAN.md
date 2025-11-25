@@ -130,49 +130,56 @@
 
 ### 3️⃣ Ably (에이블리) - Playwright 기반 (Multi-level Fallback)
 
-**복잡도**: 🟡 중 (3단계 fallback: SSR + Meta + DOM)
+**복잡도**: 🟡 중 (API 캡처 + SSR fallback)
 
 **현재 구조**:
 
 - Factory: `AblyScannerFactory.ts`
 - Domain: `AblyProduct.ts`
-- 방식: Playwright (SSR + Meta + DOM)
-- 특이사항: `__NEXT_DATA__` SSR 데이터, Network API 캡처
+- 방식: Playwright (API 캡처 → SSR fallback)
+- 특이사항: `__NEXT_DATA__` SSR 데이터, Network API 캡처, sold_out → off_sale 정책
 
 #### 작업 체크리스트
 
-- [ ] **3.1 기존 코드 분석**
-  - [ ] `ably.yaml` 분석 (extraction script)
-  - [ ] `AblyScannerFactory.ts` 분석 (parseDOM)
-  - [ ] `AblyProduct.ts` 도메인 모델 확인
-  - [ ] Multi-level fallback 로직 파악
+- [x] **3.1 기존 코드 분석** ✅ 2025-01-24
+  - [x] `ably.yaml` 분석 (extraction script 146줄)
+  - [x] `AblyScannerFactory.ts` 분석 (parseDOM)
+  - [x] `AblyProduct.ts` 도메인 모델 확인
+  - [x] API 캡처 + SSR fallback 로직 파악
+  - [x] `docs/analysis/ably-strategy-analysis.md` 작성
 
-- [ ] **3.2 Extractor 인터페이스 구현**
-  - [ ] `AblyPriceExtractor.ts` (Page → PriceData)
-  - [ ] `AblySaleStatusExtractor.ts` (not_found 처리)
-  - [ ] `AblyMetadataExtractor.ts` (SSR data 우선)
+- [x] **3.2 Extractor 인터페이스 구현** ✅ 2025-01-24
+  - [x] `AblyPriceExtractor.ts` (Page → PriceData, SSR 우선)
+  - [x] `AblySaleStatusExtractor.ts` (SSR + Body text fallback)
+  - [x] `AblyMetadataExtractor.ts` (SSR → Meta fallback)
 
-- [ ] **3.3 통합 Extractor 생성**
-  - [ ] `AblyExtractor.ts` (Facade Pattern)
-  - [ ] 3단계 fallback 구현 (**NEXT_DATA** → Meta → DOM)
-  - [ ] IProductExtractor 인터페이스 구현
+- [x] **3.3 통합 Extractor 생성** ✅ 2025-01-24
+  - [x] `AblyExtractor.ts` (Facade Pattern - 3개 Extractor 조합)
+  - [x] Promise.all 병렬 처리 (성능 최적화)
+  - [x] IProductExtractor<Page> 인터페이스 구현
 
-- [ ] **3.4 ExtractorRegistry 등록**
-  - [ ] `ExtractorRegistry.ts`에 ably 등록
+- [x] **3.4 ExtractorRegistry 등록** ✅ 2025-01-24
+  - [x] `ExtractorRegistry.ts`에 ably 등록
 
-- [ ] **3.5 YAML 설정 업데이트**
-  - [ ] `ably.yaml`에 `extractor: "ably"` 추가
-  - [ ] selectors 정의 (fallback용)
+- [x] **3.5 YAML 설정 업데이트** ✅ 2025-01-24
+  - [x] `ably.yaml`에 `extractor: "ably"` 추가
+  - [x] 146줄 JavaScript script 제거
+  - [x] api_pattern 유지 (API 캡처 전략)
+  - [x] selectors, constants, sale_status_patterns 정의
 
-- [ ] **3.6 테스트 작성**
-  - [ ] Unit 테스트 (각 Extractor)
-  - [ ] Integration 테스트 (fallback 검증)
-  - [ ] Mock Page 객체 테스트
+- [x] **3.6 테스트 작성** ✅ 2025-01-24
+  - [x] Unit 테스트 (AblyPriceExtractor: 8 tests)
+  - [x] Unit 테스트 (AblySaleStatusExtractor: 11 tests)
+  - [x] Unit 테스트 (AblyMetadataExtractor: 9 tests)
+  - [x] Integration 테스트 (AblyExtractor: 8 tests)
+  - [x] Mock Page 객체 테스트
 
-- [ ] **3.7 검증**
-  - [ ] TypeScript 컴파일 (0 errors)
-  - [ ] 테스트 통과
-  - [ ] 실제 페이지 추출 검증
+- [x] **3.7 검증** ✅ 2025-01-24
+  - [x] TypeScript 컴파일 (0 errors)
+  - [x] 테스트 통과 (36 ably tests, 227 total)
+  - [x] 실제 워크플로우 검증 (4/4 성공, 100% match)
+  - [x] sold_out → off_sale 정책 반영 (시스템 정책)
+  - [x] Extractor 내부 로깅 추가 (Pino logger)
 
 ---
 
@@ -372,13 +379,13 @@
 
 ### 전체 진행률
 
-- [x] Hwahae (0/7 단계)
-- [x] Musinsa (0/7 단계)
-- [ ] Ably (0/7 단계)
+- [x] Hwahae (7/7 단계) ✅ 2025-01-24
+- [x] Musinsa (7/7 단계) ✅ 2025-01-24
+- [x] Ably (7/7 단계) ✅ 2025-01-24
 - [ ] ZigZag (0/7 단계)
 - [ ] Kurly (0/7 단계)
 
-**전체**: 0/35 단계 (0%)
+**전체**: 21/35 단계 (60%)
 
 ---
 

@@ -62,13 +62,13 @@ describe("HwahaeExtractor", () => {
         title_images: ["https://example.com/soldout.jpg"],
         consumer_price: 15000,
         price: 15000,
-        sale_status: "SLDOT", // 품절
+        sale_status: "SLDOT", // 품절 → Discontinued (시스템 정책: sold_out 미사용)
       };
 
       const result: ProductData = await extractor.extract(mockResponse);
 
-      // SaleStatus 검증
-      expect(result.saleStatus.saleStatus).toBe(SaleStatus.SoldOut);
+      // SaleStatus 검증 (시스템 정책: SLDOT → Discontinued)
+      expect(result.saleStatus.saleStatus).toBe(SaleStatus.Discontinued);
       expect(result.saleStatus.isAvailable).toBe(false);
 
       // Price 검증 (할인 없음)

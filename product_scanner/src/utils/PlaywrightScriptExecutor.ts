@@ -474,9 +474,32 @@ export class PlaywrightScriptExecutor {
         const extractorInstance = registry.get(extractor);
         const result = await extractorInstance.extract(page);
 
-        // isAvailable 기반 판매 상태 매핑
-        // true → SELNG (판매중), false → SLDOT (품절)
-        const domSaleStatus = result.saleStatus.isAvailable ? "SELNG" : "SLDOT";
+        // 디버깅: Extractor 결과 로깅
+        logger.debug(
+          {
+            extractor,
+            productData: {
+              productName: result.metadata.productName,
+              price: result.price.price,
+              originalPrice: result.price.originalPrice,
+              saleStatus: result.saleStatus.saleStatus,
+              isAvailable: result.saleStatus.isAvailable,
+            },
+          },
+          "Extractor 결과",
+        );
+
+        // SaleStatus enum → 원본 문자열 매핑 (시스템 규약: sold_out → off_sale)
+        const saleStatusMap: Record<number, string> = {
+          0: "on_sale", // InStock
+          1: "off_sale", // SoldOut → off_sale (시스템에서 sold_out 미사용)
+          2: "off_sale", // Discontinued
+          3: "pre_order", // PreOrder
+          4: "backorder", // BackOrder
+        };
+
+        const mappedSaleStatus =
+          saleStatusMap[result.saleStatus.saleStatus] || "off_sale";
 
         // ProductData → ScriptExecutionResult 변환
         return {
@@ -487,7 +510,7 @@ export class PlaywrightScriptExecutor {
             : [],
           consumer_price: result.price.originalPrice || result.price.price,
           price: result.price.price,
-          sale_status: domSaleStatus, // DOM 기반 상태 (SELNG, SLDOT)
+          sale_status: mappedSaleStatus, // enum → 문자열 매핑
           _source: "extractor",
           _redirected: false,
         };

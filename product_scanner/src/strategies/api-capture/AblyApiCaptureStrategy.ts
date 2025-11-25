@@ -193,14 +193,14 @@ export class AblyApiCaptureStrategy implements IApiCaptureStrategy {
   }
 
   /**
-   * Ably sale_type → 표준 sale_status 매핑
+   * Ably sale_type → 표준 sale_status 매핑 (시스템 정책: sold_out → off_sale)
    */
   private mapSaleType(saleType: string): string {
     switch (saleType) {
       case "ON_SALE":
         return "on_sale";
       case "SOLD_OUT":
-        return "sold_out";
+        return "off_sale"; // 시스템 정책: sold_out 미사용
       default:
         return "off_sale";
     }

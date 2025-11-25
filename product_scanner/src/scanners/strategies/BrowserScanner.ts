@@ -128,6 +128,9 @@ export class BrowserScanner<
       );
       this.browser = this.externalBrowser;
     } else {
+      // Stealth Plugin 적용 (Cloudflare 우회)
+      chromium.use(StealthPlugin());
+
       // 자체 Browser 생성
       this.browser = await chromium.launch({
         headless: pwConfig.headless,
@@ -576,7 +579,9 @@ export class BrowserScanner<
   ): Promise<void> {
     // 스크린샷 비활성화 시 스킵
     if (!this.screenshotOptions?.enabled || !this.page) {
-      console.log(`[Screenshot] Skipped: enabled=${this.screenshotOptions?.enabled}, page=${!!this.page}`);
+      console.log(
+        `[Screenshot] Skipped: enabled=${this.screenshotOptions?.enabled}, page=${!!this.page}`,
+      );
       return;
     }
 

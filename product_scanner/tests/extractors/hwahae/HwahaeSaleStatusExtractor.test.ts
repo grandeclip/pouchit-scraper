@@ -35,19 +35,19 @@ describe("HwahaeSaleStatusExtractor", () => {
       expect(result.isAvailable).toBe(true);
     });
 
-    it("SLDOT → SoldOut으로 변환해야 함", async () => {
+    it("SLDOT → Discontinued로 변환해야 함 (시스템 정책: sold_out 미사용)", async () => {
       const mockResponse: HwahaeApiResponse = {
         id: 456,
         name: "품절 상품",
         title_images: [],
         consumer_price: 15000,
         price: 15000,
-        sale_status: "SLDOT", // 품절
+        sale_status: "SLDOT", // 품절 → Discontinued (시스템 정책)
       };
 
       const result: SaleStatusData = await extractor.extract(mockResponse);
 
-      expect(result.saleStatus).toBe(SaleStatus.SoldOut);
+      expect(result.saleStatus).toBe(SaleStatus.Discontinued);
       expect(result.isAvailable).toBe(false);
     });
 

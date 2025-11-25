@@ -34,7 +34,12 @@ export class AblyProduct implements IProduct {
     public readonly originalPrice: number,
     public readonly discountedPrice: number,
     public readonly saleStatus: SaleStatus,
-    public readonly dataSource?: "ssr" | "dom" | "alert" | "error",
+    public readonly dataSource?:
+      | "ssr"
+      | "dom"
+      | "alert"
+      | "error"
+      | "extractor",
     public readonly additionalImages?: string[],
   ) {}
 
@@ -53,6 +58,40 @@ export class AblyProduct implements IProduct {
       data.saleStatus || data.sale_status || "off_sale",
       data.dataSource || data._source || "dom",
       data.additionalImages || data.title_images?.slice(1) || [],
+    );
+  }
+
+  /**
+   * 팩토리 메서드: ProductData로부터 AblyProduct 생성 (Extractor 기반)
+   *
+   * 전략:
+   * - AblyExtractor로 추출된 ProductData 사용
+   * - YAML fieldMapping 불필요 (Extractor가 처리)
+   * - SaleStatus enum (InStock/SoldOut/Discontinued) → CSV 형식 변환
+   *
+   * @param goodsNo 상품 번호 (URL에서 추출)
+   * @param productData Extractor로 추출된 상품 데이터
+   */
+  static fromProductData(
+    goodsNo: string,
+    productData: import("@/extractors/base").ProductData,
+  ): AblyProduct {
+    // SaleStatus enum → CSV 형식 변환 (공통 유틸 사용)
+    const { mapSaleStatusEnumToCSV } = require("@/utils/saleStatusMapper");
+    const saleStatus = mapSaleStatusEnumToCSV(
+      productData.saleStatus.saleStatus,
+    );
+
+    return new AblyProduct(
+      goodsNo,
+      goodsNo,
+      productData.metadata.productName,
+      productData.metadata.thumbnail || "",
+      productData.price.originalPrice || productData.price.price,
+      productData.price.price,
+      saleStatus,
+      "extractor",
+      productData.metadata.images,
     );
   }
 

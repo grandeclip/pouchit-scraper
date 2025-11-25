@@ -342,18 +342,46 @@ src/
 
 ### Phase 1: Extractor 분리 (우선순위: 최고)
 
-**진행 상황**: ✅ 100% 완료 (oliveyoung 기준)
+**진행 상황**: ✅ 60% 완료 (3/5 플랫폼)
 
-- ✅ Step 1.1-1.6 전체 완료 (베이스 인터페이스, 공통 유틸, oliveyoung Extractor, Registry, Scanner 통합)
+**완료된 플랫폼** (2025-01-24):
+
+1. **Oliveyoung** ✅
+   - 4개 Extractor (Price, SaleStatus, Metadata, Facade)
+   - 570줄 YAML script → TypeScript 클래스
+   - 135 tests 통과
+   - E2E 테스트 통과
+
+2. **Hwahae** ✅
+   - HTTP API 기반 Extractor
+   - 3개 전문 Extractor + Facade
+   - 21 tests 통과
+   - 실제 워크플로우 검증 (4/4 성공)
+
+3. **Musinsa** ✅
+   - HTTP API 기반 (Custom Scanner)
+   - 3개 전문 Extractor + Facade
+   - 테스트 통과
+
+4. **Ably** ✅
+   - Playwright 기반 (API 캡처 + SSR fallback)
+   - 4개 Extractor (Price, SaleStatus, Metadata, Facade)
+   - 146줄 YAML script → TypeScript 클래스
+   - 36 tests 통과
+   - sold_out → off_sale 정책 반영
+   - Pino logger 통합
+   - 실제 워크플로우 검증 (4/4 성공, 100% match)
+
+**공통 완료사항**:
+
+- ✅ Step 1.1-1.6 전체 완료 (베이스 인터페이스, 공통 유틸, Registry, Scanner 통합)
 - ✅ BrowserScanner, PlaywrightScriptExecutor에서 ExtractorRegistry 지원
-- ✅ 135/147 tests 통과, TypeScript 0 errors, E2E 테스트 통과
+- ✅ 227 tests (215 passed, 12 skipped), TypeScript 0 errors
 
-**최근 완료 (2025-01-24)**:
+**남은 플랫폼**:
 
-- SaleStatus enum 변환 (string → 0,1,2,3)
-- YAML 기반 button text pattern 매칭
-- Over-engineering 제거 (statusText, isSaleStatus)
-- Fail-fast YAML 검증 강화
+- [ ] ZigZag (GraphQL 기반)
+- [ ] Kurly (Playwright 기반)
 
 ---
 
