@@ -154,7 +154,7 @@ describe("CompareProductNode", () => {
       expect(result.success).toBe(true);
       expect(result.data.match_count).toBe(1);
       expect(result.data.mismatch_count).toBe(0);
-      expect(result.data.results[0].is_match).toBe(true);
+      expect(result.data.results[0].match).toBe(true);
       expect(result.data.results[0].status).toBe("success");
     });
 
@@ -191,7 +191,7 @@ describe("CompareProductNode", () => {
       const result = await node.execute(input, context);
 
       expect(result.data.mismatch_count).toBe(1);
-      expect(result.data.results[0].is_match).toBe(false);
+      expect(result.data.results[0].match).toBe(false);
       expect(result.data.results[0].comparison.product_name).toBe(false);
     });
 
@@ -214,7 +214,7 @@ describe("CompareProductNode", () => {
 
       const result = await node.execute(input, context);
 
-      expect(result.data.results[0].is_match).toBe(false);
+      expect(result.data.results[0].match).toBe(false);
       expect(result.data.results[0].comparison.discounted_price).toBe(false);
     });
 
@@ -237,7 +237,7 @@ describe("CompareProductNode", () => {
 
       const result = await node.execute(input, context);
 
-      expect(result.data.results[0].is_match).toBe(false);
+      expect(result.data.results[0].match).toBe(false);
       expect(result.data.results[0].comparison.sale_status).toBe(false);
     });
   });
@@ -397,7 +397,7 @@ describe("CompareProductNode", () => {
       const result = await selectiveNode.execute(input, context);
 
       // sale_status만 비교하므로 일치
-      expect(result.data.results[0].is_match).toBe(true);
+      expect(result.data.results[0].match).toBe(true);
     });
   });
 

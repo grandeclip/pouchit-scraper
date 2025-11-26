@@ -3,22 +3,21 @@
  * Pino 기반 로깅 시스템
  *
  * 기능:
- * - 다중 출력 (콘솔 + 파일)
+ * - 다중 출력 (콘솔 + 파일) - 동일 내용 출력
  * - 서비스별 로그 파일 분리 (server.log, worker.log)
  * - 일일 로그 로테이션 (YYYYMMDD 형식)
  * - 환경별 설정
  * - 구조화된 JSON 로깅
  *
  * 콘솔 출력:
- * - WARNING/ERROR 항상 출력
- * - important: true 인 INFO 출력
- * - 개발 환경: pino-pretty 포맷
+ * - LOG_LEVEL 이상 모두 출력 (파일과 동일)
+ * - 개발 환경: pino-pretty 포맷 (색상)
  * - 프로덕션: JSON 포맷
  *
  * 파일 출력:
  * - 서비스별 파일: server-YYYYMMDD.log, worker-YYYYMMDD.log
  * - 에러 통합: error-YYYYMMDD.log
- * - 일일 로테이션, 30일 보관
+ * - 일일 로테이션, 90일 보관
  */
 
 import pino from "pino";
@@ -193,14 +192,18 @@ const LOG_LEVELS = {
 } as const;
 
 /**
- * 로그 필터 함수: WARNING/ERROR 항상 출력, important: true인 INFO만 출력
+ * 로그 필터 함수: LOG_LEVEL 이상 모두 출력 (파일/터미널 동일)
  */
-const shouldLogToConsole = (level: number, important?: boolean): boolean => {
-  // WARNING(40) 이상 항상 출력
-  if (level >= LOG_LEVELS.WARN) return true;
-  // INFO(30)는 important: true일 때만 출력
-  if (level === LOG_LEVELS.INFO && important === true) return true;
-  return false;
+const shouldLogToConsole = (level: number): boolean => {
+  const levelThreshold =
+    LOG_LEVEL === "debug"
+      ? LOG_LEVELS.DEBUG
+      : LOG_LEVEL === "info"
+        ? LOG_LEVELS.INFO
+        : LOG_LEVEL === "warn"
+          ? LOG_LEVELS.WARN
+          : LOG_LEVELS.ERROR;
+  return level >= levelThreshold;
 };
 
 /**
@@ -284,22 +287,22 @@ function createConsoleHook(
       method.apply(this, inputArgs);
 
       // 콘솔 출력 (필터링 적용)
-      // Pino 형식: logger.info(obj, msg) → inputArgs = [obj, msg, ...]
-      const [obj, msg] = inputArgs;
-      const logObj: Record<string, any> =
-        typeof obj === "object" && obj !== null
-          ? (obj as Record<string, any>)
-          : {};
+      // Pino 형식: logger.info(obj, msg) 또는 logger.info(msg)
+      const [first, second] = inputArgs;
+      const logObj: Record<string, any> = {};
 
-      // msg 파라미터가 있으면 logObj에 추가
-      if (msg && typeof msg === "string") {
-        logObj.msg = msg;
+      if (typeof first === "string") {
+        // logger.info("message") 형식
+        logObj.msg = first;
+      } else if (typeof first === "object" && first !== null) {
+        // logger.info({ key: value }, "message") 형식
+        Object.assign(logObj, first);
+        if (typeof second === "string") {
+          logObj.msg = second;
+        }
       }
 
-      const important: boolean =
-        "important" in logObj ? Boolean(logObj.important) : false;
-
-      if (shouldLogToConsole(level, important)) {
+      if (shouldLogToConsole(level)) {
         formatter(logObj, level);
       }
     },

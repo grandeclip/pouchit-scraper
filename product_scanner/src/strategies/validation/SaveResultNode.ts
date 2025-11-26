@@ -24,6 +24,7 @@ import {
 import { INodeContext } from "@/core/interfaces/INodeContext";
 import { StreamingResultWriter } from "@/utils/StreamingResultWriter";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
+import { OUTPUT_CONFIG } from "@/config/constants";
 import {
   SaveResultInput,
   SaveResultOutput,
@@ -51,7 +52,7 @@ export interface SaveResultNodeConfig {
  * 기본 설정
  */
 const DEFAULT_CONFIG: SaveResultNodeConfig = {
-  output_dir: "./output",
+  output_dir: OUTPUT_CONFIG.RESULT_DIR,
   default_save_to_jsonl: true,
   default_save_to_supabase: false,
   use_date_subdir: true,
@@ -112,21 +113,47 @@ export class SaveResultNode
     );
 
     try {
-      // Summary 계산
-      const summary = this.calculateSummary(input.results);
+      // StreamingResultWriter 가져오기 (FetchProductNode에서 초기화됨)
+      const resultWriter = context.sharedState.get(
+        "result_writer",
+      ) as StreamingResultWriter | null;
 
       let jsonlPath: string | undefined;
       let recordCount = 0;
+      let summary: SaveResultOutput["summary"];
 
-      // JSONL 저장
-      if (options.save_to_jsonl) {
+      // Streaming 방식: 이미 CompareProductNode에서 append 완료, finalize만 수행
+      if (resultWriter && options.save_to_jsonl) {
+        const finalResult = await resultWriter.finalize();
+        jsonlPath = finalResult.filePath;
+        recordCount = finalResult.recordCount;
+
+        // StreamingResultWriter의 summary 사용
+        summary = {
+          total: finalResult.summary.total,
+          success: finalResult.summary.success,
+          failed: finalResult.summary.failed,
+          not_found: finalResult.summary.not_found,
+          match: 0, // StreamingResultWriter summary에는 match가 없음
+          mismatch: 0,
+        };
+
+        // match/mismatch는 input.results에서 계산
+        const fullSummary = this.calculateSummary(input.results);
+        summary.match = fullSummary.match;
+        summary.mismatch = fullSummary.mismatch;
+      } else if (options.save_to_jsonl) {
+        // Fallback: StreamingResultWriter가 없으면 기존 방식 사용
         const writeResult = await this.saveToJsonl(
           input.results,
           context,
-          summary,
+          this.calculateSummary(input.results),
         );
         jsonlPath = writeResult.filePath;
         recordCount = writeResult.recordCount;
+        summary = this.calculateSummary(input.results);
+      } else {
+        summary = this.calculateSummary(input.results);
       }
 
       // Supabase 업데이트 (선택적)
@@ -220,7 +247,7 @@ export class SaveResultNode
     for (const result of results) {
       if (result.status === "success") {
         summary.success++;
-        if (result.is_match) {
+        if (result.match) {
           summary.match++;
         } else {
           summary.mismatch++;
@@ -260,7 +287,6 @@ export class SaveResultNode
         await writer.append({
           ...result,
           status: result.status,
-          match: result.is_match,
         });
       }
 

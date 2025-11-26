@@ -63,7 +63,7 @@ const createMockComparisonResult = (
     discounted_price: 8000,
     sale_status: "on_sale",
   },
-  scanned:
+  fetch:
     status === "success"
       ? {
           product_name: isMatch
@@ -82,7 +82,7 @@ const createMockComparisonResult = (
     discounted_price: true,
     sale_status: true,
   },
-  is_match: isMatch,
+  match: isMatch,
   status,
   compared_at: "2024-01-01T00:00:00+09:00",
 });

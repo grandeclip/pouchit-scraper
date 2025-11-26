@@ -180,6 +180,28 @@ export const WORKFLOW_CONFIG = {
 } as const;
 
 /**
+ * 결과 출력 설정
+ */
+export const OUTPUT_CONFIG = {
+  /**
+   * 결과 파일 저장 디렉토리
+   * 환경변수: RESULT_OUTPUT_DIR
+   * 기본값: ./results (로컬) 또는 /app/results (Docker)
+   */
+  RESULT_DIR: process.env.RESULT_OUTPUT_DIR || "./results",
+
+  /**
+   * 스크린샷 저장 디렉토리
+   * 환경변수: SCREENSHOT_OUTPUT_DIR
+   * 기본값: RESULT_DIR과 동일 (하위 날짜/플랫폼 폴더에 저장)
+   */
+  SCREENSHOT_DIR:
+    process.env.SCREENSHOT_OUTPUT_DIR ||
+    process.env.RESULT_OUTPUT_DIR ||
+    "./results",
+} as const;
+
+/**
  * Scraper 설정
  * Browser/API 스크래핑 공통 설정
  */

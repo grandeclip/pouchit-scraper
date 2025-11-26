@@ -10,12 +10,6 @@
 
 import { INodeStrategy } from "@/core/interfaces/INodeStrategy";
 import { SupabaseSearchNode } from "@/strategies/SupabaseSearchNode";
-import { HwahaeValidationNode } from "@/strategies/HwahaeValidationNode";
-import { OliveyoungValidationNode } from "@/strategies/OliveyoungValidationNode";
-import { MusinsaValidationNode } from "@/strategies/MusinsaValidationNode";
-import { ZigzagValidationNode } from "@/strategies/ZigzagValidationNode";
-import { AblyValidationNode } from "@/strategies/AblyValidationNode";
-import { KurlyValidationNode } from "@/strategies/KurlyValidationNode";
 import { ResultWriterNode } from "@/strategies/ResultWriterNode";
 import { UpdateProductSetNode } from "@/strategies/UpdateProductSetNode";
 import { ExtractSingleProductNode } from "@/strategies/ExtractSingleProductNode";
@@ -33,12 +27,6 @@ export class NodeStrategyFactory {
   constructor() {
     // 사용 가능한 Node Strategy 등록
     this.registerStrategy(new SupabaseSearchNode());
-    this.registerStrategy(new HwahaeValidationNode());
-    this.registerStrategy(new OliveyoungValidationNode());
-    this.registerStrategy(new MusinsaValidationNode());
-    this.registerStrategy(new ZigzagValidationNode());
-    this.registerStrategy(new AblyValidationNode());
-    this.registerStrategy(new KurlyValidationNode());
     this.registerStrategy(new ResultWriterNode());
     this.registerStrategy(new UpdateProductSetNode());
     // Phase 2: 단일 상품 추출 노드
@@ -47,6 +35,7 @@ export class NodeStrategyFactory {
     this.registerStrategy(new ExtractUrlNode());
     // Phase 2: Multi-Platform 상품 추출 노드
     this.registerStrategy(new ExtractMultiPlatformNode());
+    // Note: Phase 4 노드는 TypedNodeStrategyFactory 사용
   }
 
   /**

@@ -1,6 +1,11 @@
 /**
  * Phase 4 Validation Nodes Barrel Export
+ *
+ * Step 4.9: Platform 설정 추가
  */
+
+// Platform Configuration
+export * from "./platform";
 
 // Types
 export type {

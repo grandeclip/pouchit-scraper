@@ -132,6 +132,9 @@ export class CompareProductNode
       // 원본 데이터 맵 생성 (빠른 조회용)
       const originalMap = this.buildOriginalMap(originalProducts);
 
+      // Note: Streaming 저장은 ScanProductNode에서 이미 수행됨
+      // CompareProductNode는 집계 및 결과 반환만 담당
+
       const comparisonResults: SingleComparisonResult[] = [];
 
       for (const validationResult of input.results) {
@@ -146,10 +149,10 @@ export class CompareProductNode
 
       // 집계
       const matchCount = comparisonResults.filter(
-        (r) => r.status === "success" && r.is_match,
+        (r) => r.status === "success" && r.match,
       ).length;
       const mismatchCount = comparisonResults.filter(
-        (r) => r.status === "success" && !r.is_match,
+        (r) => r.status === "success" && !r.match,
       ).length;
       const failureCount = comparisonResults.filter(
         (r) => r.status === "failed" || r.status === "not_found",
@@ -322,9 +325,9 @@ export class CompareProductNode
         discounted_price: original.discounted_price,
         sale_status: original.sale_status,
       },
-      scanned: scannedData,
+      fetch: scannedData,
       comparison,
-      is_match: isMatch,
+      match: isMatch,
       status: "success",
       compared_at: getTimestampWithTimezone(),
     };
@@ -378,7 +381,7 @@ export class CompareProductNode
       db: {
         product_name: null,
       },
-      scanned: scan_result.scanned_data || null,
+      fetch: scan_result.scanned_data || null,
       comparison: {
         product_name: false,
         thumbnail: false,
@@ -386,7 +389,7 @@ export class CompareProductNode
         discounted_price: false,
         sale_status: false,
       },
-      is_match: false,
+      match: false,
       status: "not_found",
       error: "Original product not found in DB",
       compared_at: getTimestampWithTimezone(),
@@ -414,7 +417,7 @@ export class CompareProductNode
         discounted_price: original.discounted_price,
         sale_status: original.sale_status,
       },
-      scanned: null,
+      fetch: null,
       comparison: {
         product_name: false,
         thumbnail: false,
@@ -422,7 +425,7 @@ export class CompareProductNode
         discounted_price: false,
         sale_status: false,
       },
-      is_match: false,
+      match: false,
       status: "failed",
       error,
       compared_at: getTimestampWithTimezone(),

@@ -181,7 +181,7 @@ export interface FieldComparison {
   field: string;
   db_value: unknown;
   scanned_value: unknown;
-  is_match: boolean;
+  match: boolean;
 }
 
 /**
@@ -207,7 +207,7 @@ export interface SingleComparisonResult {
   };
 
   /** 스캔 데이터 */
-  scanned: {
+  fetch: {
     product_name: string;
     thumbnail: string;
     original_price: number;
@@ -225,7 +225,7 @@ export interface SingleComparisonResult {
   };
 
   /** 전체 일치 여부 */
-  is_match: boolean;
+  match: boolean;
 
   /** 상태: success, failed, not_found */
   status: "success" | "failed" | "not_found";

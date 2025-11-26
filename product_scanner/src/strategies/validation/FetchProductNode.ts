@@ -24,6 +24,7 @@ import {
 import { INodeContext } from "@/core/interfaces/INodeContext";
 import { IProductSearchService } from "@/core/interfaces/IProductSearchService";
 import { ProductSearchService } from "@/services/ProductSearchService";
+import { StreamingResultWriter } from "@/utils/StreamingResultWriter";
 import { FetchProductInput, FetchProductOutput } from "./types";
 import { WORKFLOW_DEFAULT_CONFIG } from "@/config/constants";
 
@@ -140,6 +141,25 @@ export class FetchProductNode
 
       // SharedState에 원본 상품 저장 (CompareNode에서 사용)
       context.sharedState.set("original_products", products);
+
+      // StreamingResultWriter 초기화 (Streaming 방식 JSONL 저장)
+      const resultWriter = new StreamingResultWriter({
+        outputDir: "./results",
+        platform,
+        jobId: context.job_id,
+        workflowId: context.workflow_id,
+        useDateSubdir: true,
+      });
+      await resultWriter.initialize();
+      context.sharedState.set("result_writer", resultWriter);
+
+      logger.debug(
+        {
+          type: this.type,
+          filePath: resultWriter.getFilePath(),
+        },
+        "StreamingResultWriter 초기화 완료",
+      );
 
       return createSuccessResult(output);
     } catch (error) {
