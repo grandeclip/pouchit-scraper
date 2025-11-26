@@ -1,0 +1,344 @@
+/**
+ * Phase 4 Validation Node Types
+ *
+ * 목적:
+ * - 노드 간 데이터 전달 타입 정의
+ * - 파이프라인 타입 안전성 보장
+ */
+
+import { ProductSetSearchResult } from "@/core/domain/ProductSet";
+
+// ============================================================
+// FetchProductNode Types
+// ============================================================
+
+/**
+ * FetchProductNode 입력 (Workflow Context에서 추출)
+ */
+export interface FetchProductInput {
+  /** Platform 필터 (link_url ILIKE 패턴) */
+  link_url_pattern?: string;
+
+  /** 판매 상태 필터 */
+  sale_status?: string;
+
+  /** 특정 product_id 조회 (Multi-Platform) */
+  product_id?: string;
+
+  /** 조회 제한 수 */
+  limit?: number;
+
+  /** 배치 크기 (병렬 처리용) */
+  batch_size?: number;
+}
+
+/**
+ * FetchProductNode 출력
+ */
+export interface FetchProductOutput {
+  /** 조회된 상품 목록 */
+  products: ProductSetSearchResult[];
+
+  /** 총 조회 수 */
+  count: number;
+
+  /** 배치 정보 (병렬 처리용) */
+  batch_info?: {
+    batch_size: number;
+    total_batches: number;
+  };
+}
+
+// ============================================================
+// ScanProductNode Types
+// ============================================================
+
+/**
+ * 단일 스캔 결과
+ */
+export interface SingleScanResult {
+  /** 상품 세트 ID */
+  product_set_id: string;
+
+  /** 상품 ID */
+  product_id: string;
+
+  /** 스캔 성공 여부 */
+  success: boolean;
+
+  /** 스캔된 데이터 */
+  scanned_data?: {
+    product_name: string;
+    thumbnail: string;
+    original_price: number;
+    discounted_price: number;
+    sale_status: string;
+  };
+
+  /** 에러 메시지 (실패 시) */
+  error?: string;
+
+  /** 스캔 URL */
+  url: string | null;
+
+  /** 스캔 시간 */
+  scanned_at: string;
+}
+
+/**
+ * ScanProductNode 입력
+ */
+export interface ScanProductInput {
+  /** 스캔 대상 상품 목록 */
+  products: ProductSetSearchResult[];
+}
+
+/**
+ * ScanProductNode 출력
+ */
+export interface ScanProductOutput {
+  /** 스캔 결과 목록 */
+  results: SingleScanResult[];
+
+  /** 성공 수 */
+  success_count: number;
+
+  /** 실패 수 */
+  failure_count: number;
+}
+
+// ============================================================
+// ValidateProductNode Types
+// ============================================================
+
+/**
+ * 유효성 검증 결과
+ */
+export interface ValidationCheckResult {
+  /** 검증 항목 */
+  field: string;
+
+  /** 유효 여부 */
+  valid: boolean;
+
+  /** 검증 메시지 */
+  message?: string;
+}
+
+/**
+ * 단일 검증 결과
+ */
+export interface SingleValidationResult {
+  /** 상품 세트 ID */
+  product_set_id: string;
+
+  /** 상품 ID */
+  product_id: string;
+
+  /** 스캔 결과 참조 */
+  scan_result: SingleScanResult;
+
+  /** 검증 통과 여부 */
+  is_valid: boolean;
+
+  /** 검증 상세 결과 */
+  checks: ValidationCheckResult[];
+
+  /** 검증 시간 */
+  validated_at: string;
+}
+
+/**
+ * ValidateProductNode 입력
+ */
+export interface ValidateProductInput {
+  /** 스캔 결과 목록 */
+  results: SingleScanResult[];
+}
+
+/**
+ * ValidateProductNode 출력
+ */
+export interface ValidateProductOutput {
+  /** 검증 결과 목록 */
+  results: SingleValidationResult[];
+
+  /** 유효 수 */
+  valid_count: number;
+
+  /** 무효 수 */
+  invalid_count: number;
+}
+
+// ============================================================
+// CompareProductNode Types
+// ============================================================
+
+/**
+ * 필드 비교 결과
+ */
+export interface FieldComparison {
+  field: string;
+  db_value: unknown;
+  scanned_value: unknown;
+  is_match: boolean;
+}
+
+/**
+ * 단일 비교 결과
+ */
+export interface SingleComparisonResult {
+  /** 상품 세트 ID */
+  product_set_id: string;
+
+  /** 상품 ID */
+  product_id: string;
+
+  /** URL */
+  url: string | null;
+
+  /** DB 데이터 */
+  db: {
+    product_name: string | null;
+    thumbnail?: string | null;
+    original_price?: number | null;
+    discounted_price?: number | null;
+    sale_status?: string | null;
+  };
+
+  /** 스캔 데이터 */
+  scanned: {
+    product_name: string;
+    thumbnail: string;
+    original_price: number;
+    discounted_price: number;
+    sale_status: string;
+  } | null;
+
+  /** 필드별 비교 결과 */
+  comparison: {
+    product_name: boolean;
+    thumbnail: boolean;
+    original_price: boolean;
+    discounted_price: boolean;
+    sale_status: boolean;
+  };
+
+  /** 전체 일치 여부 */
+  is_match: boolean;
+
+  /** 상태: success, failed, not_found */
+  status: "success" | "failed" | "not_found";
+
+  /** 에러 메시지 */
+  error?: string;
+
+  /** 비교 시간 */
+  compared_at: string;
+}
+
+/**
+ * CompareProductNode 입력
+ */
+export interface CompareProductInput {
+  /** 검증 결과 목록 */
+  results: SingleValidationResult[];
+
+  /** 원본 상품 데이터 (DB) */
+  original_products: ProductSetSearchResult[];
+}
+
+/**
+ * CompareProductNode 출력
+ */
+export interface CompareProductOutput {
+  /** 비교 결과 목록 */
+  results: SingleComparisonResult[];
+
+  /** 일치 수 */
+  match_count: number;
+
+  /** 불일치 수 */
+  mismatch_count: number;
+
+  /** 실패 수 */
+  failure_count: number;
+}
+
+// ============================================================
+// SaveResultNode Types
+// ============================================================
+
+/**
+ * SaveResultNode 입력
+ */
+export interface SaveResultInput {
+  /** 비교 결과 목록 */
+  results: SingleComparisonResult[];
+
+  /** 저장 옵션 */
+  options?: {
+    save_to_supabase?: boolean;
+    save_to_jsonl?: boolean;
+    update_product_set?: boolean;
+  };
+}
+
+/**
+ * SaveResultNode 출력
+ */
+export interface SaveResultOutput {
+  /** JSONL 파일 경로 */
+  jsonl_path?: string;
+
+  /** 저장된 레코드 수 */
+  record_count: number;
+
+  /** Supabase 업데이트 수 */
+  supabase_updated?: number;
+
+  /** 요약 */
+  summary: {
+    total: number;
+    success: number;
+    failed: number;
+    not_found: number;
+    match: number;
+    mismatch: number;
+  };
+}
+
+// ============================================================
+// NotifyResultNode Types
+// ============================================================
+
+/**
+ * NotifyResultNode 입력
+ */
+export interface NotifyResultInput {
+  /** 저장 결과 */
+  save_result: SaveResultOutput;
+
+  /** Platform */
+  platform: string;
+
+  /** Job ID */
+  job_id: string;
+
+  /** Workflow ID */
+  workflow_id: string;
+}
+
+/**
+ * NotifyResultNode 출력
+ */
+export interface NotifyResultOutput {
+  /** 알림 전송 여부 */
+  notified: boolean;
+
+  /** 알림 채널 */
+  channels?: string[];
+
+  /** 에러 메시지 (실패 시) */
+  error?: string;
+}
