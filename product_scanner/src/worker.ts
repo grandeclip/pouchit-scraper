@@ -14,6 +14,7 @@ import "dotenv/config";
 import { WorkflowExecutionService } from "@/services/WorkflowExecutionService";
 import { RedisWorkflowRepository } from "@/repositories/RedisWorkflowRepository";
 import { PlatformLock } from "@/repositories/PlatformLock";
+import { SchedulerStateRepository } from "@/repositories/SchedulerStateRepository";
 import { logImportant } from "@/utils/LoggerContext";
 import { WORKFLOW_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
@@ -59,6 +60,7 @@ async function processPlatformQueue(
   platform: string,
   service: WorkflowExecutionService,
   repository: RedisWorkflowRepository,
+  schedulerState: SchedulerStateRepository,
 ): Promise<void> {
   const platformLogger = logger.child({ platform });
   const lock = new PlatformLock(repository.client, platform);
@@ -112,7 +114,10 @@ async function processPlatformQueue(
           status: job.status,
         });
       } finally {
-        // 6. Running Job 초기화 및 Lock 해제 (성공/실패 관계없이)
+        // 6. Job 완료 시간 기록 (Scheduler 연동용)
+        await schedulerState.setJobCompletedAt(platform);
+
+        // 7. Running Job 초기화 및 Lock 해제 (성공/실패 관계없이)
         await lock.clearRunningJob();
         await lock.release();
       }
@@ -141,6 +146,7 @@ function sleep(ms: number): Promise<void> {
 async function startWorker() {
   const service = new WorkflowExecutionService();
   const repository = new RedisWorkflowRepository();
+  const schedulerState = new SchedulerStateRepository(repository.client);
 
   const workerMode = process.env.WORKER_PLATFORMS ? "dedicated" : "legacy";
 
@@ -153,7 +159,7 @@ async function startWorker() {
 
   // 각 Platform마다 독립적인 처리 루프 시작
   const processors = PLATFORMS.map((platform) =>
-    processPlatformQueue(platform, service, repository),
+    processPlatformQueue(platform, service, repository, schedulerState),
   );
 
   // 모든 Platform 동시 처리 (병렬)

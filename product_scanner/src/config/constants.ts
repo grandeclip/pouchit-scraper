@@ -401,3 +401,105 @@ export const LOCK_CONFIG = {
    */
   MAX_LOCK_ATTEMPTS: parseInt(process.env.MAX_LOCK_ATTEMPTS || "10", 10),
 } as const;
+
+/**
+ * Scheduler 설정
+ * 자동 Job 스케줄링 서비스 설정
+ */
+export const SCHEDULER_CONFIG = {
+  /**
+   * 스케줄링 대상 플랫폼 목록
+   * 환경변수: SCHEDULER_PLATFORMS (쉼표로 구분)
+   * 기본값: 6개 쇼핑몰 플랫폼
+   */
+  PLATFORMS: (
+    process.env.SCHEDULER_PLATFORMS ||
+    "hwahae,oliveyoung,zigzag,musinsa,ably,kurly"
+  )
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0),
+
+  /**
+   * 스케줄러 체크 간격 (ms)
+   * 환경변수: SCHEDULER_CHECK_INTERVAL_MS
+   * 기본값: 10000 (10초)
+   *
+   * 목적:
+   * - 스케줄러가 플랫폼 상태를 체크하는 주기
+   * - 너무 짧으면 Redis 부하, 너무 길면 응답성 저하
+   */
+  CHECK_INTERVAL_MS: parseInt(
+    process.env.SCHEDULER_CHECK_INTERVAL_MS || "10000",
+    10,
+  ),
+
+  /**
+   * 플랫폼 간 Job 요청 간격 (ms)
+   * 환경변수: SCHEDULER_INTER_PLATFORM_DELAY_MS
+   * 기본값: 30000 (30초)
+   *
+   * 목적:
+   * - 서로 다른 플랫폼 간 Job 요청 최소 간격
+   * - 동시 다발적 요청 방지 (Thundering Herd)
+   */
+  INTER_PLATFORM_DELAY_MS: parseInt(
+    process.env.SCHEDULER_INTER_PLATFORM_DELAY_MS || "30000",
+    10,
+  ),
+
+  /**
+   * 동일 플랫폼 Job 완료 후 대기 시간 (ms)
+   * 환경변수: SCHEDULER_SAME_PLATFORM_COOLDOWN_MS
+   * 기본값: 60000 (1분)
+   *
+   * 목적:
+   * - 같은 플랫폼에서 Job 완료 후 다음 Job까지 최소 대기 시간
+   * - Rate Limit 방지 및 시스템 안정성
+   */
+  SAME_PLATFORM_COOLDOWN_MS: parseInt(
+    process.env.SCHEDULER_SAME_PLATFORM_COOLDOWN_MS || "60000",
+    10,
+  ),
+
+  /**
+   * on_sale 실행 비율
+   * 환경변수: SCHEDULER_ON_SALE_RATIO
+   * 기본값: 4 (on_sale 4회 → off_sale 1회)
+   *
+   * 목적:
+   * - on_sale 상품이 더 자주 변경되므로 높은 비율로 스캔
+   * - off_sale은 상대적으로 낮은 빈도로 스캔
+   */
+  ON_SALE_RATIO: parseInt(process.env.SCHEDULER_ON_SALE_RATIO || "4", 10),
+
+  /**
+   * 기본 LIMIT 값
+   * 환경변수: SCHEDULER_DEFAULT_LIMIT
+   * 기본값: 1000
+   *
+   * 목적:
+   * - 각 Job에서 처리할 상품 수 제한
+   */
+  DEFAULT_LIMIT: parseInt(process.env.SCHEDULER_DEFAULT_LIMIT || "1000", 10),
+
+  /**
+   * 기본 BATCH_SIZE 값
+   * 환경변수: SCHEDULER_DEFAULT_BATCH_SIZE
+   * 기본값: 10
+   */
+  DEFAULT_BATCH_SIZE: parseInt(
+    process.env.SCHEDULER_DEFAULT_BATCH_SIZE || "10",
+    10,
+  ),
+
+  /**
+   * 기본 CONCURRENCY 값
+   * 환경변수: SCHEDULER_DEFAULT_CONCURRENCY
+   * 기본값: 4
+   */
+  DEFAULT_CONCURRENCY: parseInt(
+    process.env.SCHEDULER_DEFAULT_CONCURRENCY || "4",
+    10,
+  ),
+} as const;
