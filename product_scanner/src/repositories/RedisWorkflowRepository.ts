@@ -40,17 +40,25 @@ const REDIS_TTL = {
  * Redis Workflow Repository
  */
 export class RedisWorkflowRepository implements IWorkflowRepository {
-  private client: Redis;
+  private _client: Redis;
+
+  /**
+   * Redis client getter
+   * PlatformLock 등 외부에서 Redis 접근 필요 시 사용
+   */
+  get client(): Redis {
+    return this._client;
+  }
 
   constructor(redisClient?: Redis) {
     // Dependency Injection (테스트 가능하도록)
     if (redisClient) {
-      this.client = redisClient;
+      this._client = redisClient;
     } else {
       const host = process.env.REDIS_HOST || "localhost";
       const port = parseInt(process.env.REDIS_PORT || "6379", 10);
 
-      this.client = new Redis({
+      this._client = new Redis({
         host,
         port,
         maxRetriesPerRequest: 3,
@@ -61,23 +69,23 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
         lazyConnect: false,
       });
 
-      this.client.on("connect", () => {
+      this._client.on("connect", () => {
         logger.info({ host, port }, "Redis 연결 성공");
       });
 
-      this.client.on("ready", () => {
+      this._client.on("ready", () => {
         logger.info({ host, port }, "Redis 사용 준비 완료");
       });
 
-      this.client.on("error", (err: Error) => {
+      this._client.on("error", (err: Error) => {
         logger.error({ error: err.message, host, port }, "Redis 연결 오류");
       });
 
-      this.client.on("close", () => {
+      this._client.on("close", () => {
         logger.warn({ host, port }, "Redis 연결 종료");
       });
 
-      this.client.on("reconnecting", () => {
+      this._client.on("reconnecting", () => {
         logger.warn({ host, port }, "Redis 재연결 시도 중");
       });
     }
@@ -93,7 +101,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     }
 
     const queueKey = REDIS_KEYS.JOB_QUEUE_PLATFORM(job.platform);
-    const pipeline = this.client.pipeline();
+    const pipeline = this._client.pipeline();
 
     // 1. Platform별 Sorted Set에 추가 (우선순위 기반)
     pipeline.zadd(queueKey, job.priority, job.job_id);
@@ -130,7 +138,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     const queueKey = REDIS_KEYS.JOB_QUEUE_PLATFORM(platform);
 
     // 가장 높은 우선순위 Job 가져오기
-    const results = await this.client.zrevrange(queueKey, 0, 0);
+    const results = await this._client.zrevrange(queueKey, 0, 0);
 
     if (results.length === 0) {
       return null; // 큐가 비어있음
@@ -139,14 +147,14 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     const jobId = results[0];
 
     // 큐에서 제거 (Atomic operation)
-    const removed = await this.client.zrem(queueKey, jobId);
+    const removed = await this._client.zrem(queueKey, jobId);
 
     if (removed === 0) {
       return null; // 다른 Worker가 이미 가져감
     }
 
     // Job 데이터 조회
-    const jobData = await this.client.hget(REDIS_KEYS.JOB_DATA(jobId), "data");
+    const jobData = await this._client.hget(REDIS_KEYS.JOB_DATA(jobId), "data");
 
     if (!jobData) {
       logger.warn({ job_id: jobId, platform }, "Redis에서 Job을 찾을 수 없음");
@@ -167,7 +175,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
    * Job 조회
    */
   async getJob(jobId: string): Promise<Job | null> {
-    const jobData = await this.client.hget(REDIS_KEYS.JOB_DATA(jobId), "data");
+    const jobData = await this._client.hget(REDIS_KEYS.JOB_DATA(jobId), "data");
 
     if (!jobData) {
       return null;
@@ -183,7 +191,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     const key = REDIS_KEYS.JOB_DATA(job.job_id);
 
     // Job 데이터 업데이트
-    await this.client.hset(key, "data", JSON.stringify(job));
+    await this._client.hset(key, "data", JSON.stringify(job));
 
     // 상태별 TTL 설정
     let ttl: number;
@@ -205,7 +213,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
         ttl = REDIS_TTL.JOB_PENDING;
     }
 
-    await this.client.expire(key, ttl);
+    await this._client.expire(key, ttl);
   }
 
   /**
@@ -221,7 +229,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     }
 
     const queueKey = REDIS_KEYS.JOB_QUEUE_PLATFORM(job.platform);
-    const pipeline = this.client.pipeline();
+    const pipeline = this._client.pipeline();
 
     // Platform 큐에서 제거
     pipeline.zrem(queueKey, jobId);
@@ -238,7 +246,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
   async getQueueLength(platform?: string): Promise<number> {
     if (platform) {
       const queueKey = REDIS_KEYS.JOB_QUEUE_PLATFORM(platform);
-      return await this.client.zcard(queueKey);
+      return await this._client.zcard(queueKey);
     }
 
     // Platform 지정 안하면 deprecated warning
@@ -256,7 +264,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     }
 
     const queueKey = REDIS_KEYS.JOB_QUEUE_PLATFORM(platform);
-    const jobIds = await this.client.zrevrange(queueKey, 0, limit - 1);
+    const jobIds = await this._client.zrevrange(queueKey, 0, limit - 1);
 
     if (jobIds.length === 0) {
       return [];
@@ -278,7 +286,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      const result = await this.client.ping();
+      const result = await this._client.ping();
       return result === "PONG";
     } catch (error) {
       logger.error(
@@ -295,7 +303,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
    * 연결 종료
    */
   async disconnect(): Promise<void> {
-    await this.client.quit();
+    await this._client.quit();
   }
 
   /**
@@ -303,7 +311,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
    */
   async getRateLimitTracker(platform: string): Promise<number> {
     const key = REDIS_KEYS.RATE_LIMIT_TRACKER(platform);
-    const value = await this.client.get(key);
+    const value = await this._client.get(key);
     return value ? parseInt(value, 10) : 0;
   }
 
@@ -315,7 +323,7 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     timestamp: number,
   ): Promise<void> {
     const key = REDIS_KEYS.RATE_LIMIT_TRACKER(platform);
-    await this.client.set(key, timestamp.toString());
+    await this._client.set(key, timestamp.toString());
 
     logger.debug({ platform, timestamp }, "Rate limit tracker updated");
   }

@@ -1,4 +1,55 @@
+# Multi-Worker Queue System
+# Phase 2: 플랫폼별 독립 Worker 컨테이너
+#
+# Browser 기반: oliveyoung, ably, kurly (각 4GB, shm_size 필요)
+# API 기반: hwahae, musinsa, zigzag (각 2GB)
+# Extract: url_extraction, single_product, multi_platform (4GB)
+# Default: 기타 (2GB)
+
+x-worker-common: &worker-common
+  build:
+    context: ..
+    dockerfile: docker/Dockerfile.dev
+  env_file:
+    - ../.env.local
+  volumes:
+    - ../:/app
+    - /app/node_modules
+    - ../logs:/app/logs
+    - ../results:/app/results
+  depends_on:
+    - redis
+  command: npm run worker
+  restart: unless-stopped
+  environment: &worker-env-common
+    NODE_ENV: development
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    WORKER_POLL_INTERVAL: "5000"
+    TZ: Asia/Seoul
+    LOG_LEVEL: info
+    LOG_PRETTY: "true"
+    LOG_DIR: /app/logs
+
+x-browser-worker: &browser-worker
+  <<: *worker-common
+  shm_size: "2gb"
+  deploy:
+    resources:
+      limits:
+        memory: 4G
+
+x-api-worker: &api-worker
+  <<: *worker-common
+  deploy:
+    resources:
+      limits:
+        memory: 2G
+
 services:
+  # ============================================
+  # API Server
+  # ============================================
   product_scanner_dev:
     build:
       context: ..
@@ -11,9 +62,7 @@ services:
       - PORT=3000
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      # Timezone configuration
       - TZ=Asia/Seoul
-      # Logging configuration
       - SERVICE_NAME=server
       - LOG_LEVEL=debug
       - LOG_PRETTY=true
@@ -21,13 +70,9 @@ services:
     env_file:
       - ../.env.local
     volumes:
-      # 소스 코드 volume mount (실시간 반영)
       - ../:/app
-      # node_modules 격리 (중요! 로컬/컨테이너 충돌 방지)
       - /app/node_modules
-      # 로그 디렉토리
       - ../logs:/app/logs
-      # 결과 디렉토리
       - ../results:/app/results
     depends_on:
       - redis
@@ -44,41 +89,85 @@ services:
       retries: 3
       start_period: 10s
 
-  workflow_worker_dev:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile.dev
-    container_name: workflow_worker_dev
-    # Chromium 메모리 누수 방지 설정
-    shm_size: '2gb'  # /dev/shm 크기 증가 (기본 64MB → 2GB)
+  # ============================================
+  # Browser-based Workers (Playwright)
+  # ============================================
+  worker_oliveyoung:
+    <<: *browser-worker
+    container_name: worker_oliveyoung
     environment:
-      - NODE_ENV=development
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - WORKER_POLL_INTERVAL=5000
-      # Timezone configuration
-      - TZ=Asia/Seoul
-      # Logging configuration
-      - SERVICE_NAME=worker
-      - LOG_LEVEL=debug
-      - LOG_PRETTY=true
-      - LOG_DIR=/app/logs
-    env_file:
-      - ../.env.local
-    volumes:
-      - ../:/app
-      - /app/node_modules
-      - ../logs:/app/logs
-      - ../results:/app/results
-    depends_on:
-      - redis
-    command: npm run worker
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 16G
+      <<: *worker-env-common
+      SERVICE_NAME: worker-oliveyoung
+      WORKER_PLATFORMS: oliveyoung
 
+  worker_ably:
+    <<: *browser-worker
+    container_name: worker_ably
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-ably
+      WORKER_PLATFORMS: ably
+
+  worker_kurly:
+    <<: *browser-worker
+    container_name: worker_kurly
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-kurly
+      WORKER_PLATFORMS: kurly
+
+  # ============================================
+  # API-based Workers (HTTP/GraphQL)
+  # ============================================
+  worker_hwahae:
+    <<: *api-worker
+    container_name: worker_hwahae
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-hwahae
+      WORKER_PLATFORMS: hwahae
+
+  worker_musinsa:
+    <<: *api-worker
+    container_name: worker_musinsa
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-musinsa
+      WORKER_PLATFORMS: musinsa
+
+  worker_zigzag:
+    <<: *api-worker
+    container_name: worker_zigzag
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-zigzag
+      WORKER_PLATFORMS: zigzag
+
+  # ============================================
+  # Extract Worker (Mixed - URL extraction)
+  # ============================================
+  worker_extract:
+    <<: *browser-worker
+    container_name: worker_extract
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-extract
+      WORKER_PLATFORMS: url_extraction,single_product,multi_platform
+
+  # ============================================
+  # Default Worker (기타)
+  # ============================================
+  worker_default:
+    <<: *api-worker
+    container_name: worker_default
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-default
+      WORKER_PLATFORMS: default
+
+  # ============================================
+  # Redis
+  # ============================================
   redis:
     image: redis:8.2-alpine
     container_name: product_scanner_redis_dev

@@ -9,6 +9,7 @@
 import { Router } from "express";
 import productsRouter from "./products.router";
 import workflowsRouter from "./workflows.router";
+import jobsRouter from "./jobs.router";
 import { logger } from "@/config/logger";
 
 const router = Router();
@@ -18,6 +19,9 @@ router.use("/products", productsRouter);
 
 // Workflows API (워크플로우 실행/조회)
 router.use("/workflows", workflowsRouter);
+
+// Jobs API (모니터링)
+router.use("/jobs", jobsRouter);
 
 logger.info(
   {
@@ -29,6 +33,7 @@ logger.info(
       "GET /api/v2/workflows/jobs/:jobId",
       "GET /api/v2/workflows",
       "GET /api/v2/workflows/health",
+      "GET /api/v2/jobs/running",
     ],
   },
   "[v2Router] API v2 라우터 등록",

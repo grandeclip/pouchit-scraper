@@ -162,9 +162,13 @@ class ServiceRoutingStream implements DestinationStream {
         errorStream.write(chunk);
       }
 
-      // 서비스별 파일에 기록
+      // 서비스별 파일에 기록 (worker-* 패턴은 worker 스트림으로 라우팅)
+      const normalizedServiceName = serviceName.startsWith("worker")
+        ? "worker"
+        : serviceName;
       const stream =
-        serviceStreams.get(serviceName) || serviceStreams.get("server");
+        serviceStreams.get(normalizedServiceName) ||
+        serviceStreams.get("server");
       if (stream) {
         stream.write(chunk);
       }

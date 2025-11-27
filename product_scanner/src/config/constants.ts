@@ -367,3 +367,37 @@ export const UPDATE_CONFIG = {
     10,
   ),
 } as const;
+
+/**
+ * Platform Lock 설정
+ * Multi-Worker Queue System용 분산 Lock 설정
+ */
+export const LOCK_CONFIG = {
+  /**
+   * Lock TTL (ms)
+   * 환경변수: LOCK_TTL_MS
+   * 기본값: 7200000 (2시간)
+   *
+   * 목적:
+   * - 프로세스 크래시 시 Lock 자동 만료
+   * - Job 최대 실행 시간(1시간) + 안전 마진
+   */
+  LOCK_TTL_MS: parseInt(process.env.LOCK_TTL_MS || "7200000", 10),
+
+  /**
+   * Lock 획득 재시도 간격 (ms)
+   * 환경변수: LOCK_RETRY_INTERVAL_MS
+   * 기본값: 1000 (1초)
+   */
+  LOCK_RETRY_INTERVAL_MS: parseInt(
+    process.env.LOCK_RETRY_INTERVAL_MS || "1000",
+    10,
+  ),
+
+  /**
+   * 최대 Lock 획득 재시도 횟수
+   * 환경변수: MAX_LOCK_ATTEMPTS
+   * 기본값: 10
+   */
+  MAX_LOCK_ATTEMPTS: parseInt(process.env.MAX_LOCK_ATTEMPTS || "10", 10),
+} as const;
