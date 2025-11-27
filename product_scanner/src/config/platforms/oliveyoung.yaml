@@ -259,6 +259,16 @@ errorHandling:
   rateLimitDelay: 2000
   serverErrorRetry: true
 
+# Supabase 업데이트 예외 설정
+# 특정 필드의 업데이트를 스킵하도록 설정
+update_exclusions:
+  # 스킵할 필드 목록
+  skip_fields:
+    # - thumbnail      # 썸네일 추출 로직 개선 필요 (임시 방어)
+    # - original_price # 정가 정보 추출 오류 (임시 방어)
+  # 사유
+  reason: "올리브영 썸네일/정가 추출 로직 개선 후 제거 예정"
+
 # Workflow Rate Limiting
 workflow:
   rate_limit:

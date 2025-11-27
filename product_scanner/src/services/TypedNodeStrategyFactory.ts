@@ -26,6 +26,7 @@ import {
   ExtractProductSetNode,
   ExtractProductNode,
 } from "@/strategies/extract";
+import { UpdateProductSetNode } from "@/strategies/update/UpdateProductSetNode";
 import { logger } from "@/config/logger";
 
 /**
@@ -100,6 +101,13 @@ export class TypedNodeStrategyFactory {
       "extract_product",
       "ExtractProductNode",
       () => new ExtractProductNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    // Phase 4 Update Pipeline 노드 등록
+    this.registerTypedNode(
+      "update_product_set",
+      "UpdateProductSetNode",
+      () => new UpdateProductSetNode() as ITypedNodeStrategy<unknown, unknown>,
     );
   }
 

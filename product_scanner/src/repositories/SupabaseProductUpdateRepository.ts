@@ -80,26 +80,14 @@ export class SupabaseProductUpdateRepository
    */
   async update(data: ProductUpdateData): Promise<boolean> {
     try {
-      // 플랫폼 정보 조회 (oliveyoung original_price 예외 처리용)
-      const { data: existingData, error: fetchError } = await this.client
-        .from(this.tableName)
-        .select("link_url")
-        .eq("product_set_id", data.product_set_id)
-        .single();
-
-      if (fetchError) {
-        logger.error(
-          {
-            product_set_id: data.product_set_id,
-            error: fetchError.message,
-          },
-          "❌ 플랫폼 정보 조회 실패",
-        );
-        return false;
-      }
-
-      const isOliveyoung =
-        existingData?.link_url?.includes("oliveyoung.co.kr") ?? false;
+      // [2025-11-27] Oliveyoung 방어 로직 제거 예정 - 추출 로직 개선됨
+      // 플랫폼별 예외 처리는 YAML 설정(update_exclusions)으로 이전됨
+      // const { data: existingData, error: fetchError } = await this.client
+      //   .from(this.tableName)
+      //   .select("link_url")
+      //   .eq("product_set_id", data.product_set_id)
+      //   .single();
+      // const isOliveyoung = existingData?.link_url?.includes("oliveyoung.co.kr") ?? false;
 
       // 업데이트할 필드만 포함 (undefined 제거)
       const updateFields: Record<string, unknown> = {
@@ -112,25 +100,10 @@ export class SupabaseProductUpdateRepository
 
       // Thumbnail 업데이트 처리
       if (data.thumbnail !== undefined) {
-        // Oliveyoung 플랫폼 예외: thumbnail 업데이트 제외 (임시 방어로직)
-        // 사유: 올리브영 썸네일 추출 로직 개선 필요 (서비스 중 가격 업데이트는 정상 동작해야 함)
-        // TODO: 올리브영 썸네일 추출 로직 개선 후 제거 예정
-        if (isOliveyoung) {
-          logger.warn(
-            {
-              product_set_id: data.product_set_id,
-              field: "thumbnail",
-              platform: "oliveyoung",
-            },
-            "⚠️  Oliveyoung thumbnail 업데이트 스킵 (임시 방어로직 - 추출 로직 개선 필요)",
-          );
-        } else {
-          updateFields.thumbnail = data.thumbnail;
-        }
+        updateFields.thumbnail = data.thumbnail;
       }
 
       // 가격 필드 Assertion: 0원은 JsonlParser에서 필터링되어야 함
-      // TODO: Oliveyoung original_price 정보 가져오는데 오류가 있어서 수정 후 적용 예정
       if (data.original_price !== undefined) {
         if (data.original_price === 0) {
           logger.error(
@@ -142,20 +115,7 @@ export class SupabaseProductUpdateRepository
             "❌ 가격 0원이 Repository 도달 - JsonlParser 필터링 누락",
           );
         }
-
-        // Oliveyoung 플랫폼 예외: original_price 업데이트 제외
-        if (isOliveyoung) {
-          logger.warn(
-            {
-              product_set_id: data.product_set_id,
-              field: "original_price",
-              platform: "oliveyoung",
-            },
-            "⚠️  Oliveyoung original_price 업데이트 스킵 (플랫폼 예외)",
-          );
-        } else {
-          updateFields.original_price = data.original_price;
-        }
+        updateFields.original_price = data.original_price;
       }
 
       if (data.discounted_price !== undefined) {
@@ -171,7 +131,22 @@ export class SupabaseProductUpdateRepository
         }
         updateFields.discounted_price = data.discounted_price;
       }
-      // sale_status는 제외 (정책 미정)
+
+      // sale_status: "on_sale" 또는 "off_sale"만 허용 (JsonlParser에서 정규화됨)
+      if (data.sale_status !== undefined) {
+        if (data.sale_status === "on_sale" || data.sale_status === "off_sale") {
+          updateFields.sale_status = data.sale_status;
+        } else {
+          logger.warn(
+            {
+              product_set_id: data.product_set_id,
+              field: "sale_status",
+              value: data.sale_status,
+            },
+            "⚠️ 비정규화된 sale_status 값 스킵 (on_sale|off_sale 만 허용)",
+          );
+        }
+      }
 
       // UPDATE 실행 전 로깅
       logger.info(
@@ -270,7 +245,8 @@ export class SupabaseProductUpdateRepository
         update.product_name !== undefined ||
         update.thumbnail !== undefined ||
         update.original_price !== undefined ||
-        update.discounted_price !== undefined;
+        update.discounted_price !== undefined ||
+        update.sale_status !== undefined;
 
       if (!hasUpdates) {
         result.skipped_count++;

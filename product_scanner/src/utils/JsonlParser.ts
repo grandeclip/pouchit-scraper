@@ -65,6 +65,39 @@ export interface ProductValidationResult {
 }
 
 /**
+ * Supabase sale_status 허용 값
+ * - "on_sale": 판매중
+ * - "off_sale": 판매중지, 품절, 재고부족 등 모든 비판매 상태
+ */
+type SupabaseSaleStatus = "on_sale" | "off_sale";
+
+/**
+ * sale_status 정규화 함수
+ *
+ * 다양한 플랫폼별 sale_status 값을 Supabase 표준 값으로 변환
+ * - "on_sale" → "on_sale"
+ * - 그 외 모든 값 (sold_out, off_sale, 품절, 재고부족 등) → "off_sale"
+ *
+ * @param rawStatus 원본 sale_status 값
+ * @returns 정규화된 sale_status ("on_sale" | "off_sale")
+ */
+function normalizeSaleStatus(rawStatus: string | null): SupabaseSaleStatus {
+  if (!rawStatus) return "off_sale";
+
+  const normalized = rawStatus.toLowerCase().trim();
+
+  // "on_sale" 또는 판매중으로 판단되는 값들
+  const onSaleValues = ["on_sale", "onsale", "판매중", "selling", "available"];
+
+  if (onSaleValues.includes(normalized)) {
+    return "on_sale";
+  }
+
+  // 그 외 모든 값은 "off_sale" (sold_out, off_sale, 품절, 재고부족 등)
+  return "off_sale";
+}
+
+/**
  * JSONL Parser
  *
  * Validation 결과 파일을 파싱하고 업데이트 대상 데이터를 추출합니다.
@@ -169,10 +202,11 @@ export class JsonlParser {
           }
         }
 
-        // sale_status는 제외 (정책 미정)
-        // if (r.comparison?.sale_status === false) {
-        //   updates.sale_status = r.fetch!.sale_status ?? null;
-        // }
+        // sale_status: 변경 감지 시 정규화하여 포함
+        if (r.comparison?.sale_status === false) {
+          const rawStatus = r.fetch!.sale_status ?? null;
+          updates.sale_status = normalizeSaleStatus(rawStatus);
+        }
 
         return updates;
       });

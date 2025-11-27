@@ -606,3 +606,128 @@ export interface ExtractMultiPlatformOutput {
   /** Supabase 업데이트 수 (optional) */
   supabase_updated?: number;
 }
+
+// ============================================================
+// Phase 4 UpdateProductSetNode Types (Supabase 업데이트)
+// ============================================================
+
+/**
+ * UpdateProductSetNode 입력
+ */
+export interface UpdateProductSetInput {
+  /** JSONL 파일 경로 (이전 노드 출력) */
+  jsonl_path: string;
+
+  /** 플랫폼 (업데이트 예외 설정용) */
+  platform: string;
+
+  /** 업데이트 옵션 */
+  options?: {
+    /** 히스토리 기록 여부 (기본값: true) */
+    record_history?: boolean;
+
+    /** 검증 수행 여부 (기본값: true) */
+    verify_updates?: boolean;
+
+    /** sale_status 업데이트 여부 (기본값: true) */
+    update_sale_status?: boolean;
+  };
+}
+
+/**
+ * 업데이트 제외 설정 (YAML에서 로드)
+ */
+export interface UpdateExclusionConfig {
+  /** 제외할 필드 목록 */
+  skip_fields: string[];
+
+  /** 사유 */
+  reason?: string;
+}
+
+/**
+ * 단일 업데이트 결과
+ */
+export interface SingleUpdateResult {
+  /** 상품 세트 ID */
+  product_set_id: string;
+
+  /** 업데이트 성공 여부 */
+  success: boolean;
+
+  /** 업데이트된 필드 목록 */
+  updated_fields: string[];
+
+  /** 스킵된 필드 목록 (예외 설정) */
+  skipped_fields: string[];
+
+  /** 에러 메시지 (실패 시) */
+  error?: string;
+}
+
+/**
+ * 히스토리 기록 결과
+ */
+export interface HistoryRecordResult {
+  /** 리뷰 히스토리 기록 수 */
+  review_count: number;
+
+  /** 가격 히스토리 기록 수 */
+  price_count: number;
+
+  /** 실패 수 */
+  failed_count: number;
+}
+
+/**
+ * 검증 결과
+ */
+export interface UpdateVerificationResult {
+  /** 검증 통과 수 */
+  verified_count: number;
+
+  /** 검증 통과 여부 */
+  verification_passed: boolean;
+
+  /** 샘플 크기 */
+  sample_size: number;
+}
+
+/**
+ * UpdateProductSetNode 출력
+ */
+export interface UpdateProductSetOutput {
+  /** 총 처리 수 */
+  total: number;
+
+  /** 업데이트 성공 수 */
+  updated: number;
+
+  /** 스킵 수 (업데이트 대상 아님) */
+  skipped: number;
+
+  /** 실패 수 */
+  failed: number;
+
+  /** 에러 수 */
+  error_count: number;
+
+  /** 히스토리 기록 결과 */
+  history?: HistoryRecordResult;
+
+  /** 검증 결과 */
+  verification?: UpdateVerificationResult;
+
+  /** JSONL 파일 경로 */
+  jsonl_path: string;
+
+  /** 업데이트 시간 */
+  updated_at: string;
+
+  /** 플랫폼별 제외 설정 적용 정보 */
+  exclusions_applied?: {
+    platform: string;
+    skip_fields: string[];
+    reason?: string;
+  };
+}
