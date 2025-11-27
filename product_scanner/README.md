@@ -1037,18 +1037,43 @@ SALE_STATUS=off_sale ./scripts/test-extract-product-update.sh 702b3d1a-5182-4817
 ### Crontab 설정 (외부 서버 참고용)
 
 ```bash
-## 4 groups
-# 그룹 1: hwahae, oliveyoung - 120분 간격 (20분 시작)
-20 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-hwahae-update.sh
-20 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-oliveyoung-update.sh
+## 4 groups - 30분 단위 로테이션, 2시간 주기
+## SALE_STATUS: on_sale (기본), off_sale (새벽/오후)
+## off_sale 타임라인: 4:20 → 4:50 → 5:20 → 5:50 (30분 간격 유지)
 
-# 그룹 2: zigzag, ably - 120분 간격 (50분 시작)
-50 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-zigzag-update.sh
-50 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-ably-update.sh
+# ─────────────────────────────────────────────────────────────
+# 그룹 1: hwahae, oliveyoung - 짝수 시간 20분 (4시, 16시 제외)
+# ─────────────────────────────────────────────────────────────
+# on_sale (4, 16 제외)
+20 0,2,6,8,10,12,14,18,20,22 * * * LIMIT=1000 SALE_STATUS=on_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-hwahae-update.sh
+20 0,2,6,8,10,12,14,18,20,22 * * * LIMIT=1000 SALE_STATUS=on_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-oliveyoung-update.sh
+# off_sale (4시, 16시)
+20 4,16 * * * LIMIT=1000 SALE_STATUS=off_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-hwahae-update.sh
+20 4,16 * * * LIMIT=1000 SALE_STATUS=off_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-oliveyoung-update.sh
 
-# 그룹 3: musinsa - 120분 간격 (20분 시작, 홀수 시간)
-20 1,3,5,7,9,11,13,15,17,19,21,23 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-musinsa-update.sh
+# ─────────────────────────────────────────────────────────────
+# 그룹 2: zigzag, ably - 짝수 시간 50분 (4시, 16시 제외)
+# ─────────────────────────────────────────────────────────────
+# on_sale (4, 16 제외)
+50 0,2,6,8,10,12,14,18,20,22 * * * LIMIT=1000 SALE_STATUS=on_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-zigzag-update.sh
+50 0,2,6,8,10,12,14,18,20,22 * * * LIMIT=1000 SALE_STATUS=on_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-ably-update.sh
+# off_sale (4시, 16시)
+50 4,16 * * * LIMIT=1000 SALE_STATUS=off_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-zigzag-update.sh
+50 4,16 * * * LIMIT=1000 SALE_STATUS=off_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-ably-update.sh
 
-# 그룹 4: kurly - 120분 간격 (50분 시작, 홀수 시간)
-50 1,3,5,7,9,11,13,15,17,19,21,23 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-kurly-update.sh
+# ─────────────────────────────────────────────────────────────
+# 그룹 3: musinsa - 홀수 시간 20분 (5시, 17시 제외)
+# ─────────────────────────────────────────────────────────────
+# on_sale (5, 17 제외)
+20 1,3,7,9,11,13,15,19,21,23 * * * LIMIT=1000 SALE_STATUS=on_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-musinsa-update.sh
+# off_sale (5시, 17시)
+20 5,17 * * * LIMIT=1000 SALE_STATUS=off_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-musinsa-update.sh
+
+# ─────────────────────────────────────────────────────────────
+# 그룹 4: kurly - 홀수 시간 50분 (5시, 17시 제외)
+# ─────────────────────────────────────────────────────────────
+# on_sale (5, 17 제외)
+50 1,3,7,9,11,13,15,19,21,23 * * * LIMIT=1000 SALE_STATUS=on_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-kurly-update.sh
+# off_sale (5시, 17시)
+50 5,17 * * * LIMIT=1000 SALE_STATUS=off_sale /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-kurly-update.sh
 ```
