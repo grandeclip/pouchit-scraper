@@ -529,6 +529,15 @@ export class ScanProductNode
       // PlatformScanner.scan() 호출
       const result = await scanner.scan(url, page ?? undefined);
 
+      // Browser 기반 스캔인 경우 screenshot 저장
+      if (page && this.shouldSaveScreenshot(platform)) {
+        await this.screenshotService.capture(page, {
+          platform,
+          jobId: context.job_id,
+          productSetId: product.product_set_id,
+        });
+      }
+
       logger.info(
         {
           type: this.type,
