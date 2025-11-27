@@ -1033,3 +1033,22 @@ SALE_STATUS=off_sale ./scripts/test-extract-product-update.sh 702b3d1a-5182-4817
 | `extract_product_set` | `ExtractProductSetNode` | ProductSet ID → DB 조회 → 스캔 → 비교                |
 | `extract_product`     | `ExtractProductNode`    | Product ID → 다중 ProductSet 조회 → 멀티 플랫폼 스캔 |
 | `update_product_set`  | `UpdateProductSetNode`  | JSONL 파싱 → Supabase 배치 업데이트                  |
+
+### Crontab 설정 (외부 서버 참고용)
+
+```bash
+## 4 groups
+# 그룹 1: hwahae, oliveyoung - 120분 간격 (20분 시작)
+20 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-hwahae-update.sh
+20 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-oliveyoung-update.sh
+
+# 그룹 2: zigzag, ably - 120분 간격 (50분 시작)
+50 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-zigzag-update.sh
+50 0,2,4,6,8,10,12,14,16,18,20,22 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-ably-update.sh
+
+# 그룹 3: musinsa - 120분 간격 (20분 시작, 홀수 시간)
+20 1,3,5,7,9,11,13,15,17,19,21,23 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-musinsa-update.sh
+
+# 그룹 4: kurly - 120분 간격 (50분 시작, 홀수 시간)
+50 1,3,5,7,9,11,13,15,17,19,21,23 * * * LIMIT=1000 /home/grandeclip/project/scoob-scraper/product_scanner/scripts/test-kurly-update.sh
+```
