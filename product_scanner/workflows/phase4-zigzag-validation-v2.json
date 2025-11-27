@@ -1,26 +1,26 @@
 {
   "defaults": {
     "batch_size": 10,
-    "concurrency": 4,
-    "limit": 1000,
-    "link_url_pattern": "a-bly.com",
-    "platform": "ably",
-    "wait_time_ms": 2000
+    "concurrency": 1,
+    "limit": 100,
+    "link_url_pattern": "zigzag.kr",
+    "platform": "zigzag",
+    "wait_time_ms": 2500
   },
-  "description": "Phase 4 타입드 노드 기반 에이블리 상품 검증 (Playwright 브라우저 스캔, 병렬 처리)",
+  "description": "Phase 4 타입드 노드 기반 지그재그 상품 검증 (GraphQL API 스캔 방식, Gentle Rate Limiting)",
   "metadata": {
     "author": "Product Scanner Team",
     "created_at": "2025-11-26",
     "phase": "4",
     "tags": [
       "validation",
-      "ably",
-      "playwright-scan",
+      "zigzag",
+      "graphql-scan",
       "phase4",
-      "parallel"
+      "gentle-rate-limit"
     ]
   },
-  "name": "Phase 4 Ably Validation",
+  "name": "Phase 4 ZigZag Validation",
   "nodes": {
     "compare": {
       "config": {
@@ -46,7 +46,7 @@
         "link_url_pattern": "${link_url_pattern}",
         "sale_status": "${sale_status}"
       },
-      "name": "에이블리 상품 조회",
+      "name": "지그재그 상품 조회",
       "next_nodes": [
         "scan"
       ],
@@ -78,13 +78,13 @@
     "scan": {
       "config": {
         "concurrency": "${concurrency}",
-        "platform": "ably",
-        "scan_method": "playwright",
+        "platform": "zigzag",
+        "scan_method": "api",
         "skip_screenshot": true,
-        "timeout_per_product_ms": 30000,
+        "timeout_per_product_ms": 15000,
         "wait_time_ms": "${wait_time_ms}"
       },
-      "name": "Playwright 스캔 (병렬)",
+      "name": "GraphQL 스캔 (Gentle)",
       "next_nodes": [
         "validate"
       ],
@@ -92,7 +92,7 @@
         "backoff_ms": 3000,
         "max_attempts": 2
       },
-      "timeout_ms": 900000,
+      "timeout_ms": 600000,
       "type": "scan_product"
     },
     "validate": {
@@ -111,5 +111,5 @@
   },
   "start_node": "fetch",
   "version": "1.0.0",
-  "workflow_id": "phase4-ably-validation-v1"
+  "workflow_id": "phase4-zigzag-validation-v2"
 }

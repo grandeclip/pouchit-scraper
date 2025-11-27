@@ -1,26 +1,26 @@
 {
   "defaults": {
     "batch_size": 10,
-    "concurrency": 1,
-    "limit": 100,
-    "link_url_pattern": "hwahae.co.kr",
-    "platform": "hwahae",
+    "concurrency": 4,
+    "limit": 1000,
+    "link_url_pattern": "kurly.com",
+    "platform": "kurly",
     "wait_time_ms": 2500
   },
-  "description": "Phase 4 타입드 노드 기반 화해 상품 검증 (API 스캔 방식, Gentle Rate Limiting)",
+  "description": "Phase 4 타입드 노드 기반 컬리 상품 검증 (Playwright 브라우저 스캔, 병렬 처리)",
   "metadata": {
     "author": "Product Scanner Team",
     "created_at": "2025-11-26",
     "phase": "4",
     "tags": [
       "validation",
-      "hwahae",
-      "api-scan",
+      "kurly",
+      "playwright-scan",
       "phase4",
-      "gentle-rate-limit"
+      "parallel"
     ]
   },
-  "name": "Phase 4 Hwahae Validation",
+  "name": "Phase 4 Kurly Validation",
   "nodes": {
     "compare": {
       "config": {
@@ -46,7 +46,7 @@
         "link_url_pattern": "${link_url_pattern}",
         "sale_status": "${sale_status}"
       },
-      "name": "화해 상품 조회",
+      "name": "컬리 상품 조회",
       "next_nodes": [
         "scan"
       ],
@@ -78,13 +78,13 @@
     "scan": {
       "config": {
         "concurrency": "${concurrency}",
-        "platform": "hwahae",
-        "scan_method": "api",
+        "platform": "kurly",
+        "scan_method": "playwright",
         "skip_screenshot": true,
-        "timeout_per_product_ms": 15000,
+        "timeout_per_product_ms": 30000,
         "wait_time_ms": "${wait_time_ms}"
       },
-      "name": "API 스캔 (Gentle)",
+      "name": "Playwright 스캔 (병렬)",
       "next_nodes": [
         "validate"
       ],
@@ -92,7 +92,7 @@
         "backoff_ms": 3000,
         "max_attempts": 2
       },
-      "timeout_ms": 600000,
+      "timeout_ms": 900000,
       "type": "scan_product"
     },
     "validate": {
@@ -111,5 +111,5 @@
   },
   "start_node": "fetch",
   "version": "1.0.0",
-  "workflow_id": "phase4-hwahae-validation-v1"
+  "workflow_id": "phase4-kurly-validation-v2"
 }

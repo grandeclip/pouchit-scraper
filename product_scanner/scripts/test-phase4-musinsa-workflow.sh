@@ -11,7 +11,7 @@
 
 set -e
 
-API_BASE_URL="http://localhost:3989/api/v1"
+API_BASE_URL="http://localhost:3989/api/v2"
 SALE_STATUS="${SALE_STATUS:-on_sale}"
 LIMIT="${LIMIT:-5}"
 BATCH_SIZE="${BATCH_SIZE:-10}"
@@ -35,7 +35,7 @@ echo "📤 워크플로우 실행 요청..."
 # JSON Payload 생성
 JSON_PAYLOAD=$(cat <<EOF
 {
-  "workflow_id": "phase4-musinsa-validation-v1",
+  "workflow_id": "phase4-musinsa-validation-v2",
   "priority": 5,
   "params": {
     "platform": "musinsa",

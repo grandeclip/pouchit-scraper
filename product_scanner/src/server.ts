@@ -1,11 +1,10 @@
 /**
  * Product Scanner 서버
- * API v1 with Platform-based Routing
+ * API v2 with Platform-based Routing
  */
 
 import "dotenv/config";
 import express from "express";
-import v1Router from "@/routes/v1";
 import v2Router from "@/routes/v2";
 import { errorHandler, notFoundHandler } from "@/middleware/errorHandler";
 import { requestLogger } from "@/middleware/requestLogger";
@@ -55,10 +54,7 @@ app.get("/health", (_req, res) => {
   });
 });
 
-// API v1 라우터
-app.use("/api/v1", v1Router);
-
-// API v2 라우터 (Phase 2: Extract Service)
+// API v2 라우터
 app.use("/api/v2", v2Router);
 
 // 404 핸들러
@@ -80,13 +76,11 @@ const server = app.listen(PORT, () => {
       baseUrl: BASE_URL,
       endpoints: {
         health: `${BASE_URL}/health`,
-        // v1 endpoints
-        platforms: "GET /api/v1/platforms",
-        scan: "POST /api/v1/platforms/:platform/scan/:goodsId",
-        products: "GET /api/v1/products/search",
-        workflows: "POST /api/v1/workflows/execute",
-        // v2 endpoints (Phase 2)
+        // v2 endpoints
+        workflows: "POST /api/v2/workflows/execute",
+        workflowJobs: "GET /api/v2/workflows/jobs/:jobId",
         extractByProductSet: "POST /api/v2/products/extract-by-product-set",
+        extractByUrl: "POST /api/v2/products/extract-by-url",
       },
     },
     "API 엔드포인트 등록 완료",
