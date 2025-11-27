@@ -1,0 +1,113 @@
+{
+  "defaults": {
+    "batch_size": 10,
+    "concurrency": 1,
+    "limit": 100,
+    "link_url_pattern": "musinsa.com",
+    "platform": "musinsa",
+    "wait_time_ms": 2500
+  },
+  "description": "무신사 상품 검증 (API 스캔 방식, Gentle Rate Limiting)",
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-11-26",
+    "tags": [
+      "validation",
+      "musinsa",
+      "api-scan",
+      "gentle-rate-limit"
+    ]
+  },
+  "name": "Musinsa Validation",
+  "nodes": {
+    "compare": {
+      "config": {
+        "compare_fields": [
+          "product_name",
+          "thumbnail",
+          "original_price",
+          "discounted_price",
+          "sale_status"
+        ]
+      },
+      "name": "DB 데이터 비교",
+      "next_nodes": [
+        "save"
+      ],
+      "timeout_ms": 60000,
+      "type": "compare_product"
+    },
+    "fetch": {
+      "config": {
+        "batch_size": "${batch_size}",
+        "limit": "${limit}",
+        "link_url_pattern": "${link_url_pattern}",
+        "sale_status": "${sale_status}"
+      },
+      "name": "무신사 상품 조회",
+      "next_nodes": [
+        "scan"
+      ],
+      "timeout_ms": 30000,
+      "type": "fetch_product"
+    },
+    "notify": {
+      "config": {
+        "notify_on_failure": true,
+        "slack_enabled": true
+      },
+      "name": "Slack 알림",
+      "next_nodes": [],
+      "type": "notify_result"
+    },
+    "save": {
+      "config": {
+        "save_to_jsonl": true,
+        "save_to_supabase": false,
+        "update_product_set": false
+      },
+      "name": "결과 저장",
+      "next_nodes": [
+        "notify"
+      ],
+      "timeout_ms": 30000,
+      "type": "save_result"
+    },
+    "scan": {
+      "config": {
+        "concurrency": "${concurrency}",
+        "platform": "musinsa",
+        "scan_method": "api",
+        "skip_screenshot": true,
+        "timeout_per_product_ms": 15000,
+        "wait_time_ms": "${wait_time_ms}"
+      },
+      "name": "API 스캔 (Gentle)",
+      "next_nodes": [
+        "validate"
+      ],
+      "retry": {
+        "backoff_ms": 3000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 600000,
+      "type": "scan_product"
+    },
+    "validate": {
+      "config": {
+        "check_price": true,
+        "check_status": true,
+        "check_thumbnail": true
+      },
+      "name": "스캔 결과 검증",
+      "next_nodes": [
+        "compare"
+      ],
+      "timeout_ms": 60000,
+      "type": "validate_product"
+    }
+  },
+  "start_node": "fetch",
+  "version": "2.0.0",
+  "workflow_id": "musinsa-validation-v2"
+}

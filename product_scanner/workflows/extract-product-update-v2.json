@@ -1,0 +1,54 @@
+{
+  "defaults": {
+    "platform": "product",
+    "product_id": "",
+    "sale_status": "",
+    "update_sale_status": true
+  },
+  "description": "Product UUID 멀티 플랫폼 상품 추출 + Supabase 업데이트",
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-11-27",
+    "tags": [
+      "extract",
+      "update",
+      "product",
+      "typed-node"
+    ]
+  },
+  "name": "Extract & Update Product by UUID",
+  "nodes": {
+    "extract": {
+      "config": {
+        "output_dir": "/app/results",
+        "product_id": "${product_id}",
+        "sale_status": "${sale_status}"
+      },
+      "name": "Product UUID 기반 멀티 플랫폼 추출",
+      "next_nodes": [
+        "update"
+      ],
+      "retry": {
+        "backoff_ms": 2000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 300000,
+      "type": "extract_product"
+    },
+    "update": {
+      "config": {
+        "platform": "${platform}",
+        "record_history": true,
+        "update_sale_status": "${update_sale_status}",
+        "verify_updates": true
+      },
+      "name": "Supabase 상품 업데이트",
+      "next_nodes": [],
+      "timeout_ms": 300000,
+      "type": "update_product_set"
+    }
+  },
+  "start_node": "extract",
+  "version": "2.0.0",
+  "workflow_id": "extract-product-update-v2"
+}

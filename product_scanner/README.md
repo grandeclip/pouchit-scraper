@@ -932,9 +932,9 @@ curl http://localhost:3000/api/v1/workflows/jobs/{job_id}
 - ✅ Type check 통과 (0 errors)
 - ✅ Workflow 검증 완료 (5/5 products)
 
-## 🚀 Phase 4 TypedNodeStrategy 시스템
+## 🚀 TypedNodeStrategy 시스템
 
-Phase 4는 타입 안전한 노드 전략 시스템으로, `ITypedNodeStrategy<TInput, TOutput>` 인터페이스 기반의 강타입 워크플로우 노드를 제공합니다.
+타입 안전한 노드 전략 시스템으로, `ITypedNodeStrategy<TInput, TOutput>` 인터페이스 기반의 강타입 워크플로우 노드를 제공합니다.
 
 ### 특징
 
@@ -942,87 +942,94 @@ Phase 4는 타입 안전한 노드 전략 시스템으로, `ITypedNodeStrategy<T
 - **PlatformScannerRegistry**: 통합 스캐너 레지스트리 패턴
 - **Browser/API 자동 분기**: 플랫폼 유형에 따른 자동 스캔 방식 선택
 
-### Phase 4 워크플로우 목록
+### 워크플로우 목록
 
-| Workflow ID                     | 용도                          | 노드 타입             | 입력                        |
-| ------------------------------- | ----------------------------- | --------------------- | --------------------------- |
-| `phase4-extract-url-v1`         | URL 기반 단일 상품 추출       | `extract_url`         | `url`                       |
-| `phase4-extract-product-set-v1` | ProductSet ID 기반 추출       | `extract_product_set` | `product_set_id`            |
-| `phase4-extract-product-v1`     | Product UUID 멀티 플랫폼 추출 | `extract_product`     | `product_id`, `sale_status` |
+| Workflow ID                         | 용도                          | 노드 타입                                                  |
+| ----------------------------------- | ----------------------------- | ---------------------------------------------------------- |
+| `{platform}-validation-v2`          | 플랫폼별 상품 검증            | fetch → scan → validate → compare → save → notify          |
+| `{platform}-update-v2`              | 플랫폼별 상품 업데이트        | fetch → scan → validate → compare → save → update → notify |
+| `extract-url-validation-v2`         | URL 기반 단일 상품 추출       | `extract_url`                                              |
+| `extract-product-set-validation-v2` | ProductSet ID 기반 추출       | `extract_product_set`                                      |
+| `extract-product-set-update-v2`     | ProductSet ID 추출 + 업데이트 | `extract_product_set` → `update_product_set`               |
+| `extract-product-validation-v2`     | Product UUID 멀티 플랫폼 추출 | `extract_product`                                          |
+| `extract-product-update-v2`         | Product UUID 추출 + 업데이트  | `extract_product` → `update_product_set`                   |
 
-### Phase 4 테스트 스크립트
+### 테스트 스크립트
 
-#### 1. URL 기반 추출 (`extract_url`)
+#### 1. 플랫폼별 Validation/Update
+
+```bash
+# Validation (검증만)
+LIMIT=4 SALE_STATUS=on_sale ./scripts/test-oliveyoung-validation.sh
+LIMIT=4 SALE_STATUS=on_sale ./scripts/test-hwahae-validation.sh
+LIMIT=4 SALE_STATUS=on_sale ./scripts/test-musinsa-validation.sh
+LIMIT=4 SALE_STATUS=on_sale ./scripts/test-zigzag-validation.sh
+LIMIT=4 SALE_STATUS=on_sale ./scripts/test-ably-validation.sh
+LIMIT=4 SALE_STATUS=on_sale ./scripts/test-kurly-validation.sh
+
+# Update (검증 + DB 업데이트)
+LIMIT=4 SALE_STATUS=off_sale ./scripts/test-oliveyoung-update.sh
+LIMIT=4 SALE_STATUS=off_sale ./scripts/test-hwahae-update.sh
+LIMIT=4 SALE_STATUS=off_sale ./scripts/test-musinsa-update.sh
+LIMIT=4 SALE_STATUS=off_sale ./scripts/test-zigzag-update.sh
+LIMIT=4 SALE_STATUS=off_sale ./scripts/test-ably-update.sh
+LIMIT=4 SALE_STATUS=off_sale ./scripts/test-kurly-update.sh
+```
+
+#### 2. URL 기반 추출
 
 단일 URL에서 상품 정보 추출 (DB 비교 없음)
 
 ```bash
-# 사용법
-./scripts/test-phase4-extract-url.sh "<상품URL>"
-
-# 예시
-./scripts/test-phase4-extract-url.sh "https://m.a-bly.com/goods/4096430"
-./scripts/test-phase4-extract-url.sh "https://www.musinsa.com/products/1311210"
-./scripts/test-phase4-extract-url.sh "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000233334"
-./scripts/test-phase4-extract-url.sh "https://www.kurly.com/goods/1001272724"
+./scripts/test-extract-url-validation.sh https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do\?goodsNo\=A000000233334
+./scripts/test-extract-url-validation.sh https://m.a-bly.com/goods/4096430
+./scripts/test-extract-url-validation.sh https://www.kurly.com/goods/1001272724
+./scripts/test-extract-url-validation.sh https://www.hwahae.co.kr/goods/62599
+./scripts/test-extract-url-validation.sh https://www.musinsa.com/products/1311210
+./scripts/test-extract-url-validation.sh https://zigzag.kr/catalog/products/165437822
 ```
 
-**출력**: `results/url_extraction/job_url_extraction_*.jsonl`
-
-#### 2. ProductSet ID 기반 추출 (`extract_product_set`)
+#### 3. ProductSet ID 기반 추출
 
 Supabase product_set.id로 단일 상품 추출 (DB 비교 포함)
 
 ```bash
-# 사용법
-./scripts/test-phase4-extract-product-set.sh "<product_set_uuid>"
+# Validation (검증만)
+./scripts/test-extract-product-set-validation.sh 03dfc6d7-bcfe-41ad-b676-96396379e893  # musinsa
+./scripts/test-extract-product-set-validation.sh 2a297564-edc3-4465-aa2b-412f27b44848  # ably
+./scripts/test-extract-product-set-validation.sh 42e56545-dc2d-451b-90bc-b612f3b400dd  # zigzag
+./scripts/test-extract-product-set-validation.sh 6d97e3e9-a835-4a41-b0bd-2c47046b2e21  # oliveyoung
+./scripts/test-extract-product-set-validation.sh 710bf70e-5216-4463-8b2a-f480b2e393e9  # kurly
+./scripts/test-extract-product-set-validation.sh 7ca3defa-5dd3-41dd-809d-57468b2e82ca  # hwahae
 
-# 예시
-./scripts/test-phase4-extract-product-set.sh "550e8400-e29b-41d4-a716-446655440000"
+# Update (검증 + DB 업데이트)
+./scripts/test-extract-product-set-update.sh 2d6d45e0-876c-4ad4-b04e-13249e7b8e55  # musinsa
+./scripts/test-extract-product-set-update.sh 85469c7b-7137-491b-aa4a-53029a8feb9f  # zigzag
+./scripts/test-extract-product-set-update.sh cdf36183-a449-43af-92cc-af39ebfe0520  # oliveyoung
+./scripts/test-extract-product-set-update.sh d0078239-2e34-4d40-a48e-01c7d0268380  # ably
+./scripts/test-extract-product-set-update.sh deb82c6c-fd11-4788-ab98-102a1d5d9c15  # kurly
 ```
 
-**출력**: `results/product_set/job_product_set_*.jsonl`
-
-#### 3. Product UUID 멀티 플랫폼 추출 (`extract_product`)
+#### 4. Product UUID 멀티 플랫폼 추출
 
 Product ID로 모든 플랫폼의 product_set 조회 후 일괄 추출 (DB 비교 포함)
 
 ```bash
-# 사용법
-./scripts/test-phase4-extract-product.sh "<product_uuid>" [sale_status]
+# Validation (검증만)
+./scripts/test-extract-product-validation.sh b2000182-42a0-4d31-a07d-b1a8670117ea
+./scripts/test-extract-product-validation.sh 93674c02-a017-4f58-90db-23e6e3f516a0
 
-# 예시 - 전체 조회
-./scripts/test-phase4-extract-product.sh "550e8400-e29b-41d4-a716-446655440000"
-
-# 예시 - 판매중만 조회
-SALE_STATUS="on_sale" ./scripts/test-phase4-extract-product.sh "550e8400-e29b-41d4-a716-446655440000"
+# Update (검증 + DB 업데이트)
+./scripts/test-extract-product-update.sh 702b3d1a-5182-4817-93f5-613946d07695
+SALE_STATUS=on_sale ./scripts/test-extract-product-update.sh 702b3d1a-5182-4817-93f5-613946d07695
+SALE_STATUS=off_sale ./scripts/test-extract-product-update.sh 702b3d1a-5182-4817-93f5-613946d07695
 ```
 
-**출력**: `results/multi_platform/job_multi_platform_*.jsonl`
-
-### Phase 4 워크플로우 파일
-
-```text
-workflows/
-├── phase4-extract-url-v1.json          # URL 기반 추출
-├── phase4-extract-product-set-v1.json  # ProductSet ID 기반 추출
-└── phase4-extract-product-v1.json      # Product UUID 멀티 플랫폼 추출
-```
-
-### Phase 4 노드 타입
+### 노드 타입
 
 | 노드 타입             | 클래스                  | 용도                                                 |
 | --------------------- | ----------------------- | ---------------------------------------------------- |
 | `extract_url`         | `ExtractUrlNode`        | URL → 플랫폼 감지 → 스캔                             |
 | `extract_product_set` | `ExtractProductSetNode` | ProductSet ID → DB 조회 → 스캔 → 비교                |
 | `extract_product`     | `ExtractProductNode`    | Product ID → 다중 ProductSet 조회 → 멀티 플랫폼 스캔 |
-
-### Phase 2 vs Phase 4 비교
-
-| 항목         | Phase 2                    | Phase 4                                  |
-| ------------ | -------------------------- | ---------------------------------------- |
-| 인터페이스   | `INodeStrategy`            | `ITypedNodeStrategy<TInput, TOutput>`    |
-| 타입 안전성  | 런타임 검증                | 컴파일 타임 검증                         |
-| 스캐너       | 플랫폼별 개별 서비스       | `PlatformScannerRegistry` 통합           |
-| Browser 관리 | `PlaywrightScriptExecutor` | `BrowserPool` + `BrowserPlatformScanner` |
-| 결과 키      | `*_validation`             | 직접 출력 (ResultWriterNode 불필요)      |
+| `update_product_set`  | `UpdateProductSetNode`  | JSONL 파싱 → Supabase 배치 업데이트                  |

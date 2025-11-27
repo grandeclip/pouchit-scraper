@@ -130,7 +130,7 @@ export class ExtractProductNode
       // 1. StreamingResultWriter 초기화
       resultWriter = new StreamingResultWriter({
         outputDir,
-        platform: "multi_platform",
+        platform: "product",
         jobId: job_id || `product_${Date.now()}`,
         workflowId: workflow_id,
       });

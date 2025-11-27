@@ -178,7 +178,7 @@ export class ExtractProductSetNode
       // 5. StreamingResultWriter 초기화
       resultWriter = new StreamingResultWriter({
         outputDir,
-        platform: "product_set_extraction",
+        platform: "productset",
         jobId: job_id || `ps_${Date.now()}`,
         workflowId: workflow_id,
       });
@@ -427,7 +427,7 @@ export class ExtractProductSetNode
 
     const errorWriter = new StreamingResultWriter({
       outputDir,
-      platform: "product_set_extraction",
+      platform: "productset",
       jobId: jobId || `ps_err_${Date.now()}`,
       workflowId,
     });

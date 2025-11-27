@@ -90,7 +90,7 @@ export class ExtractMultiPlatformNode implements INodeStrategy {
       // 1. StreamingResultWriter 초기화 (확장 헤더 포함)
       resultWriter = new StreamingResultWriter({
         outputDir: "/app/results",
-        platform: "multi_platform",
+        platform: "product",
         jobId: job_id || `mp_${Date.now()}`,
         workflowId: workflow_id,
       });
