@@ -21,6 +21,9 @@ const createMockService = (
   getProductById: jest
     .fn<IProductSearchService["getProductById"]>()
     .mockResolvedValue(null),
+  searchByProductId: jest
+    .fn<IProductSearchService["searchByProductId"]>()
+    .mockResolvedValue([]),
   healthCheck: jest
     .fn<IProductSearchService["healthCheck"]>()
     .mockResolvedValue(true),
@@ -181,6 +184,9 @@ describe("FetchProductNode", () => {
         getProductById: jest
           .fn<IProductSearchService["getProductById"]>()
           .mockResolvedValue(null),
+        searchByProductId: jest
+          .fn<IProductSearchService["searchByProductId"]>()
+          .mockResolvedValue([]),
         healthCheck: jest
           .fn<IProductSearchService["healthCheck"]>()
           .mockResolvedValue(true),

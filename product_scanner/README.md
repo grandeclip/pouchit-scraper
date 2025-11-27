@@ -401,6 +401,17 @@ npx tsc --project tsconfig.scripts.json --noEmit
 | 에이블리 | `ably`       | Playwright                        | Network API 캡처 + Meta Tag Fallback             | ~4초            |
 | 마켓컬리 | `kurly`      | Playwright                        | `__NEXT_DATA__` 파싱 + 상품 상태 감지            | ~3초            |
 
+### API 버전 구조
+
+| Version | 용도                        | 엔드포인트                                   |
+| ------- | --------------------------- | -------------------------------------------- |
+| **v1**  | 플랫폼 스캔 + Workflow 실행 | `/api/v1/platforms/*`, `/api/v1/workflows/*` |
+| **v2**  | 상품 추출 전용 (Phase 2)    | `/api/v2/products/extract-*`                 |
+
+- **v1**: 플랫폼별 스캔, 상품 검색, Phase 4 Workflow 실행
+- **v2**: URL/ProductSet 기반 상품 추출 (Phase 2)
+- **Health Check**: `/health` (루트 레벨)
+
 ### API 엔드포인트 (v2.1.0)
 
 ⚠️ **API v1 적용**: 모든 엔드포인트에 `/api/v1` 접두사 추가 및 플랫폼별 라우팅 도입
@@ -920,3 +931,98 @@ curl http://localhost:3000/api/v1/workflows/jobs/{job_id}
 - ✅ 6/6 테스트 통과 (on_sale, sold_out, off_sale)
 - ✅ Type check 통과 (0 errors)
 - ✅ Workflow 검증 완료 (5/5 products)
+
+## 🚀 Phase 4 TypedNodeStrategy 시스템
+
+Phase 4는 타입 안전한 노드 전략 시스템으로, `ITypedNodeStrategy<TInput, TOutput>` 인터페이스 기반의 강타입 워크플로우 노드를 제공합니다.
+
+### 특징
+
+- **타입 안전성**: 입출력 타입이 컴파일 타임에 검증됨
+- **PlatformScannerRegistry**: 통합 스캐너 레지스트리 패턴
+- **Browser/API 자동 분기**: 플랫폼 유형에 따른 자동 스캔 방식 선택
+
+### Phase 4 워크플로우 목록
+
+| Workflow ID                     | 용도                          | 노드 타입             | 입력                        |
+| ------------------------------- | ----------------------------- | --------------------- | --------------------------- |
+| `phase4-extract-url-v1`         | URL 기반 단일 상품 추출       | `extract_url`         | `url`                       |
+| `phase4-extract-product-set-v1` | ProductSet ID 기반 추출       | `extract_product_set` | `product_set_id`            |
+| `phase4-extract-product-v1`     | Product UUID 멀티 플랫폼 추출 | `extract_product`     | `product_id`, `sale_status` |
+
+### Phase 4 테스트 스크립트
+
+#### 1. URL 기반 추출 (`extract_url`)
+
+단일 URL에서 상품 정보 추출 (DB 비교 없음)
+
+```bash
+# 사용법
+./scripts/test-phase4-extract-url.sh "<상품URL>"
+
+# 예시
+./scripts/test-phase4-extract-url.sh "https://m.a-bly.com/goods/4096430"
+./scripts/test-phase4-extract-url.sh "https://www.musinsa.com/products/1311210"
+./scripts/test-phase4-extract-url.sh "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000233334"
+./scripts/test-phase4-extract-url.sh "https://www.kurly.com/goods/1001272724"
+```
+
+**출력**: `results/url_extraction/job_url_extraction_*.jsonl`
+
+#### 2. ProductSet ID 기반 추출 (`extract_product_set`)
+
+Supabase product_set.id로 단일 상품 추출 (DB 비교 포함)
+
+```bash
+# 사용법
+./scripts/test-phase4-extract-product-set.sh "<product_set_uuid>"
+
+# 예시
+./scripts/test-phase4-extract-product-set.sh "550e8400-e29b-41d4-a716-446655440000"
+```
+
+**출력**: `results/product_set/job_product_set_*.jsonl`
+
+#### 3. Product UUID 멀티 플랫폼 추출 (`extract_product`)
+
+Product ID로 모든 플랫폼의 product_set 조회 후 일괄 추출 (DB 비교 포함)
+
+```bash
+# 사용법
+./scripts/test-phase4-extract-product.sh "<product_uuid>" [sale_status]
+
+# 예시 - 전체 조회
+./scripts/test-phase4-extract-product.sh "550e8400-e29b-41d4-a716-446655440000"
+
+# 예시 - 판매중만 조회
+SALE_STATUS="on_sale" ./scripts/test-phase4-extract-product.sh "550e8400-e29b-41d4-a716-446655440000"
+```
+
+**출력**: `results/multi_platform/job_multi_platform_*.jsonl`
+
+### Phase 4 워크플로우 파일
+
+```text
+workflows/
+├── phase4-extract-url-v1.json          # URL 기반 추출
+├── phase4-extract-product-set-v1.json  # ProductSet ID 기반 추출
+└── phase4-extract-product-v1.json      # Product UUID 멀티 플랫폼 추출
+```
+
+### Phase 4 노드 타입
+
+| 노드 타입             | 클래스                  | 용도                                                 |
+| --------------------- | ----------------------- | ---------------------------------------------------- |
+| `extract_url`         | `ExtractUrlNode`        | URL → 플랫폼 감지 → 스캔                             |
+| `extract_product_set` | `ExtractProductSetNode` | ProductSet ID → DB 조회 → 스캔 → 비교                |
+| `extract_product`     | `ExtractProductNode`    | Product ID → 다중 ProductSet 조회 → 멀티 플랫폼 스캔 |
+
+### Phase 2 vs Phase 4 비교
+
+| 항목         | Phase 2                    | Phase 4                                  |
+| ------------ | -------------------------- | ---------------------------------------- |
+| 인터페이스   | `INodeStrategy`            | `ITypedNodeStrategy<TInput, TOutput>`    |
+| 타입 안전성  | 런타임 검증                | 컴파일 타임 검증                         |
+| 스캐너       | 플랫폼별 개별 서비스       | `PlatformScannerRegistry` 통합           |
+| Browser 관리 | `PlaywrightScriptExecutor` | `BrowserPool` + `BrowserPlatformScanner` |
+| 결과 키      | `*_validation`             | 직접 출력 (ResultWriterNode 불필요)      |

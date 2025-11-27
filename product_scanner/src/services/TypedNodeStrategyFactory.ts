@@ -21,6 +21,11 @@ import {
   SaveResultNode,
   NotifyResultNode,
 } from "@/strategies/validation";
+import {
+  ExtractUrlNode,
+  ExtractProductSetNode,
+  ExtractProductNode,
+} from "@/strategies/extract";
 import { logger } from "@/config/logger";
 
 /**
@@ -76,6 +81,25 @@ export class TypedNodeStrategyFactory {
       "notify_result",
       "NotifyResultNode",
       () => new NotifyResultNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    // Phase 4 Extract Pipeline 노드 등록
+    this.registerTypedNode(
+      "extract_url",
+      "ExtractUrlNode",
+      () => new ExtractUrlNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    this.registerTypedNode(
+      "extract_product_set",
+      "ExtractProductSetNode",
+      () => new ExtractProductSetNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    this.registerTypedNode(
+      "extract_product",
+      "ExtractProductNode",
+      () => new ExtractProductNode() as ITypedNodeStrategy<unknown, unknown>,
     );
   }
 

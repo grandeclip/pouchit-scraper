@@ -258,6 +258,47 @@ export const SCRAPER_CONFIG = {
 } as const;
 
 /**
+ * Platform 타입 상수
+ * Browser 기반 vs API 기반 플랫폼 구분
+ */
+export const PLATFORM_TYPES = {
+  /**
+   * Browser 기반 플랫폼 목록 (Page 인스턴스 필요)
+   * - Playwright를 통한 페이지 렌더링 후 스캔
+   * - JavaScript 동적 렌더링 필요한 플랫폼
+   */
+  BROWSER_PLATFORMS: ["ably", "oliveyoung", "kurly"] as const,
+
+  /**
+   * API 기반 플랫폼 목록 (Page 불필요)
+   * - 직접 API 호출로 데이터 추출
+   * - JavaScript 렌더링 불필요
+   */
+  API_PLATFORMS: ["hwahae", "musinsa", "zigzag"] as const,
+
+  /**
+   * Browser 플랫폼 여부 확인 헬퍼
+   */
+  isBrowserPlatform(platform: string): boolean {
+    return (this.BROWSER_PLATFORMS as readonly string[]).includes(platform);
+  },
+} as const;
+
+/**
+ * Mobile Viewport 설정
+ * Browser 기반 플랫폼 스캔 시 사용
+ */
+export const MOBILE_VIEWPORT = {
+  /**
+   * 기본 모바일 viewport (iPhone Pro Max 기준)
+   */
+  DEFAULT: {
+    width: 430,
+    height: 932,
+  },
+} as const;
+
+/**
  * Zigzag 플랫폼 상수
  * Zigzag 특화 비즈니스 로직용
  */

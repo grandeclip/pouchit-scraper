@@ -342,3 +342,267 @@ export interface NotifyResultOutput {
   /** 에러 메시지 (실패 시) */
   error?: string;
 }
+
+// ============================================================
+// Phase 4 Extract Node Types (Phase 2 마이그레이션)
+// ============================================================
+
+/**
+ * 공통 스캔 데이터 (fetch 결과)
+ */
+export interface ScannedProductData {
+  product_name: string | null;
+  thumbnail: string | null;
+  original_price: number | null;
+  discounted_price: number | null;
+  sale_status: string | null;
+}
+
+/**
+ * DB 조회 데이터 (optional - URL 추출 시 null)
+ */
+export interface DbProductData {
+  product_name: string | null;
+  thumbnail?: string | null;
+  original_price?: number | null;
+  discounted_price?: number | null;
+  sale_status?: string | null;
+}
+
+/**
+ * 필드별 비교 결과
+ */
+export interface FieldComparisonResult {
+  product_name: boolean;
+  thumbnail: boolean;
+  original_price: boolean;
+  discounted_price: boolean;
+  sale_status: boolean;
+}
+
+// ============================================================
+// ExtractUrlNode Types (URL 기반 추출 - DB 조회 없음)
+// ============================================================
+
+/**
+ * ExtractUrlNode 입력
+ */
+export interface ExtractUrlInput {
+  /** 추출 대상 URL */
+  url: string;
+
+  /** 결과 출력 디렉토리 (optional) */
+  output_dir?: string;
+}
+
+/**
+ * URL 추출 단일 결과
+ */
+export interface UrlExtractionResultItem {
+  /** 상품 세트 ID (URL 추출 시 빈 문자열) */
+  product_set_id: string;
+
+  /** 상품 ID (URL 추출 시 빈 문자열) */
+  product_id: string;
+
+  /** 추출 대상 URL */
+  url: string;
+
+  /** 감지된 플랫폼 */
+  platform: string;
+
+  /** DB 데이터 (URL 추출 시 null) */
+  db: DbProductData | null;
+
+  /** 스캔된 데이터 */
+  fetch: ScannedProductData | null;
+
+  /** 비교 결과 (URL 추출 시 null) */
+  comparison: FieldComparisonResult | null;
+
+  /** 일치 여부 (비교 불가 시 false) */
+  match: boolean;
+
+  /** 상태 */
+  status: "success" | "failed" | "not_found";
+
+  /** 추출 시간 */
+  extracted_at: string;
+
+  /** 에러 메시지 (실패 시) */
+  error?: string;
+}
+
+/**
+ * ExtractUrlNode 출력
+ */
+export interface ExtractUrlOutput {
+  /** JSONL 파일 경로 */
+  jsonl_path: string;
+
+  /** 저장된 레코드 수 */
+  record_count: number;
+
+  /** 추출 결과 */
+  result: UrlExtractionResultItem;
+
+  /** 요약 정보 */
+  summary: {
+    total: number;
+    success: number;
+    failed: number;
+    not_found: number;
+  };
+}
+
+// ============================================================
+// ExtractProductSetNode Types (ProductSet 기반 추출 - DB 비교 포함)
+// ============================================================
+
+/**
+ * ExtractProductSetNode 입력
+ */
+export interface ExtractProductSetInput {
+  /** 상품 세트 ID (Supabase product_set.id) */
+  product_set_id: string;
+
+  /** 결과 출력 디렉토리 (optional) */
+  output_dir?: string;
+}
+
+/**
+ * ProductSet 추출 단일 결과
+ */
+export interface ProductSetExtractionResultItem {
+  /** 상품 세트 ID */
+  product_set_id: string;
+
+  /** 상품 ID */
+  product_id: string;
+
+  /** 추출 대상 URL */
+  url: string | null;
+
+  /** 감지된 플랫폼 */
+  platform: string;
+
+  /** DB 데이터 (조회됨) */
+  db: DbProductData;
+
+  /** 스캔된 데이터 */
+  fetch: ScannedProductData | null;
+
+  /** 비교 결과 */
+  comparison: FieldComparisonResult | null;
+
+  /** 일치 여부 */
+  match: boolean;
+
+  /** 상태 */
+  status: "success" | "failed" | "not_found";
+
+  /** 추출 시간 */
+  extracted_at: string;
+
+  /** 에러 메시지 (실패 시) */
+  error?: string;
+}
+
+/**
+ * ExtractProductSetNode 출력
+ */
+export interface ExtractProductSetOutput {
+  /** JSONL 파일 경로 */
+  jsonl_path: string;
+
+  /** 저장된 레코드 수 */
+  record_count: number;
+
+  /** 추출 결과 목록 */
+  results: ProductSetExtractionResultItem[];
+
+  /** 요약 정보 */
+  summary: {
+    total: number;
+    success: number;
+    failed: number;
+    not_found: number;
+    match: number;
+    mismatch: number;
+  };
+
+  /** Supabase 업데이트 수 (optional) */
+  supabase_updated?: number;
+}
+
+// ============================================================
+// ExtractMultiPlatformNode Types (Multi-Platform 추출)
+// ============================================================
+
+/**
+ * ExtractMultiPlatformNode 입력
+ */
+export interface ExtractMultiPlatformInput {
+  /** 상품 ID (Supabase UUID) */
+  product_id: string;
+
+  /** 판매 상태 필터 (optional) */
+  sale_status?: string;
+
+  /** 결과 출력 디렉토리 (optional) */
+  output_dir?: string;
+}
+
+/**
+ * 플랫폼별 그룹 결과
+ */
+export interface PlatformGroupResult {
+  /** 플랫폼 이름 */
+  platform: string;
+
+  /** 처리된 상품 수 */
+  count: number;
+
+  /** 성공 수 */
+  success_count: number;
+
+  /** 실패 수 */
+  failure_count: number;
+
+  /** 일치 수 */
+  match_count: number;
+
+  /** 불일치 수 */
+  mismatch_count: number;
+}
+
+/**
+ * ExtractMultiPlatformNode 출력
+ */
+export interface ExtractMultiPlatformOutput {
+  /** JSONL 파일 경로 */
+  jsonl_path: string;
+
+  /** 저장된 레코드 수 */
+  record_count: number;
+
+  /** 추출 결과 목록 */
+  results: ProductSetExtractionResultItem[];
+
+  /** 플랫폼별 결과 */
+  platform_results: PlatformGroupResult[];
+
+  /** 요약 정보 */
+  summary: {
+    total: number;
+    success: number;
+    failed: number;
+    not_found: number;
+    match: number;
+    mismatch: number;
+    platforms_processed: number;
+  };
+
+  /** Supabase 업데이트 수 (optional) */
+  supabase_updated?: number;
+}

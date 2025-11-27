@@ -32,6 +32,17 @@ export interface IProductSearchService {
   getProductById(productSetId: string): Promise<ProductSetSearchResult | null>;
 
   /**
+   * Product UUID로 모든 product_set 조회
+   * @param productId 상품 ID (UUID) - products 테이블의 id
+   * @param saleStatus 판매 상태 필터 (선택)
+   * @returns 해당 Product의 모든 product_set 목록
+   */
+  searchByProductId(
+    productId: string,
+    saleStatus?: string,
+  ): Promise<ProductSetSearchResult[]>;
+
+  /**
    * Supabase 연결 상태 확인
    * @returns 연결 여부
    */

@@ -1,0 +1,38 @@
+{
+  "defaults": {
+    "platform": "url_extraction",
+    "url": ""
+  },
+  "description": "Phase 4 타입드 노드 기반 URL 상품 추출 (Supabase 조회 없음, db/comparison: null)",
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-11-26",
+    "phase": "4",
+    "tags": [
+      "extract",
+      "url",
+      "phase4",
+      "typed-node"
+    ]
+  },
+  "name": "Phase 4 Extract Product by URL",
+  "nodes": {
+    "extract": {
+      "config": {
+        "output_dir": "/app/results",
+        "url": "${url}"
+      },
+      "name": "URL 기반 상품 추출",
+      "next_nodes": [],
+      "retry": {
+        "backoff_ms": 2000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 60000,
+      "type": "extract_url"
+    }
+  },
+  "start_node": "extract",
+  "version": "1.0.0",
+  "workflow_id": "phase4-extract-url-v1"
+}
