@@ -11,7 +11,7 @@
 
 set -e
 
-API_BASE_URL="http://localhost:3989/api/v1"
+API_BASE_URL="http://localhost:3989/api/v2"
 URL="${URL:-$1}"
 
 if [ -z "$URL" ]; then
@@ -39,7 +39,7 @@ echo ""
 # JSON Payload 생성
 JSON_PAYLOAD=$(cat <<EOF
 {
-  "workflow_id": "phase4-extract-url-v1",
+  "workflow_id": "phase4-extract-url-v2",
   "priority": 5,
   "params": {
     "url": "${URL}"

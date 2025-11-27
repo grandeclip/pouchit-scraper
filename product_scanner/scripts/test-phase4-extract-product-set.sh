@@ -12,7 +12,7 @@
 
 set -e
 
-API_BASE_URL="http://localhost:3989/api/v1"
+API_BASE_URL="http://localhost:3989/api/v2"
 PRODUCT_SET_ID="${PRODUCT_SET_ID:-$1}"
 
 if [ -z "$PRODUCT_SET_ID" ]; then
@@ -32,7 +32,7 @@ echo ""
 # JSON Payload 생성
 JSON_PAYLOAD=$(cat <<EOF
 {
-  "workflow_id": "phase4-extract-product-set-v1",
+  "workflow_id": "phase4-extract-product-set-v2",
   "priority": 5,
   "params": {
     "product_set_id": "${PRODUCT_SET_ID}"

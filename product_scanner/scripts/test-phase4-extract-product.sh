@@ -21,7 +21,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # 설정
-API_BASE_URL="${API_BASE_URL:-http://localhost:3989/api/v1}"
+API_BASE_URL="${API_BASE_URL:-http://localhost:3989/api/v2}"
 PRODUCT_ID="${PRODUCT_ID:-$1}"
 SALE_STATUS="${SALE_STATUS:-}"
 
@@ -36,7 +36,7 @@ usage() {
   echo "환경변수:"
   echo "  PRODUCT_ID   - 상품 UUID (필수)"
   echo "  SALE_STATUS  - 판매 상태 필터 (선택: on_sale, off_sale)"
-  echo "  API_BASE_URL - API 서버 주소 (기본: http://localhost:3989/api/v1)"
+  echo "  API_BASE_URL - API 서버 주소 (기본: http://localhost:3989/api/v2)"
 }
 
 if [ -z "$PRODUCT_ID" ]; then
@@ -57,7 +57,7 @@ echo ""
 if [ -n "$SALE_STATUS" ]; then
   JSON_PAYLOAD=$(cat <<EOF
 {
-  "workflow_id": "phase4-extract-product-v1",
+  "workflow_id": "phase4-extract-product-v2",
   "priority": 5,
   "params": {
     "product_id": "${PRODUCT_ID}",
@@ -74,7 +74,7 @@ EOF
 else
   JSON_PAYLOAD=$(cat <<EOF
 {
-  "workflow_id": "phase4-extract-product-v1",
+  "workflow_id": "phase4-extract-product-v2",
   "priority": 5,
   "params": {
     "product_id": "${PRODUCT_ID}"
