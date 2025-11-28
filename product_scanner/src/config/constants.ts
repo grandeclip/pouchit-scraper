@@ -451,14 +451,14 @@ export const SCHEDULER_CONFIG = {
   /**
    * 동일 플랫폼 Job 완료 후 대기 시간 (ms)
    * 환경변수: SCHEDULER_SAME_PLATFORM_COOLDOWN_MS
-   * 기본값: 60000 (1분)
+   * 기본값: 300000 (5분)
    *
    * 목적:
    * - 같은 플랫폼에서 Job 완료 후 다음 Job까지 최소 대기 시간
    * - Rate Limit 방지 및 시스템 안정성
    */
   SAME_PLATFORM_COOLDOWN_MS: parseInt(
-    process.env.SCHEDULER_SAME_PLATFORM_COOLDOWN_MS || "60000",
+    process.env.SCHEDULER_SAME_PLATFORM_COOLDOWN_MS || "300000",
     10,
   ),
 

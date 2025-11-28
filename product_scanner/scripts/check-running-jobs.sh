@@ -16,8 +16,11 @@ NC='\033[0m' # No Color
 
 API_URL="${API_URL:-http://localhost:3989}"
 
-# API 호출
+# Jobs API 호출
 response=$(curl -s "${API_URL}/api/v2/jobs/running" 2>/dev/null)
+
+# Scheduler API 호출
+scheduler_response=$(curl -s "${API_URL}/api/v2/scheduler/status" 2>/dev/null)
 
 # API 응답 확인
 if [ -z "$response" ]; then
@@ -38,8 +41,39 @@ if [ "$success" != "true" ]; then
 fi
 
 echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}                    실행 중인 Job 현황${NC}"
+echo -e "${CYAN}                    시스템 현황${NC}"
 echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
+echo ""
+
+# 스케줄러 상태 표시
+if [ -n "$scheduler_response" ]; then
+    scheduler_success=$(echo "$scheduler_response" | jq -r '.success // false' 2>/dev/null)
+    if [ "$scheduler_success" = "true" ]; then
+        scheduler_enabled=$(echo "$scheduler_response" | jq -r '.data.scheduler.enabled')
+        scheduler_running=$(echo "$scheduler_response" | jq -r '.data.scheduler.running')
+        total_scheduled=$(echo "$scheduler_response" | jq -r '.data.scheduler.total_jobs_scheduled // 0')
+
+        echo -e "${CYAN}[스케줄러]${NC}"
+        if [ "$scheduler_enabled" = "true" ]; then
+            echo -e "  상태: ${GREEN}✓ 활성화${NC}"
+        else
+            echo -e "  상태: ${YELLOW}✗ 비활성화${NC}"
+        fi
+
+        if [ "$scheduler_running" = "true" ]; then
+            echo -e "  컨테이너: ${GREEN}✓ 실행 중${NC}"
+        else
+            echo -e "  컨테이너: ${RED}✗ 중지됨${NC}"
+        fi
+
+        echo -e "  총 스케줄 Job: ${BLUE}${total_scheduled}${NC}"
+        echo ""
+    fi
+fi
+
+echo -e "${CYAN}───────────────────────────────────────────────────────────────${NC}"
+echo -e "${CYAN}                    실행 중인 Job${NC}"
+echo -e "${CYAN}───────────────────────────────────────────────────────────────${NC}"
 echo ""
 
 # 실행 중인 Job 출력

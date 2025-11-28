@@ -26,10 +26,10 @@ test: ## 테스트 실행 (컨테이너 내)
 	docker compose -f docker/docker-compose.dev.yml exec product_scanner_dev npm test
 
 logs: ## 로그 확인
-	docker compose -f docker/docker-compose.dev.yml logs workflow_worker_dev
+	docker compose -f docker/docker-compose.dev.yml logs
 
 logs-f: ## 로그 실시간 확인
-	docker compose -f docker/docker-compose.dev.yml logs -f workflow_worker_dev
+	docker compose -f docker/docker-compose.dev.yml logs -f
 
 status: ## 컨테이너 상태 확인
 	@echo "📊 컨테이너 상태:"

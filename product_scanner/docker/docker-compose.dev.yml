@@ -197,7 +197,7 @@ services:
       SCHEDULER_PLATFORMS: hwahae,oliveyoung,zigzag,musinsa,ably,kurly
       SCHEDULER_CHECK_INTERVAL_MS: "10000"
       SCHEDULER_INTER_PLATFORM_DELAY_MS: "30000"
-      SCHEDULER_SAME_PLATFORM_COOLDOWN_MS: "60000"
+      SCHEDULER_SAME_PLATFORM_COOLDOWN_MS: "300000"
       SCHEDULER_ON_SALE_RATIO: "4"
       SCHEDULER_DEFAULT_LIMIT: "1000"
     deploy:
@@ -212,8 +212,6 @@ services:
     image: redis:8.2-alpine
     container_name: product_scanner_redis_dev
     command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_dev_data:/data
     deploy:
       resources:
         limits:
@@ -223,6 +221,3 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-
-volumes:
-  redis_dev_data:

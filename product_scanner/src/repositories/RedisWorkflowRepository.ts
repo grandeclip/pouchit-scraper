@@ -327,4 +327,60 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
 
     logger.debug({ platform, timestamp }, "Rate limit tracker updated");
   }
+
+  /**
+   * Platform별 큐 비우기
+   * @param platform - 플랫폼명
+   * @returns 삭제된 Job 수
+   */
+  async clearQueue(platform: string): Promise<number> {
+    const queueKey = REDIS_KEYS.JOB_QUEUE_PLATFORM(platform);
+
+    // 큐에 있는 모든 Job ID 조회
+    const jobIds = await this._client.zrange(queueKey, 0, -1);
+
+    if (jobIds.length === 0) {
+      return 0;
+    }
+
+    const pipeline = this._client.pipeline();
+
+    // 큐 비우기
+    pipeline.del(queueKey);
+
+    // 각 Job 데이터 삭제
+    for (const jobId of jobIds) {
+      pipeline.del(REDIS_KEYS.JOB_DATA(jobId));
+    }
+
+    await pipeline.exec();
+
+    logger.info(
+      { platform, deleted_count: jobIds.length },
+      "Platform 큐 비우기 완료",
+    );
+
+    return jobIds.length;
+  }
+
+  /**
+   * 모든 Platform 큐 비우기
+   * @param platforms - 플랫폼 목록
+   * @returns 플랫폼별 삭제된 Job 수
+   */
+  async clearAllQueues(platforms: string[]): Promise<Record<string, number>> {
+    const results: Record<string, number> = {};
+
+    for (const platform of platforms) {
+      results[platform] = await this.clearQueue(platform);
+    }
+
+    const totalDeleted = Object.values(results).reduce((a, b) => a + b, 0);
+    logger.info(
+      { platforms, total_deleted: totalDeleted, results },
+      "모든 큐 비우기 완료",
+    );
+
+    return results;
+  }
 }

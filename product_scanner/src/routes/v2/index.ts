@@ -10,6 +10,7 @@ import { Router } from "express";
 import productsRouter from "./products.router";
 import workflowsRouter from "./workflows.router";
 import jobsRouter from "./jobs.router";
+import schedulerRouter from "./scheduler.router";
 import { logger } from "@/config/logger";
 
 const router = Router();
@@ -23,6 +24,9 @@ router.use("/workflows", workflowsRouter);
 // Jobs API (모니터링)
 router.use("/jobs", jobsRouter);
 
+// Scheduler API (스케줄러 제어)
+router.use("/scheduler", schedulerRouter);
+
 logger.info(
   {
     endpoints: [
@@ -34,6 +38,9 @@ logger.info(
       "GET /api/v2/workflows",
       "GET /api/v2/workflows/health",
       "GET /api/v2/jobs/running",
+      "GET /api/v2/scheduler/status",
+      "POST /api/v2/scheduler/start",
+      "POST /api/v2/scheduler/stop",
     ],
   },
   "[v2Router] API v2 라우터 등록",

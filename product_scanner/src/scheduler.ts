@@ -116,11 +116,36 @@ async function runScheduler(): Promise<void> {
       on_sale_ratio: SCHEDULER_CONFIG.ON_SALE_RATIO,
       default_limit: SCHEDULER_CONFIG.DEFAULT_LIMIT,
     },
-    "[Scheduler] 스케줄러 시작",
+    "[Scheduler] 스케줄러 컨테이너 시작 (API로 활성화 필요)",
   );
+
+  // 이전 활성화 상태 추적 (상태 변경 로깅용)
+  let wasEnabled = false;
 
   while (isRunning) {
     try {
+      // Heartbeat 업데이트 (스케줄러 컨테이너 실행 중임을 알림)
+      await schedulerState.updateHeartbeat();
+
+      // 0. 스케줄러 활성화 상태 확인
+      const isEnabled = await schedulerState.isEnabled();
+
+      if (!isEnabled) {
+        // 비활성화 → 로그 (상태 변경 시에만)
+        if (wasEnabled) {
+          logger.info("[Scheduler] 스케줄러 비활성화됨 - 대기 중");
+          wasEnabled = false;
+        }
+        await sleep(SCHEDULER_CONFIG.CHECK_INTERVAL_MS);
+        continue;
+      }
+
+      // 활성화 → 로그 (상태 변경 시에만)
+      if (!wasEnabled) {
+        logger.info("[Scheduler] 스케줄러 활성화됨 - 스케줄링 시작");
+        wasEnabled = true;
+      }
+
       // 1. 글로벌 쿨다운 확인 (플랫폼 간 30초 간격)
       const isGlobalReady = await schedulerState.isGlobalCooldownComplete();
       if (!isGlobalReady) {
@@ -163,6 +188,7 @@ async function runScheduler(): Promise<void> {
         // 3.2 상태 업데이트
         await schedulerState.setLastEnqueueAt(Date.now());
         await schedulerState.incrementOnSaleCounter(platform, saleStatus);
+        await schedulerState.incrementJobsScheduled();
 
         logger.info(
           {

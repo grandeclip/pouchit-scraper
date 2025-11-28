@@ -709,7 +709,7 @@ make type-check
 make test
 
 # 5. 작업 완료 후 종료
-make dev-down
+make down
 ```
 
 **개발 환경 특징:**
@@ -758,7 +758,7 @@ make down
 
 ```bash
 make dev          # 개발 환경 시작
-make dev-down     # 개발 환경 종료
+make down         # 개발 환경 종료
 make prod         # 배포 환경 시작
 make down         # 배포 환경 종료
 make type-check   # 타입 체크 (컨테이너 내)
@@ -861,6 +861,162 @@ docker exec product_scanner_redis_dev redis-cli DEL workflow:running:platform:ol
 # 모든 running job 정리
 docker exec product_scanner_redis_dev redis-cli KEYS "workflow:running:platform:*" | xargs -I {} docker exec product_scanner_redis_dev redis-cli DEL {}
 ```
+
+## 🔄 Multi-Worker Queue System
+
+플랫폼별 독립 Worker 컨테이너 기반의 분산 처리 시스템입니다.
+
+### 아키텍처
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                         Redis                                    │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                │
+│  │ Queue:      │ │ Queue:      │ │ Queue:      │  ...           │
+│  │ hwahae      │ │ oliveyoung  │ │ musinsa     │                │
+│  └─────────────┘ └─────────────┘ └─────────────┘                │
+└─────────────────────────────────────────────────────────────────┘
+         │                 │                │
+         ▼                 ▼                ▼
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│ Worker:     │   │ Worker:     │   │ Worker:     │
+│ hwahae      │   │ oliveyoung  │   │ musinsa     │
+│ (API 2GB)   │   │ (Browser 4G)│   │ (API 2GB)   │
+└─────────────┘   └─────────────┘   └─────────────┘
+```
+
+### Worker 컨테이너 구성
+
+| Worker            | 플랫폼                                         | 타입    | 메모리 |
+| ----------------- | ---------------------------------------------- | ------- | ------ |
+| worker_hwahae     | hwahae                                         | API     | 2GB    |
+| worker_oliveyoung | oliveyoung                                     | Browser | 4GB    |
+| worker_musinsa    | musinsa                                        | API     | 2GB    |
+| worker_zigzag     | zigzag                                         | API     | 2GB    |
+| worker_ably       | ably                                           | Browser | 4GB    |
+| worker_kurly      | kurly                                          | Browser | 4GB    |
+| worker_extract    | url_extraction, single_product, multi_platform | Browser | 4GB    |
+| worker_default    | default (기타)                                 | API     | 2GB    |
+
+### 주요 특징
+
+- **플랫폼별 독립 큐**: 각 플랫폼은 독립된 Redis Sorted Set 큐 사용
+- **우선순위 기반 처리**: Job priority에 따른 처리 순서 결정
+- **분산 Lock**: 플랫폼별 PlatformLock으로 동시 실행 방지
+- **실행 상태 추적**: RUNNING_JOB 키로 현재 실행 중인 Job 모니터링
+- **Graceful Shutdown**: SIGTERM/SIGINT 시 Lock 해제 및 상태 정리
+
+## ⏰ Scheduler Service
+
+자동으로 플랫폼별 Job을 스케줄링하는 서비스입니다.
+
+### 스케줄링 규칙
+
+| 설정               | 기본값 | 설명                                |
+| ------------------ | ------ | ----------------------------------- |
+| 플랫폼 간 간격     | 30초   | 서로 다른 플랫폼 Job 추가 간격      |
+| 동일 플랫폼 쿨다운 | 5분    | 같은 플랫폼 Job 완료 후 대기 시간   |
+| on_sale 비율       | 4:1    | on_sale 4회 → off_sale 1회 로테이션 |
+| 기본 LIMIT         | 1000   | Job당 처리할 상품 수                |
+
+### 작동 방식
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        Scheduler Loop                             │
+│                                                                   │
+│  1. 활성화 상태 확인 (Redis: scheduler:enabled)                   │
+│  2. 글로벌 쿨다운 확인 (30초 간격)                                │
+│  3. 각 플랫폼 순회:                                               │
+│     - Queue 비어있는지 확인                                       │
+│     - 실행 중인 Job 없는지 확인                                   │
+│     - 플랫폼 쿨다운 완료 확인 (5분)                               │
+│  4. 조건 충족 시 새 Job 추가                                      │
+│  5. on_sale/off_sale 로테이션 (4:1)                               │
+│                                                                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+### API 제어
+
+스케줄러는 기본적으로 비활성화 상태로 시작됩니다. API를 통해 제어합니다.
+
+```bash
+# 상태 확인
+GET /api/v2/scheduler/status
+
+# 스케줄러 시작
+POST /api/v2/scheduler/start
+
+# 스케줄러 중지
+POST /api/v2/scheduler/stop
+
+# 스케줄러 중지 + 대기 큐 비우기
+POST /api/v2/scheduler/stop?clear_queue=true
+```
+
+### CLI 스크립트
+
+```bash
+# 상태 확인
+./scripts/scheduler-control.sh status
+
+# 스케줄러 시작
+./scripts/scheduler-control.sh start
+
+# 스케줄러 중지
+./scripts/scheduler-control.sh stop
+
+# 스케줄러 중지 + 큐 비우기
+./scripts/scheduler-control.sh stop --clear-queue
+```
+
+**출력 예시**:
+
+```
+═══════════════════════════════════════════════════════════════
+                     스케줄러 상태
+═══════════════════════════════════════════════════════════════
+
+  활성화 상태: ✓ 활성화됨
+  컨테이너:    ✓ 실행 중
+  총 스케줄 Job: 42
+  마지막 Heartbeat: 2025-11-28T01:00:05.497Z
+
+───────────────────────────────────────────────────────────────
+                        설정
+───────────────────────────────────────────────────────────────
+
+  플랫폼: hwahae, oliveyoung, zigzag, musinsa, ably, kurly
+  플랫폼 간 간격: 30초
+  동일 플랫폼 쿨다운: 300초
+  on_sale 비율: 4:1
+  기본 LIMIT: 1000
+
+═══════════════════════════════════════════════════════════════
+```
+
+### 환경 변수
+
+```bash
+# Scheduler 설정 (docker-compose.dev.yml)
+SCHEDULER_PLATFORMS=hwahae,oliveyoung,zigzag,musinsa,ably,kurly
+SCHEDULER_CHECK_INTERVAL_MS=10000        # 체크 주기 (10초)
+SCHEDULER_INTER_PLATFORM_DELAY_MS=30000  # 플랫폼 간 간격 (30초)
+SCHEDULER_SAME_PLATFORM_COOLDOWN_MS=300000  # 동일 플랫폼 쿨다운 (5분)
+SCHEDULER_ON_SALE_RATIO=4                # on_sale 비율 (4:1)
+SCHEDULER_DEFAULT_LIMIT=1000             # 기본 LIMIT
+```
+
+### Crontab vs Scheduler
+
+| 항목             | Crontab              | Scheduler Service                      |
+| ---------------- | -------------------- | -------------------------------------- |
+| 실행 방식        | 고정 시간            | 동적 (이전 Job 완료 기반)              |
+| 유휴 시간        | 있음 (2시간 간격 내) | 최소화 (쿨다운만)                      |
+| Rate Limit       | 수동 관리            | 자동 (플랫폼 간 30초, 동일 플랫폼 5분) |
+| on_sale/off_sale | 시간대별 수동 설정   | 자동 로테이션 (4:1)                    |
+| 확장성           | 플랫폼 추가 시 수동  | 환경변수로 즉시 반영                   |
 
 ## 📊 주요 특징
 

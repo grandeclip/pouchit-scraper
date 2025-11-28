@@ -19,6 +19,10 @@ const SCHEDULER_KEYS = {
   LAST_ENQUEUE_AT: "scheduler:last_enqueue_at",
   /** 플랫폼별 상태: { on_sale_counter, last_completed_at } */
   PLATFORM_STATE: (platform: string) => `scheduler:state:${platform}`,
+  /** 스케줄러 활성화 여부 */
+  ENABLED: "scheduler:enabled",
+  /** 스케줄러 상태 정보 */
+  STATUS: "scheduler:status",
 } as const;
 
 /**
@@ -29,6 +33,22 @@ export interface PlatformState {
   on_sale_counter: number;
   /** 마지막 Job 완료 시간 (ISO 8601) */
   last_completed_at: string | null;
+}
+
+/**
+ * 스케줄러 상태 인터페이스
+ */
+export interface SchedulerStatus {
+  /** 스케줄러 활성화 여부 */
+  enabled: boolean;
+  /** 스케줄러 컨테이너 실행 중 여부 */
+  running: boolean;
+  /** 마지막 상태 변경 시간 */
+  last_changed_at: string | null;
+  /** 마지막 heartbeat 시간 (스케줄러가 주기적으로 업데이트) */
+  last_heartbeat_at: string | null;
+  /** 총 스케줄된 Job 수 */
+  total_jobs_scheduled: number;
 }
 
 /**
@@ -240,5 +260,154 @@ export class SchedulerStateRepository {
     }
 
     return states;
+  }
+
+  // ============================================
+  // Scheduler Control Methods
+  // ============================================
+
+  /**
+   * 스케줄러 활성화 여부 조회
+   * @returns true: 활성화됨, false: 비활성화됨
+   */
+  async isEnabled(): Promise<boolean> {
+    try {
+      const value = await this.redis.get(SCHEDULER_KEYS.ENABLED);
+      // 기본값: false (비활성화)
+      return value === "true";
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[SchedulerState] isEnabled 오류",
+      );
+      return false;
+    }
+  }
+
+  /**
+   * 스케줄러 활성화/비활성화 설정
+   * @param enabled - true: 활성화, false: 비활성화
+   */
+  async setEnabled(enabled: boolean): Promise<void> {
+    try {
+      await this.redis.set(SCHEDULER_KEYS.ENABLED, enabled ? "true" : "false");
+      logger.info(
+        { enabled },
+        `[SchedulerState] 스케줄러 ${enabled ? "활성화" : "비활성화"}`,
+      );
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[SchedulerState] setEnabled 오류",
+      );
+    }
+  }
+
+  /**
+   * 스케줄러 상태 조회
+   */
+  async getSchedulerStatus(): Promise<SchedulerStatus> {
+    try {
+      const [enabled, statusJson] = await Promise.all([
+        this.isEnabled(),
+        this.redis.get(SCHEDULER_KEYS.STATUS),
+      ]);
+
+      const defaultStatus: SchedulerStatus = {
+        enabled,
+        running: false,
+        last_changed_at: null,
+        last_heartbeat_at: null,
+        total_jobs_scheduled: 0,
+      };
+
+      if (!statusJson) {
+        return defaultStatus;
+      }
+
+      const status = JSON.parse(statusJson) as Partial<SchedulerStatus>;
+
+      // heartbeat가 30초 이상 오래되면 running = false로 판단
+      let isRunning = status.running ?? false;
+      if (status.last_heartbeat_at) {
+        const heartbeatAge =
+          Date.now() - new Date(status.last_heartbeat_at).getTime();
+        if (heartbeatAge > 30000) {
+          isRunning = false;
+        }
+      }
+
+      return {
+        enabled,
+        running: isRunning,
+        last_changed_at: status.last_changed_at ?? null,
+        last_heartbeat_at: status.last_heartbeat_at ?? null,
+        total_jobs_scheduled: status.total_jobs_scheduled ?? 0,
+      };
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[SchedulerState] getSchedulerStatus 오류",
+      );
+      return {
+        enabled: false,
+        running: false,
+        last_changed_at: null,
+        last_heartbeat_at: null,
+        total_jobs_scheduled: 0,
+      };
+    }
+  }
+
+  /**
+   * 스케줄러 상태 업데이트 (스케줄러에서 호출)
+   */
+  async updateSchedulerStatus(
+    updates: Partial<Omit<SchedulerStatus, "enabled">>,
+  ): Promise<void> {
+    try {
+      const current = await this.getSchedulerStatus();
+      const updated: Omit<SchedulerStatus, "enabled"> = {
+        running: updates.running ?? current.running,
+        last_changed_at: updates.last_changed_at ?? current.last_changed_at,
+        last_heartbeat_at:
+          updates.last_heartbeat_at ?? current.last_heartbeat_at,
+        total_jobs_scheduled:
+          updates.total_jobs_scheduled ?? current.total_jobs_scheduled,
+      };
+
+      // TTL 1시간
+      await this.redis.set(
+        SCHEDULER_KEYS.STATUS,
+        JSON.stringify(updated),
+        "EX",
+        3600,
+      );
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[SchedulerState] updateSchedulerStatus 오류",
+      );
+    }
+  }
+
+  /**
+   * 스케줄러 heartbeat 업데이트
+   */
+  async updateHeartbeat(): Promise<void> {
+    await this.updateSchedulerStatus({
+      running: true,
+      last_heartbeat_at: new Date().toISOString(),
+    });
+  }
+
+  /**
+   * 스케줄된 Job 수 증가
+   */
+  async incrementJobsScheduled(): Promise<void> {
+    const status = await this.getSchedulerStatus();
+    await this.updateSchedulerStatus({
+      total_jobs_scheduled: status.total_jobs_scheduled + 1,
+    });
   }
 }
