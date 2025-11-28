@@ -104,3 +104,9 @@ workflow:
     enabled: true
     wait_time_ms: 2500  # 각 상품 스캔 간 대기 시간 (밀리초)
     description: "HTTP request rate limiting per product (applies in MusinsaValidationNode)"
+
+  # Concurrency Settings (병렬 처리 설정)
+  concurrency:
+    max: 1        # 최대 병렬 개수 (Rate Limiting 준수)
+    default: 1    # 기본 병렬 개수
+    description: "순차 처리 (API 차단 방지)"

@@ -13,7 +13,7 @@
  * - docker-compose에서 scheduler 서비스로 실행
  */
 
-import { v4 as uuidv4 } from "uuid";
+import { v7 as uuidv7 } from "uuid";
 import { RedisWorkflowRepository } from "@/repositories/RedisWorkflowRepository";
 import { SchedulerStateRepository } from "@/repositories/SchedulerStateRepository";
 import { PlatformLock } from "@/repositories/PlatformLock";
@@ -64,7 +64,7 @@ function createUpdateJob(
   platform: string,
   saleStatus: "on_sale" | "off_sale",
 ): Job {
-  const jobId = uuidv4();
+  const jobId = uuidv7();
   const workflowId = `${platform}-update-v2`;
 
   return {

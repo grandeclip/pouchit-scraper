@@ -525,13 +525,26 @@ export class NotifyResultNode implements ITypedNodeStrategy<
 
   /**
    * 워크플로우 타입 감지 (platform, product, product-set, url)
+   *
+   * 주의: 순서 중요!
+   * - "kurly"에 "url"이 포함되어 있으므로 단순 includes 사용 불가
+   * - 명확한 패턴 매칭 필요: "extract-url", "-url-", "_url_" 등
    */
   private detectWorkflowType(
     input: NotifyResultInput,
   ): "platform" | "product" | "product-set" | "url" {
     const workflowId = input.workflow_id?.toLowerCase() || "";
 
-    if (workflowId.includes("url")) {
+    // URL 워크플로우: "extract-url", "-url-", "_url_", "url-extract" 패턴
+    // 주의: "kurly" 같은 플랫폼 이름에 "url"이 포함될 수 있음
+    if (
+      workflowId.includes("extract-url") ||
+      workflowId.includes("-url-") ||
+      workflowId.includes("_url_") ||
+      workflowId.includes("url-extract") ||
+      workflowId.startsWith("url-") ||
+      workflowId.endsWith("-url")
+    ) {
       return "url";
     }
     if (

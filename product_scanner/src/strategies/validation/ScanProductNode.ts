@@ -92,9 +92,10 @@ const DEFAULT_CONFIG: ScanProductNodeConfig = {
 /**
  * ScanProductNode - 브라우저 스캔 노드
  */
-export class ScanProductNode
-  implements ITypedNodeStrategy<ScanProductInput, ScanProductOutput>
-{
+export class ScanProductNode implements ITypedNodeStrategy<
+  ScanProductInput,
+  ScanProductOutput
+> {
   public readonly type = "scan_product";
   public readonly name = "ScanProductNode";
 
@@ -174,13 +175,18 @@ export class ScanProductNode
       // 결과 수집
       const allResults: SingleScanResult[] = [];
 
-      // 병렬 실행
-      await Promise.all(
-        batches.map(async (batch, batchIndex) => {
-          const batchResults = await this.scanBatch(batch, batchIndex, context);
-          allResults.push(...batchResults);
-        }),
-      );
+      // 배치 순차 실행 (Rate Limiting 준수)
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+
+        // 배치 간 Rate Limiting (첫 번째 배치 제외)
+        if (batchIndex > 0 && this.rateLimiter) {
+          await this.rateLimiter.throttle(`${this.type}:between-batch`);
+        }
+
+        const batchResults = await this.scanBatch(batch, batchIndex, context);
+        allResults.push(...batchResults);
+      }
 
       // 결과 집계
       const successCount = allResults.filter((r) => r.success).length;
