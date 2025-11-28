@@ -224,4 +224,82 @@ export class JsonlParser {
     const results = await this.parseValidationResults(filePath);
     return this.extractUpdates(results);
   }
+
+  /**
+   * 검증 결과에서 통계 추출 (Slack 알림용)
+   *
+   * @param results 검증 결과 배열
+   * @returns 통계 정보
+   */
+  static extractStatistics(results: ProductValidationResult[]): {
+    total: number;
+    success: number;
+    failed: number;
+    not_found: number;
+    match: number;
+    mismatch: number;
+    sale_status_changed: number;
+  } {
+    let total = 0;
+    let success = 0;
+    let failed = 0;
+    let notFound = 0;
+    let match = 0;
+    let mismatch = 0;
+    let saleStatusChanged = 0;
+
+    for (const r of results) {
+      total++;
+
+      switch (r.status) {
+        case "success":
+          success++;
+          if (r.match) {
+            match++;
+          } else {
+            mismatch++;
+          }
+          // sale_status 변경 카운트 (comparison.sale_status === false)
+          if (r.comparison?.sale_status === false) {
+            saleStatusChanged++;
+          }
+          break;
+        case "failed":
+          failed++;
+          break;
+        case "not_found":
+          notFound++;
+          break;
+      }
+    }
+
+    return {
+      total,
+      success,
+      failed,
+      not_found: notFound,
+      match,
+      mismatch,
+      sale_status_changed: saleStatusChanged,
+    };
+  }
+
+  /**
+   * JSONL 파일에서 통계 추출 (통합 메서드)
+   *
+   * @param filePath JSONL 파일 경로
+   * @returns 통계 정보
+   */
+  static async extractStatisticsFromFile(filePath: string): Promise<{
+    total: number;
+    success: number;
+    failed: number;
+    not_found: number;
+    match: number;
+    mismatch: number;
+    sale_status_changed: number;
+  }> {
+    const results = await this.parseValidationResults(filePath);
+    return this.extractStatistics(results);
+  }
 }

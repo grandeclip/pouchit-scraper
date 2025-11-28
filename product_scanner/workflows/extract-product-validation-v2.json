@@ -24,13 +24,24 @@
         "sale_status": "${sale_status}"
       },
       "name": "Product UUID 기반 멀티 플랫폼 추출",
-      "next_nodes": [],
+      "next_nodes": [
+        "notify"
+      ],
       "retry": {
         "backoff_ms": 2000,
         "max_attempts": 2
       },
       "timeout_ms": 300000,
       "type": "extract_product"
+    },
+    "notify": {
+      "config": {
+        "notify_on_failure": true,
+        "slack_enabled": true
+      },
+      "name": "Slack 알림",
+      "next_nodes": [],
+      "type": "notify_result"
     }
   },
   "start_node": "extract",

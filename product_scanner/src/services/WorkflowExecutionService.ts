@@ -351,7 +351,6 @@ export class WorkflowExecutionService implements IWorkflowService {
       job.result = accumulatedData;
       job.completed_at = getTimestampWithTimezone();
       await this.repository.updateJob(job);
-
     } catch (error) {
       // Job 실패 처리
       const errorMessage =
@@ -417,6 +416,13 @@ export class WorkflowExecutionService implements IWorkflowService {
     let sharedState = this.sharedStateMap.get(job.job_id);
     if (!sharedState) {
       sharedState = new Map<string, unknown>();
+      // Job timing 정보 저장 (NotifyResultNode에서 사용)
+      sharedState.set("job_timing", {
+        started_at: job.started_at,
+        created_at: job.created_at,
+      });
+      // Job params 저장 (sale_status 등)
+      sharedState.set("job_params", job.params);
       this.sharedStateMap.set(job.job_id, sharedState);
     }
 
