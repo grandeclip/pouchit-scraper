@@ -209,7 +209,8 @@ product_scanner/
 │   │       ├── oliveyoung.yaml    # 올리브영 설정
 │   │       ├── musinsa.yaml       # 무신사 설정
 │   │       ├── zigzag.yaml        # 지그재그 설정
-│   │       └── ably.yaml          # 에이블리 설정
+│   │       ├── ably.yaml          # 에이블리 설정
+│   │       └── kurly.yaml         # 마켓컬리 설정
 │   ├── core/                      # 도메인 & 인터페이스
 │   │   ├── domain/                # 도메인 모델
 │   │   │   ├── PlatformId.ts     # 플랫폼 ID 타입 (hwahae | oliveyoung)
@@ -400,6 +401,12 @@ npx tsc --project tsconfig.scripts.json --noEmit
 | 지그재그 | `zigzag`     | GraphQL (우선), Playwright (대체) | GraphQL API (첫구매 쿠폰 처리) / `__NEXT_DATA__` | ~2초            |
 | 에이블리 | `ably`       | Playwright                        | Network API 캡처 + Meta Tag Fallback             | ~4초            |
 | 마켓컬리 | `kurly`      | Playwright                        | `__NEXT_DATA__` 파싱 + 상품 상태 감지            | ~3초            |
+
+### API 문서
+
+**📄 OpenAPI 3.0 스펙**: [`api.yaml`](./api.yaml)
+
+전체 API 엔드포인트, 요청/응답 스키마, Shell 스크립트 사용법이 문서화되어 있습니다.
 
 ### API 버전 구조
 
@@ -1153,7 +1160,120 @@ curl http://localhost:3000/api/v1/workflows/jobs/{job_id}
 - **[WORKFLOW_DAG.md](docs/WORKFLOW_DAG.md)** - DAG 구조 상세 가이드
 - **[PARALLEL_PROCESSING_TEST.md](docs/PARALLEL_PROCESSING_TEST.md)** - 병렬 처리 성능 테스트 가이드
 
+## 🔔 Slack Bot 알림
+
+Workflow 완료 시 Slack으로 결과를 자동 알림합니다.
+
+### 알림 내용
+
+- **Workflow 유형**: Platform Update / URL Extraction / ProductSet Extraction
+- **처리 결과**: 총 상품 수, 성공/실패 수, 소요 시간
+- **상태별 분류**: on_sale, off_sale, sold_out, product_deleted, error
+- **Sale Status 변경**: 이전 상태 → 현재 상태 변경 내역
+
+### 환경 변수
+
+```bash
+# Slack Bot 설정
+SLACK_BOT_TOKEN=xoxb-your-token
+SLACK_CHANNEL_ID=C0123456789
+```
+
+### 알림 예시
+
+```
+🔔 oliveyoung update 완료
+
+📊 처리 결과
+• 총 상품: 100개
+• 성공: 98개 | 실패: 2개
+• 소요 시간: 5분 30초
+
+📈 상태별 분류
+• on_sale: 85개
+• off_sale: 10개
+• sold_out: 3개
+
+🔄 Sale Status 변경: 5건
+• on_sale → off_sale: 3건
+• off_sale → on_sale: 2건
+```
+
+## ⏱️ Rate Limiting 설정
+
+플랫폼별 YAML 설정에서 Rate Limiting을 제어합니다.
+
+### 플랫폼별 설정
+
+| 플랫폼     | wait_time_ms | batch_size | concurrency | 처리 방식           |
+| ---------- | ------------ | ---------- | ----------- | ------------------- |
+| hwahae     | 1000         | 10         | 5           | API (병렬 배치)     |
+| musinsa    | 2500         | 10         | 1           | API (순차 배치)     |
+| zigzag     | 1000         | 10         | 5           | GraphQL (병렬 배치) |
+| oliveyoung | 5000         | 5          | 1           | Browser (순차 배치) |
+| ably       | 5000         | 5          | 1           | Browser (순차 배치) |
+| kurly      | 5000         | 5          | 1           | Browser (순차 배치) |
+
+### 배치 처리 방식
+
+```
+# 순차 배치 (concurrency: 1)
+Batch 1 [5개] → 완료 → Batch 2 [5개] → 완료 → ...
+
+# 병렬 배치 (concurrency: 5)
+Batch 1 [10개, 5병렬] → 완료 → Batch 2 [10개, 5병렬] → ...
+```
+
+### YAML 설정 예시
+
+```yaml
+# config/platforms/musinsa.yaml
+workflow:
+  rate_limit:
+    enabled: true
+    wait_time_ms: 2500 # 각 상품 스캔 간 대기 시간
+  concurrency:
+    max: 1 # 순차 처리 (API 차단 방지)
+    default: 1
+```
+
 ## 📝 변경 이력
+
+### v2.4.0 (2025-11-28) - Rate Limiting 및 배치 순차 처리 수정
+
+**주요 변경사항**:
+
+- ✅ **배치 순차 처리**: Promise.all → for...await 순차 실행으로 변경
+- ✅ **Slack 알림 버그 수정**: kurly "url" 오감지 문제 해결
+- ✅ **Sale Status 표시**: 모든 플랫폼에서 Sale Status 변경 내역 표시
+- ✅ **API 문서 추가**: OpenAPI 3.0 스펙 (`api.yaml`)
+
+**기술적 개선**:
+
+- `ScanProductNode.ts`: 배치 간 순차 실행으로 Rate Limiting 준수
+- `NotifyResultNode.ts`: workflowId 패턴 매칭 개선 (`includes("url")` → 특정 패턴)
+- Concurrency는 배치 내 병렬 수만 제어 (배치 간은 항상 순차)
+
+### v2.3.0 (2025-11-27) - Multi-Worker Queue System & Scheduler
+
+**주요 변경사항**:
+
+- ✅ **Multi-Worker 시스템**: 플랫폼별 독립 Worker 컨테이너
+- ✅ **Scheduler Service**: 자동 Job 스케줄링 (30초 간격, 5분 쿨다운)
+- ✅ **UUID7 적용**: Job ID, Request ID에 시간 기반 UUID 사용
+- ✅ **Slack Bot 알림**: Workflow 완료 시 자동 알림
+
+**Worker 구성**:
+
+- API Worker: hwahae, musinsa, zigzag (2GB)
+- Browser Worker: oliveyoung, ably, kurly (4GB)
+- Extract Worker: url_extraction, single_product (4GB)
+
+**Scheduler 설정**:
+
+- 플랫폼 간 간격: 30초
+- 동일 플랫폼 쿨다운: 5분
+- on_sale:off_sale 비율: 4:1
 
 ### v2.2.0 (2025-11-12) - 무신사 HTTP API 전환
 
