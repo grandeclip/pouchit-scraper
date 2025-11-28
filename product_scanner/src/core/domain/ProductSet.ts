@@ -10,26 +10,34 @@ import { z } from "zod";
 import { SaleStatus } from "@/core/interfaces/IProduct";
 
 /**
+ * 빈 문자열을 null로 변환하는 전처리기
+ * DB에서 빈 문자열("")로 저장된 값을 null로 정규화
+ */
+const emptyToNull = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((val) => (val === "" ? null : val), schema);
+
+/**
  * ProductSet Zod 스키마
  *
  * Note: product_set_id와 product_id는 UUID 문자열입니다.
  * Note: 대부분의 필드가 nullable입니다 (데이터 안정성 보장)
+ * Note: 빈 문자열("")은 null로 변환됩니다 (emptyToNull 전처리)
  */
 export const ProductSetSchema = z.object({
   product_set_id: z.string().uuid(),
   product_id: z.string().uuid(),
   platform_id: z.coerce.number().optional().nullable(),
-  product_name: z.string().nullable(),
-  link_url: z.string().url().nullable(),
+  product_name: emptyToNull(z.string().nullable()),
+  link_url: emptyToNull(z.string().url().nullable()),
   md_pick: z.boolean().optional().nullable(),
   created_at: z.string().optional().nullable(),
   updated_at: z.string().optional().nullable(),
-  thumbnail: z.string().url().optional().nullable(),
-  normalized_product_name: z.string().optional().nullable(),
-  label: z.string().optional().nullable(),
+  thumbnail: emptyToNull(z.string().url().optional().nullable()),
+  normalized_product_name: emptyToNull(z.string().optional().nullable()),
+  label: emptyToNull(z.string().optional().nullable()),
   volume: z.coerce.number().optional().nullable(),
-  volume_unit: z.string().optional().nullable(),
-  sale_status: z.string().optional().nullable(),
+  volume_unit: emptyToNull(z.string().optional().nullable()),
+  sale_status: emptyToNull(z.string().optional().nullable()),
   original_price: z.coerce.number().optional().nullable(),
   discounted_price: z.coerce.number().optional().nullable(),
 });
