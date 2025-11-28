@@ -1,0 +1,660 @@
+openapi: 3.0.3
+info:
+  title: Product Scanner API
+  description: |
+    상품 정보 스캔 및 업데이트 워크플로우 API
+
+    ## 지원 플랫폼
+    | 플랫폼 | 스캔 방식 | URL 패턴 |
+    |--------|----------|----------|
+    | hwahae | HTTP API | hwahae.co.kr |
+    | musinsa | HTTP API | musinsa.com |
+    | zigzag | GraphQL | zigzag.kr |
+    | oliveyoung | Playwright | oliveyoung.co.kr |
+    | kurly | Playwright | kurly.com |
+    | ably | Playwright | a-bly.com |
+
+    ## 워크플로우 종류
+    - **Platform Update**: 플랫폼별 대량 상품 업데이트 (스케줄러 사용)
+    - **Platform Validation**: 플랫폼별 대량 상품 검증 (업데이트 없음)
+    - **Extract ProductSet**: 개별 ProductSet ID 기반 추출
+    - **Extract URL**: URL 기반 단일 상품 추출
+
+  version: 2.0.0
+  contact:
+    name: Scoob Scraper Team
+
+servers:
+  - url: http://localhost:3989
+    description: 로컬 개발 서버
+  - url: http://product_scanner:3000
+    description: Docker 내부 통신
+
+tags:
+  - name: Health
+    description: 서버 상태 확인
+  - name: Products
+    description: 상품 추출 (동기 API)
+  - name: Workflows
+    description: 워크플로우 실행 및 조회 (비동기 Job)
+  - name: Jobs
+    description: 실행 중인 Job 모니터링
+  - name: Scheduler
+    description: 자동 스케줄러 제어
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: 서버 상태 확인
+      description: 서버 및 플랫폼 설정 로드 상태 확인
+      responses:
+        '200':
+          description: 정상
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: ok
+                message: Product Scanner is running
+                version: 1.0.0
+                architecture: API v1 with Platform Routing
+                platforms:
+                  loaded: true
+                  count: 6
+        '503':
+          description: 서비스 장애 (플랫폼 설정 로드 실패)
+
+  /api/v2/products/extract-by-product-set:
+    post:
+      tags: [Products]
+      summary: ProductSet ID 기반 상품 추출
+      description: |
+        Supabase의 product_sets 테이블에서 ProductSet을 조회하고 상품 정보를 추출합니다.
+
+        **동기 API** - 결과를 즉시 반환합니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [productSetId]
+              properties:
+                productSetId:
+                  type: string
+                  format: uuid
+                  description: ProductSet UUID
+            example:
+              productSetId: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: 추출 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractResponse'
+        '400':
+          description: 잘못된 요청 (UUID 형식 오류)
+        '404':
+          description: ProductSet을 찾을 수 없음
+
+  /api/v2/products/extract-by-url:
+    post:
+      tags: [Products]
+      summary: URL 기반 상품 추출
+      description: |
+        URL에서 플랫폼을 자동 감지하고 상품 정보를 추출합니다.
+
+        **동기 API** - 결과를 즉시 반환합니다.
+        - Supabase 조회 없음 (db: null, comparison: null)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: 상품 URL
+            examples:
+              oliveyoung:
+                summary: 올리브영 상품
+                value:
+                  url: "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231822"
+              hwahae:
+                summary: 화해 상품
+                value:
+                  url: "https://www.hwahae.co.kr/goods/101579"
+              zigzag:
+                summary: 지그재그 상품
+                value:
+                  url: "https://zigzag.kr/catalog/products/135549633"
+      responses:
+        '200':
+          description: 추출 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExtractResponse'
+        '400':
+          description: 잘못된 URL 또는 지원하지 않는 플랫폼
+
+  /api/v2/workflows/execute:
+    post:
+      tags: [Workflows]
+      summary: 워크플로우 실행
+      description: |
+        비동기 워크플로우를 실행하고 Job ID를 반환합니다.
+
+        **비동기 API** - Job ID로 상태를 조회해야 합니다.
+
+        ## 사용 가능한 워크플로우
+
+        ### Platform 워크플로우 (대량 처리)
+        | workflow_id | 설명 |
+        |-------------|------|
+        | hwahae-update-v2 | 화해 상품 업데이트 |
+        | hwahae-validation-v2 | 화해 상품 검증 (업데이트 없음) |
+        | musinsa-update-v2 | 무신사 상품 업데이트 |
+        | zigzag-update-v2 | 지그재그 상품 업데이트 |
+        | oliveyoung-update-v2 | 올리브영 상품 업데이트 |
+        | kurly-update-v2 | 컬리 상품 업데이트 |
+        | ably-update-v2 | 에이블리 상품 업데이트 |
+
+        ### Extract 워크플로우 (개별 처리)
+        | workflow_id | 설명 |
+        |-------------|------|
+        | extract-product-set-update-v2 | ProductSet ID 기반 추출 + 업데이트 |
+        | extract-product-set-validation-v2 | ProductSet ID 기반 검증 |
+        | extract-url-validation-v2 | URL 기반 추출 |
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowExecuteRequest'
+            examples:
+              platform_update:
+                summary: 플랫폼 업데이트 워크플로우
+                value:
+                  workflow_id: hwahae-update-v2
+                  priority: 5
+                  params:
+                    platform: hwahae
+                    link_url_pattern: hwahae.co.kr
+                    sale_status: on_sale
+                    limit: 100
+                    batch_size: 10
+                    concurrency: 1
+                    wait_time_ms: 2500
+                    update_sale_status: true
+                  metadata:
+                    description: "화해 on_sale 상품 업데이트"
+              product_set_update:
+                summary: ProductSet 업데이트 워크플로우
+                value:
+                  workflow_id: extract-product-set-update-v2
+                  priority: 5
+                  params:
+                    product_set_id: "550e8400-e29b-41d4-a716-446655440000"
+                    update_sale_status: true
+                  metadata:
+                    description: "ProductSet 개별 업데이트"
+              url_validation:
+                summary: URL 검증 워크플로우
+                value:
+                  workflow_id: extract-url-validation-v2
+                  priority: 5
+                  params:
+                    url: "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231822"
+                  metadata:
+                    description: "URL 기반 상품 추출"
+      responses:
+        '202':
+          description: 워크플로우 실행 시작됨
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowExecuteResponse'
+              example:
+                success: true
+                job_id: "01934567-89ab-7def-0123-456789abcdef"
+                message: Workflow execution started
+        '400':
+          description: 잘못된 요청
+
+  /api/v2/workflows/jobs/{jobId}:
+    get:
+      tags: [Workflows]
+      summary: Job 상태 조회
+      description: 실행 중이거나 완료된 Job의 상태를 조회합니다.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Job UUID
+      responses:
+        '200':
+          description: Job 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+        '404':
+          description: Job을 찾을 수 없음
+
+  /api/v2/workflows:
+    get:
+      tags: [Workflows]
+      summary: 워크플로우 목록 조회
+      description: 사용 가능한 모든 워크플로우 목록을 반환합니다.
+      responses:
+        '200':
+          description: 워크플로우 목록
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        description:
+                          type: string
+
+  /api/v2/workflows/health:
+    get:
+      tags: [Workflows]
+      summary: 워크플로우 서비스 상태
+      responses:
+        '200':
+          description: 정상
+        '503':
+          description: 서비스 장애
+
+  /api/v2/jobs/running:
+    get:
+      tags: [Jobs]
+      summary: 실행 중인 Job 및 Queue 현황
+      description: |
+        각 플랫폼별 현재 실행 중인 Job과 대기 중인 Queue 현황을 조회합니다.
+
+        **Shell 스크립트**: `scripts/check-running-jobs.sh`
+      responses:
+        '200':
+          description: 실행 현황
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunningJobsResponse'
+              example:
+                success: true
+                data:
+                  running:
+                    - platform: hwahae
+                      job_id: "01934567-89ab-7def-0123-456789abcdef"
+                      workflow_id: hwahae-update-v2
+                      started_at: "2024-11-28T11:25:11.000Z"
+                      elapsed_seconds: 372
+                  queued:
+                    musinsa: 2
+                    zigzag: 1
+                  summary:
+                    running_count: 1
+                    queued_count: 3
+
+  /api/v2/scheduler/status:
+    get:
+      tags: [Scheduler]
+      summary: 스케줄러 상태 조회
+      description: |
+        자동 스케줄러의 활성화 상태, 설정, 플랫폼별 상태를 조회합니다.
+
+        **Shell 스크립트**: `scripts/scheduler-control.sh status`
+      responses:
+        '200':
+          description: 스케줄러 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchedulerStatusResponse'
+
+  /api/v2/scheduler/start:
+    post:
+      tags: [Scheduler]
+      summary: 스케줄러 시작
+      description: |
+        자동 스케줄러를 활성화합니다.
+
+        **Shell 스크립트**: `scripts/scheduler-control.sh start`
+      responses:
+        '200':
+          description: 시작 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: Scheduler started
+                data:
+                  enabled: true
+                  was_enabled: false
+
+  /api/v2/scheduler/stop:
+    post:
+      tags: [Scheduler]
+      summary: 스케줄러 중지
+      description: |
+        자동 스케줄러를 비활성화합니다.
+
+        **Shell 스크립트**: `scripts/scheduler-control.sh stop`
+
+        `?clear_queue=true` 옵션으로 대기 중인 모든 Job을 삭제할 수 있습니다.
+      parameters:
+        - name: clear_queue
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+          description: 대기 중인 모든 Job 삭제 여부
+      responses:
+        '200':
+          description: 중지 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Scheduler stopped and 5 queued jobs cleared"
+                data:
+                  enabled: false
+                  was_enabled: true
+                  queue_cleared: true
+                  cleared_jobs:
+                    hwahae: 2
+                    musinsa: 3
+                  total_cleared: 5
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        message:
+          type: string
+        version:
+          type: string
+        architecture:
+          type: string
+        platforms:
+          type: object
+          properties:
+            loaded:
+              type: boolean
+            count:
+              type: integer
+
+    ExtractResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        product:
+          type: object
+          description: 추출된 상품 정보
+        durationMs:
+          type: integer
+          description: 처리 시간 (ms)
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+
+    WorkflowExecuteRequest:
+      type: object
+      required: [workflow_id, params]
+      properties:
+        workflow_id:
+          type: string
+          description: 워크플로우 ID
+        priority:
+          type: integer
+          default: 5
+          minimum: 1
+          maximum: 10
+          description: 우선순위 (1=최고, 10=최저)
+        params:
+          type: object
+          description: 워크플로우 파라미터
+        metadata:
+          type: object
+          description: 추가 메타데이터
+
+    WorkflowExecuteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        job_id:
+          type: string
+          format: uuid
+        message:
+          type: string
+
+    JobStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            job_id:
+              type: string
+            workflow_id:
+              type: string
+            status:
+              type: string
+              enum: [pending, running, completed, failed]
+            progress:
+              type: integer
+              minimum: 0
+              maximum: 100
+            current_node:
+              type: string
+            result:
+              type: object
+            error:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            started_at:
+              type: string
+              format: date-time
+            completed_at:
+              type: string
+              format: date-time
+
+    RunningJobsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            running:
+              type: array
+              items:
+                type: object
+                properties:
+                  platform:
+                    type: string
+                  job_id:
+                    type: string
+                  workflow_id:
+                    type: string
+                  started_at:
+                    type: string
+                    format: date-time
+                  elapsed_seconds:
+                    type: integer
+            queued:
+              type: object
+              additionalProperties:
+                type: integer
+            summary:
+              type: object
+              properties:
+                running_count:
+                  type: integer
+                queued_count:
+                  type: integer
+
+    SchedulerStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            scheduler:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                running:
+                  type: boolean
+                last_changed_at:
+                  type: string
+                  format: date-time
+                last_heartbeat_at:
+                  type: string
+                  format: date-time
+                total_jobs_scheduled:
+                  type: integer
+            config:
+              type: object
+              properties:
+                platforms:
+                  type: array
+                  items:
+                    type: string
+                check_interval_ms:
+                  type: integer
+                inter_platform_delay_ms:
+                  type: integer
+                same_platform_cooldown_ms:
+                  type: integer
+                on_sale_ratio:
+                  type: integer
+                default_limit:
+                  type: integer
+            platforms:
+              type: object
+              description: 플랫폼별 상태
+
+# ============================================================================
+# Shell 스크립트 사용법
+# ============================================================================
+#
+# ## 스케줄러 제어 (scheduler-control.sh)
+#
+# ```bash
+# # 상태 확인
+# ./scripts/scheduler-control.sh status
+#
+# # 스케줄러 시작
+# ./scripts/scheduler-control.sh start
+#
+# # 스케줄러 중지
+# ./scripts/scheduler-control.sh stop
+#
+# # 스케줄러 중지 + 대기 Job 삭제
+# ./scripts/scheduler-control.sh stop --clear-queue
+#
+# # 원격 서버
+# API_URL=http://remote-server:3989 ./scripts/scheduler-control.sh status
+# ```
+#
+# ## 실행 중인 Job 확인 (check-running-jobs.sh)
+#
+# ```bash
+# ./scripts/check-running-jobs.sh
+#
+# # 원격 서버
+# API_URL=http://remote-server:3989 ./scripts/check-running-jobs.sh
+# ```
+#
+# ## 워크플로우 테스트 스크립트
+#
+# ### Platform 워크플로우
+# ```bash
+# # 화해 업데이트 테스트
+# LIMIT=5 SALE_STATUS=on_sale ./scripts/test-hwahae-update.sh
+#
+# # 무신사 검증 테스트 (업데이트 없음)
+# LIMIT=10 ./scripts/test-musinsa-validation.sh
+#
+# # 올리브영 업데이트
+# LIMIT=5 ./scripts/test-oliveyoung-update.sh
+#
+# # 지그재그 업데이트
+# LIMIT=5 ./scripts/test-zigzag-update.sh
+#
+# # 컬리 업데이트
+# LIMIT=5 ./scripts/test-kurly-update.sh
+#
+# # 에이블리 업데이트
+# LIMIT=5 ./scripts/test-ably-update.sh
+# ```
+#
+# ### Extract 워크플로우
+# ```bash
+# # ProductSet ID 기반 추출 + 업데이트
+# ./scripts/test-extract-product-set-update.sh "product-set-uuid"
+#
+# # ProductSet ID 기반 검증
+# ./scripts/test-extract-product-set-validation.sh "product-set-uuid"
+#
+# # URL 기반 추출
+# ./scripts/test-extract-url-validation.sh "https://www.oliveyoung.co.kr/..."
+# ```
+#
+# ### 환경변수
+# | 변수 | 설명 | 기본값 |
+# |------|------|--------|
+# | API_URL | API 서버 주소 | http://localhost:3989 |
+# | LIMIT | 처리할 상품 수 | 5 |
+# | BATCH_SIZE | 배치 크기 | 10 |
+# | CONCURRENCY | 동시 처리 수 | 1 (API), 4 (Playwright) |
+# | WAIT_TIME_MS | Rate limiting 대기 시간 | 2500 |
+# | SALE_STATUS | 대상 판매 상태 | on_sale |
+# | UPDATE_SALE_STATUS | 판매 상태 업데이트 여부 | true |
+#
+# ============================================================================
