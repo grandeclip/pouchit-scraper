@@ -37,10 +37,33 @@ const REDIS_TTL = {
 } as const;
 
 /**
- * Redis Workflow Repository
+ * Redis Workflow Repository (Singleton)
  */
 export class RedisWorkflowRepository implements IWorkflowRepository {
+  private static instance: RedisWorkflowRepository | null = null;
+  private static sharedClient: Redis | null = null;
   private _client: Redis;
+
+  /**
+   * Singleton 인스턴스 가져오기
+   */
+  static getInstance(): RedisWorkflowRepository {
+    if (!RedisWorkflowRepository.instance) {
+      RedisWorkflowRepository.instance = new RedisWorkflowRepository();
+    }
+    return RedisWorkflowRepository.instance;
+  }
+
+  /**
+   * Singleton 인스턴스 초기화 (테스트용)
+   */
+  static resetInstance(): void {
+    if (RedisWorkflowRepository.sharedClient) {
+      RedisWorkflowRepository.sharedClient.disconnect();
+      RedisWorkflowRepository.sharedClient = null;
+    }
+    RedisWorkflowRepository.instance = null;
+  }
 
   /**
    * Redis client getter
@@ -55,39 +78,44 @@ export class RedisWorkflowRepository implements IWorkflowRepository {
     if (redisClient) {
       this._client = redisClient;
     } else {
-      const host = process.env.REDIS_HOST || "localhost";
-      const port = parseInt(process.env.REDIS_PORT || "6379", 10);
+      // Singleton 패턴: 공유 클라이언트 사용
+      if (!RedisWorkflowRepository.sharedClient) {
+        const host = process.env.REDIS_HOST || "localhost";
+        const port = parseInt(process.env.REDIS_PORT || "6379", 10);
 
-      this._client = new Redis({
-        host,
-        port,
-        maxRetriesPerRequest: 3,
-        retryStrategy: (times: number) => {
-          const delay = Math.min(times * 50, 2000);
-          return delay;
-        },
-        lazyConnect: false,
-      });
+        RedisWorkflowRepository.sharedClient = new Redis({
+          host,
+          port,
+          maxRetriesPerRequest: 3,
+          retryStrategy: (times: number) => {
+            const delay = Math.min(times * 50, 2000);
+            return delay;
+          },
+          lazyConnect: false,
+        });
 
-      this._client.on("connect", () => {
-        logger.info({ host, port }, "Redis 연결 성공");
-      });
+        RedisWorkflowRepository.sharedClient.on("connect", () => {
+          logger.info({ host, port }, "Redis 연결 성공");
+        });
 
-      this._client.on("ready", () => {
-        logger.info({ host, port }, "Redis 사용 준비 완료");
-      });
+        RedisWorkflowRepository.sharedClient.on("ready", () => {
+          logger.info({ host, port }, "Redis 사용 준비 완료");
+        });
 
-      this._client.on("error", (err: Error) => {
-        logger.error({ error: err.message, host, port }, "Redis 연결 오류");
-      });
+        RedisWorkflowRepository.sharedClient.on("error", (err: Error) => {
+          logger.error({ error: err.message, host, port }, "Redis 연결 오류");
+        });
 
-      this._client.on("close", () => {
-        logger.warn({ host, port }, "Redis 연결 종료");
-      });
+        RedisWorkflowRepository.sharedClient.on("close", () => {
+          logger.warn({ host, port }, "Redis 연결 종료");
+        });
 
-      this._client.on("reconnecting", () => {
-        logger.warn({ host, port }, "Redis 재연결 시도 중");
-      });
+        RedisWorkflowRepository.sharedClient.on("reconnecting", () => {
+          logger.warn({ host, port }, "Redis 재연결 시도 중");
+        });
+      }
+
+      this._client = RedisWorkflowRepository.sharedClient;
     }
   }
 
