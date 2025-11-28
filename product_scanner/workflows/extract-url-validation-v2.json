@@ -1,8 +1,4 @@
 {
-  "defaults": {
-    "platform": "url_extraction",
-    "url": ""
-  },
   "description": "URL 상품 추출 (Supabase 조회 없음, db/comparison: null)",
   "metadata": {
     "author": "Product Scanner Team",

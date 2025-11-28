@@ -21,6 +21,8 @@ export interface IPlatformConfig {
   baseUrl?: string;
   strategies?: unknown[];
   workflow?: {
+    /** 배치당 상품 수 (스캔 배치 분할용) */
+    batch_size?: number;
     rate_limit?: {
       wait_time_ms?: number;
     };

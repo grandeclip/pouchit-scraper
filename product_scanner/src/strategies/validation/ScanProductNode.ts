@@ -140,8 +140,8 @@ export class ScanProductNode implements ITypedNodeStrategy<
       );
     }
 
-    // Concurrency 설정
-    const { concurrency, waitTimeMs } = this.resolveConcurrency(
+    // 배치 및 병렬 설정
+    const { batchSize, concurrency, waitTimeMs } = this.resolveBatchSettings(
       config,
       platformConfig,
     );
@@ -151,6 +151,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
         type: this.type,
         platform,
         product_count: input.products.length,
+        batch_size: batchSize,
         concurrency,
       },
       "스캔 시작",
@@ -160,13 +161,14 @@ export class ScanProductNode implements ITypedNodeStrategy<
       // 리소스 초기화
       await this.initializeResources(concurrency, waitTimeMs);
 
-      // 배치 분할
-      const batches = this.splitIntoBatches(input.products, concurrency);
+      // 배치 분할 (batch_size 기준)
+      const batches = this.splitIntoBatches(input.products, batchSize);
 
       logger.debug(
         {
           type: this.type,
           batch_count: batches.length,
+          batch_size: batchSize,
           items_per_batch: batches.map((b) => b.length),
         },
         "배치 분할 완료",
@@ -184,7 +186,12 @@ export class ScanProductNode implements ITypedNodeStrategy<
           await this.rateLimiter.throttle(`${this.type}:between-batch`);
         }
 
-        const batchResults = await this.scanBatch(batch, batchIndex, context);
+        const batchResults = await this.scanBatch(
+          batch,
+          batchIndex,
+          context,
+          concurrency,
+        );
         allResults.push(...batchResults);
       }
 
@@ -267,14 +274,17 @@ export class ScanProductNode implements ITypedNodeStrategy<
 
   /**
    * 단일 배치 스캔
+   *
+   * concurrency > 1: 병렬 처리 (Playwright 플랫폼)
+   * concurrency = 1: 순차 처리 (API 플랫폼)
    */
   private async scanBatch(
     products: ProductSetSearchResult[],
     batchIndex: number,
     context: INodeContext,
+    concurrency: number,
   ): Promise<SingleScanResult[]> {
     const { logger, platform, platformConfig, sharedState } = context;
-    const results: SingleScanResult[] = [];
 
     if (!this.browserPool) {
       throw new Error("BrowserPool이 초기화되지 않음");
@@ -296,6 +306,192 @@ export class ScanProductNode implements ITypedNodeStrategy<
       }
     }
 
+    // 병렬 처리 가능 여부 (concurrency > 1)
+    if (concurrency > 1) {
+      return this.scanBatchParallel(
+        products,
+        batchIndex,
+        context,
+        concurrency,
+        resultWriter,
+        originalMap,
+      );
+    }
+
+    // 순차 처리 (concurrency = 1, API 플랫폼)
+    return this.scanBatchSequential(
+      products,
+      batchIndex,
+      context,
+      resultWriter,
+      originalMap,
+    );
+  }
+
+  /**
+   * 배치 병렬 스캔 (Playwright 플랫폼용)
+   *
+   * concurrency 개수만큼 동시에 상품을 스캔
+   *
+   * 핵심: Browser를 Promise.all 전에 미리 획득하여 Mutex 병목 제거
+   */
+  private async scanBatchParallel(
+    products: ProductSetSearchResult[],
+    batchIndex: number,
+    context: INodeContext,
+    concurrency: number,
+    resultWriter: StreamingResultWriter | null,
+    originalMap: Map<string, ProductSetSearchResult>,
+  ): Promise<SingleScanResult[]> {
+    const { logger, platformConfig } = context;
+    const results: SingleScanResult[] = [];
+
+    logger.info(
+      {
+        type: this.type,
+        batchIndex,
+        product_count: products.length,
+        concurrency,
+      },
+      "배치 병렬 스캔 시작",
+    );
+
+    // concurrency 개수만큼 청크로 분할
+    const chunks = this.chunkArray(products, concurrency);
+
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunk = chunks[chunkIndex];
+
+      // 청크 간 Rate Limiting (첫 번째 청크 제외)
+      if (chunkIndex > 0 && this.rateLimiter) {
+        await this.rateLimiter.throttle(`${this.type}:chunk${chunkIndex}`);
+      }
+
+      // ===== 핵심 변경: Browser 사전 획득 =====
+      // Mutex 병목 제거: Promise.all 전에 필요한 브라우저를 순차적으로 미리 획득
+      const preAcquiredResources: Array<{
+        browser: Browser;
+        browserContext: BrowserContext;
+        page: Page;
+      }> = [];
+
+      try {
+        // 청크 크기만큼 브라우저 사전 획득
+        for (let i = 0; i < chunk.length; i++) {
+          const browser = await this.browserPool!.acquireBrowser();
+          const { context: browserContext, page } =
+            await this.createBrowserContext(browser, platformConfig);
+          preAcquiredResources.push({ browser, browserContext, page });
+        }
+
+        logger.debug(
+          {
+            type: this.type,
+            chunkIndex,
+            acquired_browsers: preAcquiredResources.length,
+          },
+          "브라우저 사전 획득 완료",
+        );
+
+        // ===== 병렬 스캔 실행 (이미 브라우저 획득됨) =====
+        const chunkResults = await Promise.all(
+          chunk.map(async (product, productIndex) => {
+            const { page } = preAcquiredResources[productIndex];
+
+            try {
+              const scanResult = await this.scanSingleProduct(
+                product,
+                page,
+                context,
+              );
+
+              // Streaming 저장
+              if (resultWriter) {
+                const comparisonResult = this.createComparisonResult(
+                  scanResult,
+                  product,
+                  originalMap,
+                );
+                await resultWriter.append({
+                  ...comparisonResult,
+                  status: comparisonResult.status,
+                });
+              }
+
+              return scanResult;
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : String(error);
+
+              logger.error(
+                {
+                  type: this.type,
+                  batchIndex,
+                  product_set_id: product.product_set_id,
+                  error: message,
+                },
+                "병렬 스캔 실패",
+              );
+
+              const failedResult = this.createFailedResult(product, message);
+
+              // Streaming 저장 (실패)
+              if (resultWriter) {
+                const comparisonResult = this.createComparisonResult(
+                  failedResult,
+                  product,
+                  originalMap,
+                );
+                await resultWriter.append({
+                  ...comparisonResult,
+                  status: comparisonResult.status,
+                });
+              }
+
+              return failedResult;
+            }
+          }),
+        );
+
+        results.push(...chunkResults);
+      } finally {
+        // ===== 리소스 정리: 모든 브라우저 반환 =====
+        for (const { browser, browserContext, page } of preAcquiredResources) {
+          await page.close().catch(() => {});
+          await browserContext.close().catch(() => {});
+          await this.browserPool!.releaseBrowser(browser);
+        }
+      }
+    }
+
+    logger.info(
+      {
+        type: this.type,
+        batchIndex,
+        total: results.length,
+        success: results.filter((r) => r.success).length,
+      },
+      "배치 병렬 스캔 완료",
+    );
+
+    return results;
+  }
+
+  /**
+   * 배치 순차 스캔 (API 플랫폼용)
+   *
+   * 기존 방식 유지 - 단일 Browser/Context/Page로 순차 처리
+   */
+  private async scanBatchSequential(
+    products: ProductSetSearchResult[],
+    batchIndex: number,
+    context: INodeContext,
+    resultWriter: StreamingResultWriter | null,
+    originalMap: Map<string, ProductSetSearchResult>,
+  ): Promise<SingleScanResult[]> {
+    const { logger, platformConfig } = context;
+    const results: SingleScanResult[] = [];
+
     let browser: Browser | null = null;
     let browserContext: BrowserContext | null = null;
     let page: Page | null = null;
@@ -312,7 +508,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
 
     try {
       // Browser 획득
-      browser = await this.browserPool.acquireBrowser();
+      browser = await this.browserPool!.acquireBrowser();
 
       // Context/Page 생성
       ({ context: browserContext, page } = await this.createBrowserContext(
@@ -442,6 +638,17 @@ export class ScanProductNode implements ITypedNodeStrategy<
     }
 
     return results;
+  }
+
+  /**
+   * 배열을 청크로 분할 (병렬 처리용)
+   */
+  private chunkArray<T>(array: T[], chunkSize: number): T[][] {
+    const chunks: T[][] = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
   }
 
   /**
@@ -1047,12 +1254,16 @@ export class ScanProductNode implements ITypedNodeStrategy<
   }
 
   /**
-   * Concurrency 설정 해석
+   * 배치 및 병렬 설정 해석
+   *
+   * YAML config 기반:
+   * - batch_size: 배치당 상품 수
+   * - concurrency: 배치 내 병렬 처리 수 (pLimit)
    */
-  private resolveConcurrency(
+  private resolveBatchSettings(
     config: Record<string, unknown>,
     platformConfig: INodeContext["platformConfig"],
-  ): { concurrency: number; waitTimeMs: number } {
+  ): { batchSize: number; concurrency: number; waitTimeMs: number } {
     const waitTimeMs =
       platformConfig.workflow?.rate_limit?.wait_time_ms ??
       this.nodeConfig.default_wait_time_ms;
@@ -1068,7 +1279,10 @@ export class ScanProductNode implements ITypedNodeStrategy<
 
     const concurrency = Math.min(requestedConcurrency, maxConcurrency);
 
-    return { concurrency, waitTimeMs };
+    // batch_size from YAML config (default: 20)
+    const batchSize = platformConfig.workflow?.batch_size ?? 20;
+
+    return { batchSize, concurrency, waitTimeMs };
   }
 
   /**
@@ -1261,14 +1475,16 @@ export class ScanProductNode implements ITypedNodeStrategy<
   }
 
   /**
-   * 배치 분할
+   * 배치 분할 (batch_size 기준)
+   *
+   * @param items 분할할 아이템 배열
+   * @param batchSize 배치당 아이템 수
    */
-  private splitIntoBatches<T>(items: T[], batchCount: number): T[][] {
-    if (batchCount <= 0 || items.length === 0) {
+  private splitIntoBatches<T>(items: T[], batchSize: number): T[][] {
+    if (batchSize <= 0 || items.length === 0) {
       return [items];
     }
 
-    const batchSize = Math.ceil(items.length / batchCount);
     const batches: T[][] = [];
 
     for (let i = 0; i < items.length; i += batchSize) {

@@ -269,15 +269,19 @@ update_exclusions:
   # 사유
   reason: "올리브영 썸네일/정가 추출 로직 개선 후 제거 예정"
 
-# Workflow Rate Limiting
+# Workflow 설정
 workflow:
+  # Batch Settings (배치 분할 설정)
+  batch_size: 20     # 배치당 상품 수
+
+  # Rate Limiting (요청 간격 제어)
   rate_limit:
     enabled: true
     wait_time_ms: 2000
     description: "올리브영 플랫폼 rate limiting"
 
-  # Concurrency Settings (병렬 처리 설정)
+  # Concurrency Settings (배치 내 병렬 처리)
   concurrency:
     max: 10        # 최대 병렬 개수 (리소스 제한)
-    default: 4     # 기본 병렬 개수 (점진적 증가 권장: 1 → 4 → 8)
-    description: "배치 병렬 처리 설정 (예: 800개 기준 8병렬 → 8.3분, 리소스 모니터링 후 조정)"
+    default: 4     # 기본 병렬 개수 - pLimit으로 배치 내 병렬 처리
+    description: "Playwright 병렬 스캔 (예: batch_size=20, concurrency=4 → 5 라운드)"

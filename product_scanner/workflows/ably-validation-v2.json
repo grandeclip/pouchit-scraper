@@ -1,12 +1,4 @@
 {
-  "defaults": {
-    "batch_size": 10,
-    "concurrency": 4,
-    "limit": 1000,
-    "link_url_pattern": "a-bly.com",
-    "platform": "ably",
-    "wait_time_ms": 2000
-  },
   "description": "에이블리 상품 검증 (Playwright 브라우저 스캔, 병렬 처리)",
   "metadata": {
     "author": "Product Scanner Team",
@@ -39,9 +31,8 @@
     },
     "fetch": {
       "config": {
-        "batch_size": "${batch_size}",
         "limit": "${limit}",
-        "link_url_pattern": "${link_url_pattern}",
+        "link_url_pattern": "a-bly.com",
         "sale_status": "${sale_status}"
       },
       "name": "에이블리 상품 조회",
@@ -75,12 +66,10 @@
     },
     "scan": {
       "config": {
-        "concurrency": "${concurrency}",
         "platform": "ably",
         "scan_method": "playwright",
         "skip_screenshot": true,
-        "timeout_per_product_ms": 30000,
-        "wait_time_ms": "${wait_time_ms}"
+        "timeout_per_product_ms": 30000
       },
       "name": "Playwright 스캔 (병렬)",
       "next_nodes": [

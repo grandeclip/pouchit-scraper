@@ -1,9 +1,4 @@
 {
-  "defaults": {
-    "platform": "product",
-    "product_id": "",
-    "sale_status": ""
-  },
   "description": "Product UUID 멀티 플랫폼 상품 추출 (DB 비교 포함)",
   "metadata": {
     "author": "Product Scanner Team",

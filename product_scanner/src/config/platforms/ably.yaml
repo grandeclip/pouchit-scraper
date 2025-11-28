@@ -145,15 +145,19 @@ errorHandling:
   rateLimitDelay: 2000
   serverErrorRetry: true
 
-# Workflow Rate Limiting
+# Workflow 설정
 workflow:
+  # Batch Settings (배치 분할 설정)
+  batch_size: 20     # 배치당 상품 수
+
+  # Rate Limiting (요청 간격 제어)
   rate_limit:
     enabled: true
     wait_time_ms: 2000
-    description: "a-bly 플랫폼 rate limiting"
+    description: "에이블리 플랫폼 rate limiting"
 
-  # Concurrency Settings
+  # Concurrency Settings (배치 내 병렬 처리)
   concurrency:
     max: 10
-    default: 4
-    description: "배치 병렬 처리 설정"
+    default: 4     # pLimit으로 배치 내 병렬 처리
+    description: "Playwright 병렬 스캔"

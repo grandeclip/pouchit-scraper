@@ -1,12 +1,4 @@
 {
-  "defaults": {
-    "batch_size": 10,
-    "concurrency": 1,
-    "limit": 100,
-    "link_url_pattern": "musinsa.com",
-    "platform": "musinsa",
-    "wait_time_ms": 2500
-  },
   "description": "무신사 상품 검증 (API 스캔 방식, Gentle Rate Limiting)",
   "metadata": {
     "author": "Product Scanner Team",
@@ -39,9 +31,8 @@
     },
     "fetch": {
       "config": {
-        "batch_size": "${batch_size}",
         "limit": "${limit}",
-        "link_url_pattern": "${link_url_pattern}",
+        "link_url_pattern": "musinsa.com",
         "sale_status": "${sale_status}"
       },
       "name": "무신사 상품 조회",
@@ -75,12 +66,10 @@
     },
     "scan": {
       "config": {
-        "concurrency": "${concurrency}",
         "platform": "musinsa",
         "scan_method": "api",
         "skip_screenshot": true,
-        "timeout_per_product_ms": 15000,
-        "wait_time_ms": "${wait_time_ms}"
+        "timeout_per_product_ms": 15000
       },
       "name": "API 스캔 (Gentle)",
       "next_nodes": [

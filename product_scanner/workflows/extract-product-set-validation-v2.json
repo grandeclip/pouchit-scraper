@@ -1,8 +1,4 @@
 {
-  "defaults": {
-    "platform": "productset",
-    "product_set_id": ""
-  },
   "description": "ProductSet ID 상품 추출 (Supabase 조회 + DB 비교)",
   "metadata": {
     "author": "Product Scanner Team",

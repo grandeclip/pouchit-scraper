@@ -35,6 +35,15 @@
       "timeout_ms": 300000,
       "type": "extract_product"
     },
+    "notify": {
+      "config": {
+        "notify_on_failure": true,
+        "slack_enabled": true
+      },
+      "name": "Slack 알림",
+      "next_nodes": [],
+      "type": "notify_result"
+    },
     "update": {
       "config": {
         "platform": "${platform}",
@@ -48,15 +57,6 @@
       ],
       "timeout_ms": 300000,
       "type": "update_product_set"
-    },
-    "notify": {
-      "config": {
-        "notify_on_failure": true,
-        "slack_enabled": true
-      },
-      "name": "Slack 알림",
-      "next_nodes": [],
-      "type": "notify_result"
     }
   },
   "start_node": "extract",

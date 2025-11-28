@@ -1,11 +1,4 @@
 {
-  "defaults": {
-    "batch_size": 10,
-    "concurrency": 4,
-    "limit": 1000,
-    "link_url_pattern": "oliveyoung.co.kr",
-    "platform": "oliveyoung"
-  },
   "description": "올리브영 상품 검증 (브라우저 스캔 방식)",
   "metadata": {
     "author": "Product Scanner Team",
@@ -37,9 +30,8 @@
     },
     "fetch": {
       "config": {
-        "batch_size": "${batch_size}",
         "limit": "${limit}",
-        "link_url_pattern": "${link_url_pattern}",
+        "link_url_pattern": "oliveyoung.co.kr",
         "sale_status": "${sale_status}"
       },
       "name": "올리브영 상품 조회",
@@ -73,7 +65,6 @@
     },
     "scan": {
       "config": {
-        "concurrency": "${concurrency}",
         "platform": "oliveyoung",
         "scan_method": "browser",
         "skip_screenshot": false,

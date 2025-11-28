@@ -184,16 +184,19 @@ errorHandling:
   # 500 Internal Server Error → 재시도
   serverErrorRetry: true
 
-# Workflow Rate Limiting
-# Node-level rate limiting (상품별 HTTP 요청 간격 제어)
+# Workflow 설정
 workflow:
+  # Batch Settings (배치 분할 설정)
+  batch_size: 10     # 배치당 상품 수 (API이므로 작게)
+
+  # Rate Limiting (요청 간격 제어)
   rate_limit:
     enabled: true
     wait_time_ms: 2500  # 각 상품 스캔 간 대기 시간 (밀리초)
-    description: "HTTP request rate limiting per product (applies in HwahaeValidationNode)"
+    description: "HTTP request rate limiting (AWS WAF 준수)"
 
-  # Concurrency Settings (병렬 처리 설정)
+  # Concurrency Settings (순차 처리)
   concurrency:
-    max: 1        # 최대 병렬 개수 (AWS WAF 차단 방지)
-    default: 1    # 기본 병렬 개수
-    description: "순차 처리 (Rate Limiting 준수)"
+    max: 1        # AWS WAF 차단 방지
+    default: 1    # 순차 처리
+    description: "API 순차 처리 (Rate Limiting 준수)"

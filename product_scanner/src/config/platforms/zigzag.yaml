@@ -234,15 +234,19 @@ validationConfig:
       price: 0
       sale_status: "off_sale"
 
-# Workflow Rate Limiting
+# Workflow 설정
 workflow:
+  # Batch Settings (배치 분할 설정)
+  batch_size: 10     # 배치당 상품 수 (API이므로 작게)
+
+  # Rate Limiting (요청 간격 제어)
   rate_limit:
     enabled: true
-    wait_time_ms: 2500  # 각 상품 스캔 간 대기 시간 (Hwahae 참고)
-    description: "ZigZag GraphQL API rate limiting"
+    wait_time_ms: 2500  # 각 상품 스캔 간 대기 시간
+    description: "GraphQL API rate limiting (CloudFront 준수)"
 
-  # Concurrency Settings (병렬 처리 설정)
+  # Concurrency Settings (순차 처리)
   concurrency:
-    max: 1        # 최대 병렬 개수 (Hwahae 참고: 순차 처리)
-    default: 1    # 기본 병렬 개수
-    description: "순차 처리 (CloudFront 403 방지)"
+    max: 1        # CloudFront 403 방지
+    default: 1    # 순차 처리
+    description: "API 순차 처리 (Rate Limiting 준수)"

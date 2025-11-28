@@ -430,11 +430,13 @@ export class WorkflowExecutionService implements IWorkflowService {
     const platform = job.platform || "default";
     const platformValidationConfig = getPlatformConfig(platform);
 
-    // YAML 플랫폼 설정에서 strategies 로드
+    // YAML 플랫폼 설정에서 strategies + workflow 로드
     let yamlStrategies: unknown[] = [];
+    let yamlWorkflow: IPlatformConfig["workflow"] = undefined;
     try {
       const yamlConfig = ConfigLoader.getInstance().loadConfig(platform);
       yamlStrategies = yamlConfig.strategies || [];
+      yamlWorkflow = yamlConfig.workflow as IPlatformConfig["workflow"];
     } catch {
       // YAML 설정이 없는 플랫폼은 빈 배열 사용 (default 등)
       logger.debug(
@@ -448,6 +450,7 @@ export class WorkflowExecutionService implements IWorkflowService {
       platform_id: platformValidationConfig?.platform || platform,
       base_url: platformValidationConfig?.urlPattern.domain || "",
       strategies: yamlStrategies,
+      workflow: yamlWorkflow,
       rate_limit: {
         requests_per_minute: 60,
         delay_between_requests_ms:
