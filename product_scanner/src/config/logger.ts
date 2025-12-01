@@ -14,11 +14,11 @@
  * - 개발 환경: pino-pretty 포맷 (색상)
  * - 프로덕션: JSON 포맷
  *
- * 파일 출력 (컨테이너별 분리):
- * - server-YYYYMMDD.log (API 서버)
- * - scheduler-YYYYMMDD.log (스케줄러)
- * - worker-oliveyoung-YYYYMMDD.log, worker-ably-YYYYMMDD.log, ... (플랫폼별 Worker)
- * - error-YYYYMMDD.log (에러 통합)
+ * 파일 출력 (날짜별 디렉터리 + 컨테이너별 분리):
+ * - logs/YYYY-MM-DD/server.log (API 서버)
+ * - logs/YYYY-MM-DD/scheduler.log (스케줄러)
+ * - logs/YYYY-MM-DD/worker-oliveyoung.log, worker-ably.log, ... (플랫폼별 Worker)
+ * - logs/YYYY-MM-DD/error.log (에러 통합)
  * - 일일 로테이션, 90일 보관
  */
 
@@ -50,19 +50,34 @@ try {
 }
 
 /**
- * 일일 로테이션 파일 스트림 생성
- * 로컬 타임존(Asia/Seoul) 기준으로 날짜 파일명 생성
+ * 날짜 디렉터리명 생성 (YYYY-MM-DD)
+ */
+function getDateDir(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * 날짜별 디렉터리에 로그 파일 생성
+ * 구조: LOG_DIR/YYYY-MM-DD/{prefix}.log
  */
 function createRotatingStream(prefix: string) {
   const stream = createStream(
     () => {
-      // 현재 시각 기준 파일명 생성
-      const now = new Date();
+      // 날짜 디렉터리 생성 (YYYY-MM-DD)
+      const dateDir = getDateDir();
+      const fullDir = path.join(LOG_DIR, dateDir);
 
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      const day = String(now.getDate()).padStart(2, "0");
-      return `${prefix}-${year}${month}${day}.log`;
+      // 디렉터리 없으면 생성 (권한 0o777)
+      if (!fs.existsSync(fullDir)) {
+        fs.mkdirSync(fullDir, { recursive: true, mode: 0o777 });
+      }
+
+      // 파일 경로: YYYY-MM-DD/{prefix}.log
+      return path.join(dateDir, `${prefix}.log`);
     },
     {
       interval: "1d", // 일일 로테이션
@@ -70,7 +85,7 @@ function createRotatingStream(prefix: string) {
       initialRotation: true, // 시작 시 정확한 날짜 파일 생성
       immutable: true, // 과거 파일 수정 방지
       path: LOG_DIR,
-      maxFiles: 90, // 30일 보관
+      maxFiles: 90, // 90일 보관
       compress: false, // 압축 비활성화
       maxSize: "100M", // 100MB마다 로테이션
     },
@@ -88,24 +103,19 @@ function createRotatingStream(prefix: string) {
     }
   });
 
-  // 초기 파일 생성시 권한 설정 (스트림 생성 후 첫 쓰기 전)
+  // 초기 파일 생성시 권한 설정
   setImmediate(() => {
     try {
-      const files = fs.readdirSync(LOG_DIR);
-      files
-        .filter(
-          (f) =>
-            f.startsWith(prefix) && f.endsWith(".log") && !f.endsWith(".gz"),
-        )
-        .forEach((f) => {
-          try {
-            fs.chmodSync(path.join(LOG_DIR, f), 0o666);
-          } catch (error) {
-            // 권한 변경 실패 무시
-          }
-        });
+      const dateDir = getDateDir();
+      const fullDir = path.join(LOG_DIR, dateDir);
+      if (fs.existsSync(fullDir)) {
+        const logFile = path.join(fullDir, `${prefix}.log`);
+        if (fs.existsSync(logFile)) {
+          fs.chmodSync(logFile, 0o666);
+        }
+      }
     } catch (error) {
-      // 디렉토리 읽기 실패 무시
+      // 권한 변경 실패 무시
     }
   });
 
