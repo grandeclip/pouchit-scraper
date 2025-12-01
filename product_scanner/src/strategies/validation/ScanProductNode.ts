@@ -113,12 +113,17 @@ export class ScanProductNode implements ITypedNodeStrategy<
 
   /**
    * 스크린샷 저장 여부 확인
-   * PlatformValidationConfig.scanConfig.skipScreenshot 참조
+   *
+   * @deprecated 2024-12 스크린샷 용량 이슈로 비활성화
+   * 원본 로직: PlatformValidationConfig.scanConfig.skipScreenshot 참조
    */
-  private shouldSaveScreenshot(platform: string): boolean {
-    const config = getPlatformConfig(platform);
-    if (!config) return true; // 설정 없으면 기본 저장
-    return !config.scanConfig.skipScreenshot;
+  private shouldSaveScreenshot(_platform: string): boolean {
+    // @deprecated - 스크린샷 저장 비활성화 (용량 이슈)
+    // 원본 로직:
+    // const config = getPlatformConfig(platform);
+    // if (!config) return true;
+    // return !config.scanConfig.skipScreenshot;
+    return false;
   }
 
   /**
