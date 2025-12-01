@@ -11,6 +11,7 @@ import productsRouter from "./products.router";
 import workflowsRouter from "./workflows.router";
 import jobsRouter from "./jobs.router";
 import schedulerRouter from "./scheduler.router";
+import workersRouter from "./workers.router";
 import { logger } from "@/config/logger";
 
 const router = Router();
@@ -27,20 +28,24 @@ router.use("/jobs", jobsRouter);
 // Scheduler API (스케줄러 제어)
 router.use("/scheduler", schedulerRouter);
 
+// Workers API (Worker 컨테이너 관리)
+router.use("/workers", workersRouter);
+
 logger.info(
   {
     endpoints: [
       "POST /api/v2/products/extract-by-product-set",
       "POST /api/v2/products/extract-by-url",
-      "POST /api/v2/products/extract-by-id (not implemented)",
       "POST /api/v2/workflows/execute",
       "GET /api/v2/workflows/jobs/:jobId",
       "GET /api/v2/workflows",
-      "GET /api/v2/workflows/health",
       "GET /api/v2/jobs/running",
+      "POST /api/v2/jobs/platform/:platform/force-release",
       "GET /api/v2/scheduler/status",
       "POST /api/v2/scheduler/start",
       "POST /api/v2/scheduler/stop",
+      "GET /api/v2/workers/status",
+      "POST /api/v2/workers/:platform/restart",
     ],
   },
   "[v2Router] API v2 라우터 등록",

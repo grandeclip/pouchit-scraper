@@ -22,7 +22,7 @@ const router = Router();
  */
 router.get("/status", async (_req: Request, res: Response) => {
   try {
-    const repository = new RedisWorkflowRepository();
+    const repository = RedisWorkflowRepository.getInstance();
     const schedulerState = new SchedulerStateRepository(repository.client);
 
     const status = await schedulerState.getSchedulerStatus();
@@ -70,7 +70,7 @@ router.get("/status", async (_req: Request, res: Response) => {
  */
 router.post("/start", async (_req: Request, res: Response) => {
   try {
-    const repository = new RedisWorkflowRepository();
+    const repository = RedisWorkflowRepository.getInstance();
     const schedulerState = new SchedulerStateRepository(repository.client);
 
     const currentStatus = await schedulerState.getSchedulerStatus();
@@ -120,7 +120,7 @@ router.post("/start", async (_req: Request, res: Response) => {
  */
 router.post("/stop", async (req: Request, res: Response) => {
   try {
-    const repository = new RedisWorkflowRepository();
+    const repository = RedisWorkflowRepository.getInstance();
     const schedulerState = new SchedulerStateRepository(repository.client);
     const clearQueue = req.query.clear_queue === "true";
 

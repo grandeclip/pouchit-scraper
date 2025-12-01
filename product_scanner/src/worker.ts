@@ -8,6 +8,10 @@
  * Phase 2: Worker 분리 지원
  * - WORKER_PLATFORMS 환경변수로 담당 플랫폼 지정
  * - 미지정 시 모든 플랫폼 처리 (레거시 모드)
+ *
+ * Phase 3: Kill Flag 기반 원격 재시작
+ * - Redis에서 kill 플래그 체크 (5초 간격)
+ * - 플래그 감지 시 process.exit(1) → Docker 재시작
  */
 
 import "dotenv/config";
@@ -19,6 +23,11 @@ import { logImportant } from "@/utils/LoggerContext";
 import { WORKFLOW_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
 import type { Job } from "@/core/domain/Workflow";
+
+/**
+ * Kill Flag 체크 간격 (ms)
+ */
+const KILL_CHECK_INTERVAL_MS = 5000;
 
 const POLL_INTERVAL_MS = WORKFLOW_CONFIG.POLL_INTERVAL_MS;
 
@@ -141,11 +150,59 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Kill Flag Redis 키 패턴
+ */
+const KILL_FLAG_KEY = (platform: string) => `worker:kill:${platform}`;
+
+/**
+ * Kill Flag 체크 시작
+ * - 5초마다 Redis에서 kill 플래그 확인
+ * - 플래그 감지 시 process.exit(1) → Docker가 재시작
+ *
+ * @param platforms 담당 플랫폼 목록
+ * @param repository Redis 저장소
+ * @returns cleanup 함수
+ */
+function startKillFlagChecker(
+  platforms: string[],
+  repository: RedisWorkflowRepository,
+): () => void {
+  const intervalId = setInterval(async () => {
+    try {
+      for (const platform of platforms) {
+        const killFlag = await repository.client.get(KILL_FLAG_KEY(platform));
+
+        if (killFlag) {
+          logger.warn(
+            { platform, flag: killFlag },
+            "Kill 플래그 감지, Worker 강제 종료...",
+          );
+
+          // 플래그 삭제 (재시작 후 다시 죽지 않도록)
+          await repository.client.del(KILL_FLAG_KEY(platform));
+
+          // 강제 종료 (Docker restart policy로 재시작됨)
+          process.exit(1);
+        }
+      }
+    } catch (error) {
+      // 체크 실패해도 Worker는 계속 동작
+      logger.debug(
+        { error: error instanceof Error ? error.message : String(error) },
+        "Kill 플래그 체크 중 오류 (무시)",
+      );
+    }
+  }, KILL_CHECK_INTERVAL_MS);
+
+  return () => clearInterval(intervalId);
+}
+
+/**
  * Worker 시작
  */
 async function startWorker() {
   const service = new WorkflowExecutionService();
-  const repository = new RedisWorkflowRepository();
+  const repository = RedisWorkflowRepository.getInstance();
   const schedulerState = new SchedulerStateRepository(repository.client);
 
   const workerMode = process.env.WORKER_PLATFORMS ? "dedicated" : "legacy";
@@ -155,7 +212,11 @@ async function startWorker() {
     platforms: PLATFORMS,
     platform_count: PLATFORMS.length,
     poll_interval_ms: POLL_INTERVAL_MS,
+    kill_check_interval_ms: KILL_CHECK_INTERVAL_MS,
   });
+
+  // Kill Flag 체크 시작 (5초 간격)
+  const stopKillChecker = startKillFlagChecker(PLATFORMS, repository);
 
   // 각 Platform마다 독립적인 처리 루프 시작
   const processors = PLATFORMS.map((platform) =>
@@ -164,6 +225,9 @@ async function startWorker() {
 
   // 모든 Platform 동시 처리 (병렬)
   await Promise.all(processors);
+
+  // 정리
+  stopKillChecker();
 
   logImportant(logger, "Workflow Worker 중지", {});
 }

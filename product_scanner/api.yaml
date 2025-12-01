@@ -39,6 +39,8 @@ tags:
     description: 워크플로우 실행 및 조회 (비동기 Job)
   - name: Jobs
     description: 실행 중인 Job 모니터링
+  - name: Workers
+    description: Worker 컨테이너 관리 (재시작, 상태 조회)
   - name: Scheduler
     description: 자동 스케줄러 제어
 
@@ -322,6 +324,134 @@ paths:
                     running_count: 1
                     queued_count: 3
 
+  /api/v2/jobs/platform/{platform}/force-release:
+    post:
+      tags: [Jobs]
+      summary: Platform Lock 강제 해제
+      description: |
+        특정 플랫폼의 Lock을 강제 해제하고 실행 중인 Job을 FAILED 처리합니다.
+
+        **주의**: 실제 Worker 프로세스는 종료되지 않습니다.
+        Worker 재시작이 필요하면 `/api/v2/workers/{platform}/restart`를 사용하세요.
+      parameters:
+        - name: platform
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [hwahae, musinsa, zigzag, oliveyoung, kurly, ably, default]
+          description: 플랫폼 이름
+      responses:
+        '200':
+          description: 강제 해제 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Platform hwahae force released"
+                data:
+                  platform: hwahae
+                  had_running_job: true
+                  released_job:
+                    job_id: "01934567-89ab-7def-0123-456789abcdef"
+                    workflow_id: "hwahae-update-v2"
+                    started_at: "2024-11-28T11:25:11.000Z"
+                  lock_released: true
+                  job_marked_failed: true
+
+  /api/v2/workers/status:
+    get:
+      tags: [Workers]
+      summary: 전체 Worker 상태 조회
+      description: |
+        모든 플랫폼 Worker의 상태를 조회합니다.
+        - 실행 중인 Job 정보
+        - Kill Flag 설정 여부
+        - Lock 보유 여부
+
+        **Shell 스크립트**: `scripts/worker-control.sh status`
+      responses:
+        '200':
+          description: Worker 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerStatusResponse'
+              example:
+                success: true
+                data:
+                  workers:
+                    - platform: hwahae
+                      running_job:
+                        job_id: "01934567-89ab-7def-0123-456789abcdef"
+                        workflow_id: "hwahae-update-v2"
+                        started_at: "2024-11-28T11:25:11.000Z"
+                        elapsed_seconds: 372
+                      kill_flag_set: false
+                      lock_held: true
+                    - platform: oliveyoung
+                      running_job: null
+                      kill_flag_set: false
+                      lock_held: false
+                  summary:
+                    total: 7
+                    running: 1
+                    kill_flags_set: 0
+                  checked_at: "2024-11-28T11:31:23.000Z"
+
+  /api/v2/workers/{platform}/restart:
+    post:
+      tags: [Workers]
+      summary: Worker 재시작 요청
+      description: |
+        특정 플랫폼 Worker를 재시작합니다.
+
+        **동작 방식**:
+        1. Redis에 Kill Flag 설정 (TTL 60초)
+        2. 실행 중인 Job을 FAILED 상태로 변경
+        3. Platform Lock 해제
+        4. Worker가 5초 내에 Kill Flag 감지 → `process.exit(1)`
+        5. Docker가 컨테이너 자동 재시작 (`restart: unless-stopped`)
+
+        **Shell 스크립트**: `scripts/worker-control.sh restart <platform>`
+      parameters:
+        - name: platform
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [hwahae, musinsa, zigzag, oliveyoung, kurly, ably, default]
+          description: 플랫폼 이름
+      responses:
+        '200':
+          description: 재시작 요청 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkerRestartResponse'
+              example:
+                success: true
+                message: "Worker restart requested for platform: hwahae"
+                data:
+                  platform: hwahae
+                  kill_flag_set: true
+                  kill_flag_ttl_seconds: 60
+                  lock_released: true
+                  running_job:
+                    job_id: "01934567-89ab-7def-0123-456789abcdef"
+                    workflow_id: "hwahae-update-v2"
+                    started_at: "2024-11-28T11:25:11.000Z"
+                    marked_failed: true
+                  expected_restart_within_seconds: 10
+        '400':
+          description: 유효하지 않은 플랫폼
+          content:
+            application/json:
+              example:
+                success: false
+                error: "Invalid platform"
+                message: "Platform 'invalid' is not valid. Valid platforms: hwahae, musinsa, ..."
+
   /api/v2/scheduler/status:
     get:
       tags: [Scheduler]
@@ -579,6 +709,85 @@ components:
               type: object
               description: 플랫폼별 상태
 
+    WorkerStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            workers:
+              type: array
+              items:
+                type: object
+                properties:
+                  platform:
+                    type: string
+                  running_job:
+                    type: object
+                    nullable: true
+                    properties:
+                      job_id:
+                        type: string
+                      workflow_id:
+                        type: string
+                      started_at:
+                        type: string
+                        format: date-time
+                      elapsed_seconds:
+                        type: integer
+                  kill_flag_set:
+                    type: boolean
+                  lock_held:
+                    type: boolean
+            summary:
+              type: object
+              properties:
+                total:
+                  type: integer
+                running:
+                  type: integer
+                kill_flags_set:
+                  type: integer
+            checked_at:
+              type: string
+              format: date-time
+
+    WorkerRestartResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            platform:
+              type: string
+            kill_flag_set:
+              type: boolean
+            kill_flag_ttl_seconds:
+              type: integer
+            lock_released:
+              type: boolean
+            running_job:
+              type: object
+              nullable: true
+              properties:
+                job_id:
+                  type: string
+                workflow_id:
+                  type: string
+                started_at:
+                  type: string
+                  format: date-time
+                marked_failed:
+                  type: boolean
+            expected_restart_within_seconds:
+              type: integer
+
 # ============================================================================
 # Shell 스크립트 사용법
 # ============================================================================
@@ -609,6 +818,23 @@ components:
 #
 # # 원격 서버
 # API_URL=http://remote-server:3989 ./scripts/check-running-jobs.sh
+# ```
+#
+# ## Worker 제어 (worker-control.sh)
+#
+# ```bash
+# # Worker 상태 확인
+# ./scripts/worker-control.sh status
+#
+# # 특정 Worker 재시작
+# ./scripts/worker-control.sh restart oliveyoung
+# ./scripts/worker-control.sh restart hwahae
+#
+# # 모든 Worker 재시작
+# ./scripts/worker-control.sh restart all
+#
+# # 원격 서버
+# API_URL=http://remote-server:3989 ./scripts/worker-control.sh status
 # ```
 #
 # ## 워크플로우 테스트 스크립트

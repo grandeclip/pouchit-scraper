@@ -869,6 +869,101 @@ docker exec product_scanner_redis_dev redis-cli DEL workflow:running:platform:ol
 docker exec product_scanner_redis_dev redis-cli KEYS "workflow:running:platform:*" | xargs -I {} docker exec product_scanner_redis_dev redis-cli DEL {}
 ```
 
+### Worker 관리 (원격 재시작)
+
+Stuck Job 발생 시 SSH 접속 없이 API를 통해 Worker를 재시작할 수 있습니다.
+
+#### 동작 방식
+
+1. API 호출 → Redis에 Kill Flag 설정 (TTL 60초)
+2. 실행 중인 Job → FAILED 상태로 변경
+3. Platform Lock 해제
+4. Worker가 5초 내에 Kill Flag 감지 → `process.exit(1)`
+5. Docker가 컨테이너 자동 재시작 (`restart: unless-stopped`)
+
+#### CLI 스크립트
+
+```bash
+# Worker 상태 확인
+./scripts/worker-control.sh status
+
+# 특정 Worker 재시작
+./scripts/worker-control.sh restart oliveyoung
+./scripts/worker-control.sh restart hwahae
+
+# 모든 Worker 재시작
+./scripts/worker-control.sh restart all
+
+# 원격 서버
+API_URL=http://remote-server:3989 ./scripts/worker-control.sh status
+```
+
+**출력 예시**:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Worker 상태 조회
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Summary:
+  Total Workers: 7
+  Running Jobs:  2
+  Kill Flags:    0
+
+Workers:
+  PLATFORM     STATUS   KILL_FLAG  RUNNING_JOB
+  ────────────────────────────────────────────────────
+  oliveyoung   RUNNING  -          job_abc123 (372s)
+  hwahae       IDLE     -          -
+  ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+#### REST API
+
+```bash
+# Worker 상태 조회
+GET /api/v2/workers/status
+
+# Worker 재시작 요청
+POST /api/v2/workers/{platform}/restart
+
+# Platform Lock 강제 해제 (Worker 재시작 없이 Lock만 해제)
+POST /api/v2/jobs/platform/{platform}/force-release
+```
+
+**재시작 응답 예시**:
+
+```json
+{
+  "success": true,
+  "message": "Worker restart requested for platform: oliveyoung",
+  "data": {
+    "platform": "oliveyoung",
+    "kill_flag_set": true,
+    "kill_flag_ttl_seconds": 60,
+    "lock_released": true,
+    "running_job": {
+      "job_id": "019ac45d-9265-70ff-b335-2d85a3eb58af",
+      "workflow_id": "oliveyoung-update-v2",
+      "started_at": "2025-11-28T11:25:11.000Z",
+      "marked_failed": true
+    },
+    "expected_restart_within_seconds": 10
+  }
+}
+```
+
+#### 사용 시나리오
+
+| 상황                           | 권장 조치                                      |
+| ------------------------------ | ---------------------------------------------- |
+| Job이 예상보다 오래 실행됨     | `POST /workers/{platform}/restart`             |
+| Worker 프로세스 응답 없음      | `POST /workers/{platform}/restart`             |
+| Lock만 해제 필요 (Worker 정상) | `POST /jobs/platform/{platform}/force-release` |
+| 전체 시스템 재시작 필요        | `./scripts/worker-control.sh restart all`      |
+
 ## 🔄 Multi-Worker Queue System
 
 플랫폼별 독립 Worker 컨테이너 기반의 분산 처리 시스템입니다.
@@ -1238,6 +1333,27 @@ workflow:
 ```
 
 ## 📝 변경 이력
+
+### v2.5.0 (2025-12-01) - Worker 원격 재시작 기능
+
+**주요 변경사항**:
+
+- ✅ **Worker 원격 재시작**: Kill Flag 기반 Worker 재시작 API
+- ✅ **Worker 상태 조회**: 전체 Worker 상태 및 Kill Flag 확인 API
+- ✅ **CLI 스크립트**: `worker-control.sh` 추가
+- ✅ **Redis Singleton**: RedisWorkflowRepository 연결 누수 수정
+
+**기술적 개선**:
+
+- `worker.ts`: setInterval 기반 Kill Flag 체크 (5초 간격)
+- `workers.router.ts`: Worker 관리 API 추가
+- `RedisWorkflowRepository.ts`: Singleton 패턴 적용
+- Docker Compose: 모든 서비스에 `restart: unless-stopped` 적용
+
+**API 엔드포인트**:
+
+- `GET /api/v2/workers/status` - Worker 상태 조회
+- `POST /api/v2/workers/{platform}/restart` - Worker 재시작
 
 ### v2.4.0 (2025-11-28) - Rate Limiting 및 배치 순차 처리 수정
 
