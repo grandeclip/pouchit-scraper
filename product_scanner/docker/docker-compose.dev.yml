@@ -3,7 +3,6 @@
 #
 # Browser 기반: oliveyoung, ably, kurly (각 4GB, shm_size 필요)
 # API 기반: hwahae, musinsa, zigzag (각 2GB)
-# Extract: url_extraction, single_product, multi_platform (4GB)
 # Default: 기타 (2GB)
 
 x-worker-common: &worker-common
@@ -64,7 +63,7 @@ services:
       - REDIS_PORT=6379
       - TZ=Asia/Seoul
       - SERVICE_NAME=server
-      - LOG_LEVEL=debug
+      - LOG_LEVEL=info
       - LOG_PRETTY=true
       - LOG_DIR=/app/logs
     env_file:
@@ -142,17 +141,6 @@ services:
       <<: *worker-env-common
       SERVICE_NAME: worker-zigzag
       WORKER_PLATFORMS: zigzag
-
-  # ============================================
-  # Extract Worker (Mixed - URL extraction)
-  # ============================================
-  worker_extract:
-    <<: *browser-worker
-    container_name: worker_extract
-    environment:
-      <<: *worker-env-common
-      SERVICE_NAME: worker-extract
-      WORKER_PLATFORMS: url_extraction,single_product,multi_platform
 
   # ============================================
   # Default Worker (기타)

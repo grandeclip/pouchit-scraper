@@ -41,7 +41,7 @@ export class ProductSearchService implements IProductSearchService {
   async searchProducts(
     request: ProductSetSearchRequest,
   ): Promise<ProductSetSearchResult[]> {
-    logger.info({ request }, "상품 검색 시작");
+    logger.debug({ request }, "상품 검색 시작");
 
     try {
       // Repository를 통한 검색
@@ -50,7 +50,7 @@ export class ProductSearchService implements IProductSearchService {
       // 도메인 엔티티를 검색 결과로 변환
       const results = entities.map((entity) => entity.toSearchResult());
 
-      logger.info({ count: results.length }, "상품 검색 완료");
+      logger.debug({ count: results.length }, "상품 검색 완료");
 
       return results;
     } catch (error) {
@@ -67,7 +67,7 @@ export class ProductSearchService implements IProductSearchService {
   async getProductById(
     productSetId: string,
   ): Promise<ProductSetSearchResult | null> {
-    logger.info({ productSetId }, "상품 조회 시작");
+    logger.debug({ productSetId }, "상품 조회 시작");
 
     try {
       const entity = await this.repository.findById(productSetId);
@@ -79,7 +79,7 @@ export class ProductSearchService implements IProductSearchService {
 
       const result = entity.toSearchResult();
 
-      logger.info(
+      logger.debug(
         { productSetId, productName: result.product_name },
         "상품 조회 완료",
       );
@@ -101,7 +101,7 @@ export class ProductSearchService implements IProductSearchService {
     productId: string,
     saleStatus?: string,
   ): Promise<ProductSetSearchResult[]> {
-    logger.info({ productId, saleStatus }, "product_id 기반 상품 검색 시작");
+    logger.debug({ productId, saleStatus }, "product_id 기반 상품 검색 시작");
 
     try {
       // product_id로 검색 (limit 100으로 충분히)
@@ -117,7 +117,7 @@ export class ProductSearchService implements IProductSearchService {
 
       const results = await this.searchProducts(request);
 
-      logger.info(
+      logger.debug(
         { productId, saleStatus, count: results.length },
         "product_id 기반 상품 검색 완료",
       );
@@ -137,7 +137,7 @@ export class ProductSearchService implements IProductSearchService {
    * @returns 연결 여부
    */
   async healthCheck(): Promise<boolean> {
-    logger.info("Health check 시작");
+    logger.debug("Health check 시작");
 
     try {
       const isHealthy = await this.repository.healthCheck();

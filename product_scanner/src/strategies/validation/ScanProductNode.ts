@@ -351,7 +351,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
     const { logger, platformConfig } = context;
     const results: SingleScanResult[] = [];
 
-    logger.info(
+    logger.debug(
       {
         type: this.type,
         batchIndex,
@@ -469,7 +469,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
       }
     }
 
-    logger.info(
+    logger.debug(
       {
         type: this.type,
         batchIndex,
@@ -764,6 +764,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
           success: result.success,
           isNotFound: result.isNotFound,
           source: result.source,
+          productName: result.data?.product_name,
         },
         "PlatformScanner 스캔 완료",
       );
@@ -883,7 +884,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
           | "networkidle"
           | "commit") ?? "domcontentloaded";
 
-      logger.info(
+      logger.debug(
         {
           type: this.type,
           product_set_id: product.product_set_id,
@@ -899,7 +900,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
         timeout: navigationTimeout,
       });
 
-      logger.info(
+      logger.debug(
         {
           type: this.type,
           product_set_id: product.product_set_id,
@@ -918,7 +919,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
       }
 
       // DOM 추출 (플랫폼별 Extractor)
-      logger.info(
+      logger.debug(
         {
           type: this.type,
           product_set_id: product.product_set_id,
@@ -930,7 +931,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
       const extractStart = Date.now();
       const scannedData = await this.extractProductData(page, platform, logger);
 
-      logger.info(
+      logger.debug(
         {
           type: this.type,
           product_set_id: product.product_set_id,
@@ -1351,7 +1352,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
       );
     }
 
-    logger.info(
+    logger.debug(
       {
         type: this.type,
         product_set_id: product.product_set_id,
@@ -1374,7 +1375,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
       // API 스캔 실행 - Scanner가 IProduct 구현체를 반환 (HwahaeProduct, MusinsaProduct 등)
       const scannedProduct = (await scanner.scan(productId)) as IProduct;
 
-      logger.info(
+      logger.debug(
         {
           type: this.type,
           product_set_id: product.product_set_id,
@@ -1392,7 +1393,7 @@ export class ScanProductNode implements ITypedNodeStrategy<
         sale_status: scannedProduct.saleStatus,
       };
 
-      logger.info(
+      logger.debug(
         {
           type: this.type,
           product_set_id: product.product_set_id,

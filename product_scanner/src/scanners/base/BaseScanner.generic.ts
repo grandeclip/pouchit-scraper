@@ -30,8 +30,7 @@ export abstract class BaseScanner<
   TRawData,
   TProduct extends IProduct,
   TConfig extends PlatformConfig = PlatformConfig,
-> implements IScanner<TProduct>
-{
+> implements IScanner<TProduct> {
   protected initialized: boolean = false;
 
   constructor(
@@ -57,7 +56,10 @@ export abstract class BaseScanner<
     const startTime = Date.now();
 
     try {
-      logger.info({ strategyId: this.strategy.id, productId: id }, "스캔 시작");
+      logger.debug(
+        { strategyId: this.strategy.id, productId: id },
+        "스캔 시작",
+      );
 
       // 1. 초기화
       await this.ensureInitialized();
@@ -75,7 +77,7 @@ export abstract class BaseScanner<
       await this.afterScan(product);
 
       const duration = Date.now() - startTime;
-      logger.info(
+      logger.debug(
         {
           strategyId: this.strategy.id,
           productName: product.productName,
@@ -123,10 +125,10 @@ export abstract class BaseScanner<
       return;
     }
 
-    logger.info({ strategyId: this.strategy.id }, "초기화 중...");
+    logger.debug({ strategyId: this.strategy.id }, "초기화 중...");
     await this.doInitialize();
     this.initialized = true;
-    logger.info({ strategyId: this.strategy.id }, "초기화 완료");
+    logger.debug({ strategyId: this.strategy.id }, "초기화 완료");
   }
 
   /**

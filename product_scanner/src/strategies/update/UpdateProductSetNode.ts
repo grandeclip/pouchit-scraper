@@ -173,7 +173,7 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
       const allResults = await JsonlParser.parseValidationResults(jsonl_path);
       const rawUpdates = JsonlParser.extractUpdates(allResults);
 
-      jobLogger.info(
+      jobLogger.debug(
         {
           total_records: allResults.length,
           raw_update_targets: rawUpdates.length,
@@ -300,7 +300,7 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         .update_exclusions as UpdateExclusionConfig | undefined;
 
       if (exclusions?.skip_fields && exclusions.skip_fields.length > 0) {
-        jobLogger.info(
+        jobLogger.debug(
           {
             platform,
             skip_fields: exclusions.skip_fields,
@@ -407,7 +407,7 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
       );
     });
 
-    jobLogger.info(
+    jobLogger.debug(
       {
         original_count: updates.length,
         filtered_count: nonEmptyUpdates.length,

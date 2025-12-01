@@ -54,7 +54,7 @@ export class HwahaeScanService {
     csvData: ValidationRequest,
     strategyId?: string,
   ): Promise<ValidationResult> {
-    logger.info(
+    logger.debug(
       { goodsId, strategy: strategyId || "default" },
       "[Service] 상품 검증 시작",
     );
@@ -72,7 +72,7 @@ export class HwahaeScanService {
         scannedProduct as unknown as HwahaeProduct,
       );
 
-      logger.info(
+      logger.debug(
         {
           goodsId,
           success: result.success,
@@ -112,7 +112,7 @@ export class HwahaeScanService {
     goodsId: string,
     strategyId?: string,
   ): Promise<HwahaeProductDTO> {
-    logger.info(
+    logger.debug(
       { goodsId, strategy: strategyId || "default" },
       "[Service] 상품 스캔 시작",
     );
@@ -120,7 +120,7 @@ export class HwahaeScanService {
     const scanner = this.getScanner(strategyId);
     const product = await scanner.scan(goodsId);
 
-    logger.info(
+    logger.debug(
       { goodsId, productName: product.productName },
       "[Service] 상품 스캔 완료",
     );
