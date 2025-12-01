@@ -4,7 +4,7 @@
  *
  * 기능:
  * - 다중 출력 (콘솔 + 파일) - 동일 내용 출력
- * - 서비스별 로그 파일 분리 (server.log, worker.log)
+ * - 컨테이너별 로그 파일 분리 (SERVICE_NAME 환경변수 기반)
  * - 일일 로그 로테이션 (YYYYMMDD 형식)
  * - 환경별 설정
  * - 구조화된 JSON 로깅
@@ -14,9 +14,11 @@
  * - 개발 환경: pino-pretty 포맷 (색상)
  * - 프로덕션: JSON 포맷
  *
- * 파일 출력:
- * - 서비스별 파일: server-YYYYMMDD.log, worker-YYYYMMDD.log
- * - 에러 통합: error-YYYYMMDD.log
+ * 파일 출력 (컨테이너별 분리):
+ * - server-YYYYMMDD.log (API 서버)
+ * - scheduler-YYYYMMDD.log (스케줄러)
+ * - worker-oliveyoung-YYYYMMDD.log, worker-ably-YYYYMMDD.log, ... (플랫폼별 Worker)
+ * - error-YYYYMMDD.log (에러 통합)
  * - 일일 로테이션, 90일 보관
  */
 
@@ -128,15 +130,26 @@ const baseConfig: pino.LoggerOptions = {
 };
 
 /**
- * 서비스별 파일 스트림 맵
+ * 서비스별 파일 스트림 맵 (동적 생성)
+ * 컨테이너별로 개별 로그 파일 생성
  */
-const serviceStreams = new Map<string, ReturnType<typeof createRotatingStream>>(
-  [
-    ["server", createRotatingStream("server")],
-    ["worker", createRotatingStream("worker")],
-    ["redis-repository", createRotatingStream("worker")], // repository는 worker 파일에
-  ],
-);
+const serviceStreams = new Map<
+  string,
+  ReturnType<typeof createRotatingStream>
+>();
+
+/**
+ * 서비스별 스트림 조회 또는 생성
+ * 처음 요청 시 스트림 생성, 이후 캐싱된 스트림 반환
+ */
+function getOrCreateStream(
+  serviceName: string,
+): ReturnType<typeof createRotatingStream> {
+  if (!serviceStreams.has(serviceName)) {
+    serviceStreams.set(serviceName, createRotatingStream(serviceName));
+  }
+  return serviceStreams.get(serviceName)!;
+}
 
 // 에러 전용 스트림
 const errorStream = createRotatingStream("error");
@@ -144,6 +157,7 @@ const errorStream = createRotatingStream("error");
 /**
  * 서비스별 라우팅 스트림 (커스텀 destination)
  * skip_file_log 플래그가 있는 로그는 파일에 저장하지 않음
+ * 컨테이너별로 개별 로그 파일 생성 (worker-oliveyoung.log, worker-ably.log 등)
  */
 class ServiceRoutingStream implements DestinationStream {
   write(chunk: string): boolean {
@@ -162,22 +176,13 @@ class ServiceRoutingStream implements DestinationStream {
         errorStream.write(chunk);
       }
 
-      // 서비스별 파일에 기록 (worker-* 패턴은 worker 스트림으로 라우팅)
-      const normalizedServiceName = serviceName.startsWith("worker")
-        ? "worker"
-        : serviceName;
-      const stream =
-        serviceStreams.get(normalizedServiceName) ||
-        serviceStreams.get("server");
-      if (stream) {
-        stream.write(chunk);
-      }
+      // 서비스별 파일에 기록 (컨테이너별 개별 파일)
+      const stream = getOrCreateStream(serviceName);
+      stream.write(chunk);
     } catch (err) {
       // JSON 파싱 실패 시 server.log에 기록
-      const serverStream = serviceStreams.get("server");
-      if (serverStream) {
-        serverStream.write(chunk);
-      }
+      const serverStream = getOrCreateStream("server");
+      serverStream.write(chunk);
     }
     return true;
   }
