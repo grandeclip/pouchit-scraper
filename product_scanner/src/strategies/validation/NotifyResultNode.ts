@@ -133,18 +133,6 @@ export interface NotifyResultNodeConfig {
 }
 
 /**
- * 상태 이모지 임계값
- */
-const EMOJI_THRESHOLDS = {
-  /** 실패율 이 값 초과 시 🚨 표시 */
-  CRITICAL_FAILURE_RATE: 10,
-  /** 일치율 100%일 때 ✅ 표시 */
-  PERFECT_MATCH_RATE: 100,
-  /** 일치율 이 값 이상일 때 👍 표시 */
-  GOOD_MATCH_RATE: 90,
-} as const;
-
-/**
  * Slack Bot API URL
  */
 const SLACK_API_URL = "https://slack.com/api/chat.postMessage";
@@ -595,7 +583,7 @@ export class NotifyResultNode implements ITypedNodeStrategy<
         : "N/A";
 
     // 상태 이모지 결정
-    const statusEmoji = this.getStatusEmoji(summary);
+    const statusEmoji = this.getStatusEmoji(summary, saleStatusChanged);
 
     // 워크플로우 모드 감지 (validation only vs update)
     const isUpdateMode = this.detectUpdateMode(input);
@@ -683,18 +671,35 @@ export class NotifyResultNode implements ITypedNodeStrategy<
 
   /**
    * 상태에 따른 이모지 반환
+   *
+   * 우선순위:
+   * 1. failed > 0 → 🚨 (fetch 실패)
+   * 2. status_changed > 0 → ⚠️ (판매상태 변경)
+   * 3. mismatch > 0 → 👍 (업데이트 발생)
+   * 4. perfect_match → ✅ (모든 상품 일치)
+   * 5. default (url 등) → 📊
    */
-  private getStatusEmoji(summary: UnifiedResult["summary"]): string {
+  private getStatusEmoji(
+    summary: UnifiedResult["summary"],
+    saleStatusChanged?: number,
+  ): string {
     const total = summary.total;
     if (total === 0) return "📭";
 
-    const matchRate = ((summary.match ?? 0) / total) * 100;
-    const failureRate = ((summary.failed + summary.not_found) / total) * 100;
+    // 1. failed (fetch 실패) - 최우선
+    if (summary.failed > 0) return "🚨";
 
-    if (failureRate > EMOJI_THRESHOLDS.CRITICAL_FAILURE_RATE) return "🚨";
-    if ((summary.mismatch ?? 0) > 0) return "⚠️";
-    if (matchRate === EMOJI_THRESHOLDS.PERFECT_MATCH_RATE) return "✅";
-    if (matchRate >= EMOJI_THRESHOLDS.GOOD_MATCH_RATE) return "👍";
+    // 2. status_changed (판매상태 변경)
+    if (saleStatusChanged && saleStatusChanged > 0) return "⚠️";
+
+    // 3. update (mismatch > 0)
+    if ((summary.mismatch ?? 0) > 0) return "👍";
+
+    // 4. perfect_match (모든 상품 일치)
+    const match = summary.match ?? 0;
+    if (match === total) return "✅";
+
+    // 5. default (url 워크플로우 등)
     return "📊";
   }
 }
