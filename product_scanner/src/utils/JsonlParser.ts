@@ -144,8 +144,8 @@ export class JsonlParser {
    *
    * - status: "success" (성공한 검증만)
    * - match: false (변경 감지된 항목만)
-   * - fetch: null이 아닌 경우만 (실패한 경우 스킵)
-   * - sale_status는 제외 (업데이트 정책 미정)
+   * - fetch: null이 아닌 경우 정상 처리
+   * - fetch: null이고 db.sale_status가 "on_sale"인 경우 → off_sale로 변경
    *
    * @param results 검증 결과 배열
    * @returns 업데이트할 데이터 배열
@@ -158,12 +158,25 @@ export class JsonlParser {
         // 변경 감지된 항목만
         if (r.status !== "success" || r.match) return false;
 
-        // fetch 데이터가 null이면 스킵 (실패한 경우)
-        if (!r.fetch) return false;
+        // fetch 데이터가 있는 경우 → 정상 처리
+        if (r.fetch) return true;
 
-        return true;
+        // fetch가 null이고 db.sale_status가 on_sale인 경우 → off_sale로 변경
+        if (!r.fetch && r.db.sale_status === "on_sale") return true;
+
+        // 그 외 fetch=null 케이스는 스킵 (이미 off_sale인 경우)
+        return false;
       })
       .map((r) => {
+        // fetch가 null인 경우 (db.sale_status === "on_sale" → off_sale)
+        if (!r.fetch) {
+          return {
+            product_set_id: r.product_set_id,
+            updated_at: getTimestampWithTimezone(),
+            sale_status: "off_sale" as SupabaseSaleStatus,
+          };
+        }
+
         const updates: ProductUpdateData = {
           product_set_id: r.product_set_id,
           updated_at: getTimestampWithTimezone(),

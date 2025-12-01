@@ -75,9 +75,10 @@ const DEFAULT_CONFIG: UpdateProductSetNodeConfig = {
 /**
  * Phase 4 UpdateProductSetNode - Supabase 업데이트 노드
  */
-export class UpdateProductSetNode
-  implements ITypedNodeStrategy<UpdateProductSetInput, UpdateProductSetOutput>
-{
+export class UpdateProductSetNode implements ITypedNodeStrategy<
+  UpdateProductSetInput,
+  UpdateProductSetOutput
+> {
   public readonly type = "update_product_set";
   public readonly name = "UpdateProductSetNode";
 
@@ -441,9 +442,21 @@ export class UpdateProductSetNode
           continue;
         }
 
-        if (!result.fetch || result.status !== "success") {
+        if (result.status !== "success") {
           continue;
         }
+
+        // fetch=null이면서 on_sale이 아닌 경우 스킵
+        // (on_sale → off_sale 변경인 경우만 히스토리 기록)
+        if (!result.fetch && result.db.sale_status !== "on_sale") {
+          continue;
+        }
+
+        // after_products 결정: fetch가 있으면 fetch, 없으면 off_sale로 변경된 상태
+        const afterProducts = result.fetch ?? {
+          ...result.db,
+          sale_status: "off_sale",
+        };
 
         // 리뷰 히스토리
         const reviewSuccess = await this.historyRepository.recordReviewHistory({
@@ -452,7 +465,7 @@ export class UpdateProductSetNode
           status: this.determineStatus(result),
           comment: this.generateComment(result),
           before_products: result.db,
-          after_products: result.fetch,
+          after_products: afterProducts,
         });
 
         if (reviewSuccess) {
@@ -461,12 +474,13 @@ export class UpdateProductSetNode
           failedCount++;
         }
 
-        // 가격 히스토리
+        // 가격 히스토리 (fetch가 있는 경우만)
         const priceChanged =
-          result.comparison?.original_price === false ||
-          result.comparison?.discounted_price === false;
+          result.fetch &&
+          (result.comparison?.original_price === false ||
+            result.comparison?.discounted_price === false);
 
-        if (priceChanged) {
+        if (priceChanged && result.fetch) {
           const originalPrice = result.fetch.original_price || 0;
           const discountedPrice =
             result.fetch.discounted_price || originalPrice;
@@ -515,10 +529,17 @@ export class UpdateProductSetNode
 
   /**
    * 상태 결정
+   *
+   * - "only_price": original_price 또는 discounted_price만 변경
+   * - "all": 가격 외 다른 항목(product_name, thumbnail, sale_status) 변경
+   * - "confused": fetch 실패
    */
   private determineStatus(
     result: ProductValidationResult,
-  ): "verified" | "only_price" | "all" | "confused" {
+  ): "only_price" | "all" | "confused" {
+    // fetch 실패 → confused
+    if (!result.fetch) return "confused";
+
     if (result.status !== "success") return "confused";
 
     const comp = result.comparison;
@@ -528,27 +549,69 @@ export class UpdateProductSetNode
       comp.original_price === false || comp.discounted_price === false;
     const nameChanged = comp.product_name === false;
     const thumbnailChanged = comp.thumbnail === false;
+    const saleStatusChanged = comp.sale_status === false;
 
-    if (priceChanged && !nameChanged && !thumbnailChanged) return "only_price";
-    if (nameChanged || thumbnailChanged || priceChanged) return "all";
-    return "verified";
+    // 가격 외 다른 항목 변경 → all
+    if (nameChanged || thumbnailChanged || saleStatusChanged) return "all";
+
+    // 가격만 변경 → only_price
+    if (priceChanged) return "only_price";
+
+    // 여기까지 오면 변경 없음 (recordHistories에서 이미 필터링됨)
+    return "all";
   }
 
   /**
-   * 코멘트 생성
+   * 코멘트 생성 (상세 before/after 포맷)
+   *
+   * 포맷: "field_name: old_value -> new_value"
+   * 구분자: "\n"
+   * fetch 실패 시: "fetch 가 실패했습니다\nsale_status: on_sale -> off_sale"
    */
   private generateComment(result: ProductValidationResult): string {
     const changes: string[] = [];
-    const comp = result.comparison;
 
+    // fetch가 null인 경우 (fetch 실패)
+    if (!result.fetch) {
+      changes.push("fetch 가 실패했습니다");
+      // on_sale → off_sale 변경인 경우
+      if (result.db.sale_status === "on_sale") {
+        changes.push("sale_status: on_sale -> off_sale");
+      }
+      return changes.join("\n");
+    }
+
+    const comp = result.comparison;
     if (!comp) return "비교 정보 없음";
 
-    if (comp.product_name === false) changes.push("상품명");
-    if (comp.thumbnail === false) changes.push("썸네일");
-    if (comp.original_price === false) changes.push("원가");
-    if (comp.discounted_price === false) changes.push("할인가");
+    // 각 필드별 before/after 값 출력
+    if (comp.product_name === false) {
+      changes.push(
+        `product_name: ${result.db.product_name ?? "null"} -> ${result.fetch.product_name ?? "null"}`,
+      );
+    }
+    if (comp.thumbnail === false) {
+      changes.push(
+        `thumbnail: ${result.db.thumbnail ?? "null"} -> ${result.fetch.thumbnail ?? "null"}`,
+      );
+    }
+    if (comp.original_price === false) {
+      changes.push(
+        `original_price: ${result.db.original_price ?? "null"} -> ${result.fetch.original_price ?? "null"}`,
+      );
+    }
+    if (comp.discounted_price === false) {
+      changes.push(
+        `discounted_price: ${result.db.discounted_price ?? "null"} -> ${result.fetch.discounted_price ?? "null"}`,
+      );
+    }
+    if (comp.sale_status === false) {
+      changes.push(
+        `sale_status: ${result.db.sale_status ?? "null"} -> ${result.fetch.sale_status ?? "null"}`,
+      );
+    }
 
-    return changes.length === 0 ? "변경 없음" : `변경: ${changes.join(", ")}`;
+    return changes.length === 0 ? "변경 없음" : changes.join("\n");
   }
 
   /**
