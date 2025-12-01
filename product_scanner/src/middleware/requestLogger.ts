@@ -16,11 +16,17 @@ import { createRequestLogger } from "@/utils/LoggerContext";
 
 /**
  * 파일 로그에서 제외할 경로 목록
+ * - Health check: 단순 상태 확인
+ * - Polling endpoints: watch 모드에서 빈번하게 호출
  */
 const SKIP_FILE_LOG_PATHS = [
+  // Health check
   "/health",
   "/api/workflows/health",
   "/api/products/health",
+  // Polling endpoints (watch 모드)
+  "/api/v2/scheduler/status",
+  "/api/v2/jobs/running",
 ];
 
 /**
