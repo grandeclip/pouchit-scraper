@@ -34,14 +34,8 @@ docker ps | grep workflow_worker_dev
 # 3. Health Check
 curl http://localhost:3989/health
 
-# 4. Supabase Connection Test
-docker cp test-supabase.ts product_scanner:/app/
-docker exec product_scanner npx tsx test-supabase.ts
-# "✅ 연결 성공!" 메시지 확인
-# product_sets 테이블 레코드 수 확인
-
 # 5. Cleanup
-make dev-down
+make down
 ```
 
 ## Steps
