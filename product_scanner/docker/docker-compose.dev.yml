@@ -154,6 +154,17 @@ services:
       WORKER_PLATFORMS: default
 
   # ============================================
+  # Alert Worker (Alert Watcher 전용)
+  # ============================================
+  worker_alert:
+    <<: *api-worker
+    container_name: worker_alert
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-alert
+      WORKER_PLATFORMS: alert
+
+  # ============================================
   # Scheduler (자동 Job 스케줄링)
   # ============================================
   scheduler:
@@ -188,6 +199,41 @@ services:
       SCHEDULER_SAME_PLATFORM_COOLDOWN_MS: "300000"
       SCHEDULER_ON_SALE_RATIO: "4"
       SCHEDULER_DEFAULT_LIMIT: "1000"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # ============================================
+  # Alert Watcher (테이블 모니터링 및 알림)
+  # ============================================
+  alert_watcher:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: alert_watcher
+    env_file:
+      - ../.env.local
+    volumes:
+      - ../:/app
+      - /app/node_modules
+      - ../logs:/app/logs
+    depends_on:
+      - redis
+      - product_scanner_dev
+    command: npm run alert-watcher
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      TZ: Asia/Seoul
+      SERVICE_NAME: alert-watcher
+      LOG_LEVEL: info
+      LOG_PRETTY: "true"
+      LOG_DIR: /app/logs
+      # Alert Watcher 설정
+      ALERT_WATCHER_RUN_ON_START: "false"
     deploy:
       resources:
         limits:

@@ -35,6 +35,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "scheduler": "tsx src/scheduler.ts",
+    "alert-watcher": "tsx src/alert-watcher.ts",
     "script:hwahae": "tsx scripts/hwahae-validator.ts",
     "script:process-job": "tsx scripts/process-job.ts",
     "start": "tsx src/server.ts",

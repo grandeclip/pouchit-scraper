@@ -27,6 +27,7 @@ import {
   ExtractProductNode,
 } from "@/strategies/extract";
 import { UpdateProductSetNode } from "@/strategies/update/UpdateProductSetNode";
+import { CollaboBannerMonitorNode } from "@/strategies/monitor/CollaboBannerMonitorNode";
 import { logger } from "@/config/logger";
 
 /**
@@ -108,6 +109,14 @@ export class TypedNodeStrategyFactory {
       "update_product_set",
       "UpdateProductSetNode",
       () => new UpdateProductSetNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    // Phase 4 Monitor Pipeline 노드 등록
+    this.registerTypedNode(
+      "collabo_banner_monitor",
+      "CollaboBannerMonitorNode",
+      () =>
+        new CollaboBannerMonitorNode() as ITypedNodeStrategy<unknown, unknown>,
     );
   }
 

@@ -11,6 +11,7 @@ import productsRouter from "./products.router";
 import workflowsRouter from "./workflows.router";
 import jobsRouter from "./jobs.router";
 import schedulerRouter from "./scheduler.router";
+import alertWatcherRouter from "./alert-watcher.router";
 import workersRouter from "./workers.router";
 import { logger } from "@/config/logger";
 
@@ -28,6 +29,9 @@ router.use("/jobs", jobsRouter);
 // Scheduler API (스케줄러 제어)
 router.use("/scheduler", schedulerRouter);
 
+// Alert Watcher API (테이블 모니터링 제어)
+router.use("/alert-watcher", alertWatcherRouter);
+
 // Workers API (Worker 컨테이너 관리)
 router.use("/workers", workersRouter);
 
@@ -44,6 +48,9 @@ logger.info(
       "GET /api/v2/scheduler/status",
       "POST /api/v2/scheduler/start",
       "POST /api/v2/scheduler/stop",
+      "GET /api/v2/alert-watcher/status",
+      "POST /api/v2/alert-watcher/start",
+      "POST /api/v2/alert-watcher/stop",
       "GET /api/v2/workers/status",
       "POST /api/v2/workers/:platform/restart",
     ],

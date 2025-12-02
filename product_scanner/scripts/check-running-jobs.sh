@@ -22,6 +22,9 @@ response=$(curl -s "${API_URL}/api/v2/jobs/running" 2>/dev/null)
 # Scheduler API 호출
 scheduler_response=$(curl -s "${API_URL}/api/v2/scheduler/status" 2>/dev/null)
 
+# Alert Watcher API 호출
+alert_watcher_response=$(curl -s "${API_URL}/api/v2/alert-watcher/status" 2>/dev/null)
+
 # API 응답 확인
 if [ -z "$response" ]; then
     echo -e "${RED}Error: API 서버에 연결할 수 없습니다.${NC}"
@@ -67,6 +70,32 @@ if [ -n "$scheduler_response" ]; then
         fi
 
         echo -e "  총 스케줄 Job: ${BLUE}${total_scheduled}${NC}"
+        echo ""
+    fi
+fi
+
+# Alert Watcher 상태 표시
+if [ -n "$alert_watcher_response" ]; then
+    alert_watcher_success=$(echo "$alert_watcher_response" | jq -r '.success // false' 2>/dev/null)
+    if [ "$alert_watcher_success" = "true" ]; then
+        watcher_enabled=$(echo "$alert_watcher_response" | jq -r '.data.watcher.enabled')
+        watcher_running=$(echo "$alert_watcher_response" | jq -r '.data.watcher.running')
+        total_executed=$(echo "$alert_watcher_response" | jq -r '.data.watcher.total_jobs_executed // 0')
+
+        echo -e "${CYAN}[Alert Watcher]${NC}"
+        if [ "$watcher_enabled" = "true" ]; then
+            echo -e "  상태: ${GREEN}✓ 활성화${NC}"
+        else
+            echo -e "  상태: ${YELLOW}✗ 비활성화${NC}"
+        fi
+
+        if [ "$watcher_running" = "true" ]; then
+            echo -e "  컨테이너: ${GREEN}✓ 실행 중${NC}"
+        else
+            echo -e "  컨테이너: ${RED}✗ 중지됨${NC}"
+        fi
+
+        echo -e "  총 실행 Job: ${BLUE}${total_executed}${NC}"
         echo ""
     fi
 fi
