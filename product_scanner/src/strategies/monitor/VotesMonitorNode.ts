@@ -1,16 +1,15 @@
 /**
- * CollaboBannerMonitorNode - Collabo Banner 모니터링 노드
+ * VotesMonitorNode - Votes 모니터링 노드
  *
  * SOLID 원칙:
- * - SRP: Collabo Banner 상품 접근성 모니터링만 담당
+ * - SRP: Votes 상품 접근성 모니터링만 담당
  * - OCP: PlatformScannerRegistry를 통한 플랫폼 확장
  * - DIP: ITypedNodeStrategy 인터페이스 구현
  *
  * 동작 흐름:
- * 1. collabo_banners 테이블에서 활성 배너 조회
- *    - is_active = true
+ * 1. votes 테이블에서 활성 투표 조회
  *    - start_date <= now() <= end_date
- * 2. 각 배너의 product_set_id로 상품 fetch
+ * 2. 각 투표의 product_set_a, product_set_b로 상품 fetch
  * 3. fetch 실패 항목 수집
  * 4. ALERT_SLACK_CHANNEL_ID로 결과 알림
  */
@@ -26,10 +25,7 @@ import {
 import { INodeContext } from "@/core/interfaces/INodeContext";
 import { IProductSearchService } from "@/core/interfaces/IProductSearchService";
 import { ProductSearchService } from "@/services/ProductSearchService";
-import {
-  CollaboBannerRepository,
-  ActiveCollaboBanner,
-} from "@/repositories/CollaboBannerRepository";
+import { VotesRepository, ActiveVote } from "@/repositories/VotesRepository";
 import { PlatformDetector } from "@/services/extract/url/PlatformDetector";
 import { PlatformScannerRegistry } from "@/scanners/platform/PlatformScannerRegistry";
 import { BrowserScanExecutor } from "@/scanners/base/BrowserScanExecutor";
@@ -37,7 +33,7 @@ import { BrowserScanExecutor } from "@/scanners/base/BrowserScanExecutor";
 /**
  * 노드 입력 타입
  */
-export interface CollaboBannerMonitorInput {
+export interface VotesMonitorInput {
   /** 디버그 모드 (기본: true - 성공 시에도 알림) */
   debug_mode?: boolean;
 }
@@ -45,15 +41,15 @@ export interface CollaboBannerMonitorInput {
 /**
  * 노드 출력 타입
  */
-export interface CollaboBannerMonitorOutput {
-  /** 검사한 배너 수 */
-  total_banners: number;
-  /** 성공 수 */
+export interface VotesMonitorOutput {
+  /** 검사한 투표 수 */
+  total_votes: number;
+  /** 성공 수 (두 상품 모두 성공) */
   success_count: number;
   /** 실패 수 */
   failed_count: number;
   /** 실패 항목 목록 */
-  failed_items: FailedBannerItem[];
+  failed_items: FailedVoteItem[];
   /** 알림 발송 여부 */
   notified: boolean;
 }
@@ -61,11 +57,13 @@ export interface CollaboBannerMonitorOutput {
 /**
  * 실패 항목 정보
  */
-export interface FailedBannerItem {
-  /** collabo_banners 테이블의 id */
-  banner_id: number;
-  /** product_set_id */
+export interface FailedVoteItem {
+  /** votes 테이블의 id */
+  vote_id: number;
+  /** 실패한 product_set_id */
   product_set_id: string;
+  /** A/B 구분 */
+  side: "A" | "B";
   /** 상품 링크 URL */
   link_url?: string;
   /** 에러 메시지 */
@@ -90,24 +88,24 @@ interface SlackBlock {
 const SLACK_API_URL = "https://slack.com/api/chat.postMessage";
 
 /**
- * CollaboBannerMonitorNode
+ * VotesMonitorNode
  */
-export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
-  CollaboBannerMonitorInput,
-  CollaboBannerMonitorOutput
+export class VotesMonitorNode implements ITypedNodeStrategy<
+  VotesMonitorInput,
+  VotesMonitorOutput
 > {
-  public readonly type = "collabo_banner_monitor";
-  public readonly name = "CollaboBannerMonitorNode";
+  public readonly type = "votes_monitor";
+  public readonly name = "VotesMonitorNode";
 
-  private readonly bannerRepository: CollaboBannerRepository;
+  private readonly votesRepository: VotesRepository;
   private readonly productService: IProductSearchService;
   private readonly scanExecutor: BrowserScanExecutor;
 
   constructor(
-    bannerRepository?: CollaboBannerRepository,
+    votesRepository?: VotesRepository,
     productService?: IProductSearchService,
   ) {
-    this.bannerRepository = bannerRepository ?? new CollaboBannerRepository();
+    this.votesRepository = votesRepository ?? new VotesRepository();
     this.productService = productService ?? new ProductSearchService();
     this.scanExecutor = new BrowserScanExecutor();
   }
@@ -116,31 +114,31 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
    * 노드 실행
    */
   async execute(
-    input: CollaboBannerMonitorInput,
+    input: VotesMonitorInput,
     context: INodeContext,
-  ): Promise<ITypedNodeResult<CollaboBannerMonitorOutput>> {
+  ): Promise<ITypedNodeResult<VotesMonitorOutput>> {
     const { logger, job_id, workflow_id } = context;
     const debugMode = input.debug_mode ?? true;
 
     logger.info(
       { type: this.type, job_id, workflow_id, debugMode },
-      "[CollaboBannerMonitorNode] 모니터링 시작",
+      "[VotesMonitorNode] 모니터링 시작",
     );
 
     try {
-      // 1. 활성 배너 조회
-      const activeBanners = await this.bannerRepository.findActiveBanners();
+      // 1. 활성 투표 조회
+      const activeVotes = await this.votesRepository.findActiveVotes();
 
-      if (activeBanners.length === 0) {
-        logger.info("[CollaboBannerMonitorNode] 활성 배너 없음");
+      if (activeVotes.length === 0) {
+        logger.info("[VotesMonitorNode] 활성 투표 없음");
 
-        // 디버그 모드: 활성 배너 없음 알림
+        // 디버그 모드: 활성 투표 없음 알림
         if (debugMode) {
           await this.sendAlert([], 0, logger);
         }
 
         return createSuccessResult({
-          total_banners: 0,
+          total_votes: 0,
           success_count: 0,
           failed_count: 0,
           failed_items: [],
@@ -149,47 +147,43 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
       }
 
       logger.info(
-        { count: activeBanners.length },
-        "[CollaboBannerMonitorNode] 활성 배너 조회 완료",
+        { count: activeVotes.length },
+        "[VotesMonitorNode] 활성 투표 조회 완료",
       );
 
-      // 2. 각 배너의 상품 스캔
-      const failedItems: FailedBannerItem[] = [];
+      // 2. 각 투표의 상품 스캔 (product_set_a, product_set_b 모두)
+      const failedItems: FailedVoteItem[] = [];
       let successCount = 0;
 
-      for (const banner of activeBanners) {
-        const result = await this.scanBanner(banner, logger);
+      for (const vote of activeVotes) {
+        const results = await this.scanVote(vote, logger);
 
-        if (result.success) {
+        // 둘 다 성공해야 성공
+        if (results.failedItems.length === 0) {
           successCount++;
         } else {
-          failedItems.push({
-            banner_id: banner.id,
-            product_set_id: banner.product_set_id,
-            link_url: result.link_url,
-            error: result.error,
-          });
+          failedItems.push(...results.failedItems);
         }
       }
 
       logger.info(
         {
-          total: activeBanners.length,
+          total: activeVotes.length,
           success: successCount,
           failed: failedItems.length,
         },
-        "[CollaboBannerMonitorNode] 스캔 완료",
+        "[VotesMonitorNode] 스캔 완료",
       );
 
       // 3. Alert 발송
       const shouldNotify = debugMode || failedItems.length > 0;
       if (shouldNotify) {
-        await this.sendAlert(failedItems, activeBanners.length, logger);
+        await this.sendAlert(failedItems, activeVotes.length, logger);
       }
 
       // 4. 결과 반환
-      const output: CollaboBannerMonitorOutput = {
-        total_banners: activeBanners.length,
+      const output: VotesMonitorOutput = {
+        total_votes: activeVotes.length,
         success_count: successCount,
         failed_count: failedItems.length,
         failed_items: failedItems,
@@ -198,7 +192,7 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
 
       logger.info(
         { type: this.type, output },
-        "[CollaboBannerMonitorNode] 모니터링 완료",
+        "[VotesMonitorNode] 모니터링 완료",
       );
 
       return createSuccessResult(output);
@@ -207,13 +201,10 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
 
       logger.error(
         { type: this.type, error: message },
-        "[CollaboBannerMonitorNode] 모니터링 실패",
+        "[VotesMonitorNode] 모니터링 실패",
       );
 
-      return createErrorResult<CollaboBannerMonitorOutput>(
-        message,
-        "MONITOR_FAILED",
-      );
+      return createErrorResult<VotesMonitorOutput>(message, "MONITOR_FAILED");
     } finally {
       // BrowserScanExecutor 정리
       await this.scanExecutor.cleanup();
@@ -223,7 +214,7 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
   /**
    * 입력 검증 (항상 성공)
    */
-  validate(_input: CollaboBannerMonitorInput): IValidationResult {
+  validate(_input: VotesMonitorInput): IValidationResult {
     return validationSuccess();
   }
 
@@ -236,28 +227,70 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
   }
 
   /**
-   * 단일 배너 스캔
+   * 단일 투표 스캔 (A, B 모두 검사)
    */
-  private async scanBanner(
-    banner: ActiveCollaboBanner,
+  private async scanVote(
+    vote: ActiveVote,
+    logger: INodeContext["logger"],
+  ): Promise<{ failedItems: FailedVoteItem[] }> {
+    const { id, product_set_a, product_set_b } = vote;
+    const failedItems: FailedVoteItem[] = [];
+
+    // A 스캔
+    const resultA = await this.scanProductSet(id, product_set_a, "A", logger);
+    if (!resultA.success) {
+      failedItems.push({
+        vote_id: id,
+        product_set_id: product_set_a,
+        side: "A",
+        link_url: resultA.link_url,
+        error: resultA.error,
+      });
+    }
+
+    // B 스캔
+    const resultB = await this.scanProductSet(id, product_set_b, "B", logger);
+    if (!resultB.success) {
+      failedItems.push({
+        vote_id: id,
+        product_set_id: product_set_b,
+        side: "B",
+        link_url: resultB.link_url,
+        error: resultB.error,
+      });
+    }
+
+    return { failedItems };
+  }
+
+  /**
+   * 단일 상품 세트 스캔
+   */
+  private async scanProductSet(
+    voteId: number,
+    productSetId: string,
+    side: "A" | "B",
     logger: INodeContext["logger"],
   ): Promise<{ success: boolean; error?: string; link_url?: string }> {
-    const { id, product_set_id } = banner;
-
     try {
       // 1. Supabase에서 상품 정보 조회
-      const productSet =
-        await this.productService.getProductById(product_set_id);
+      const productSet = await this.productService.getProductById(productSetId);
 
       if (!productSet) {
-        logger.warn({ banner_id: id, product_set_id }, "상품을 찾을 수 없음");
+        logger.warn(
+          { vote_id: voteId, product_set_id: productSetId, side },
+          "상품을 찾을 수 없음",
+        );
         return { success: false, error: "Product not found in DB" };
       }
 
       // 2. link_url 확인
       const linkUrl = productSet.link_url;
       if (!linkUrl) {
-        logger.warn({ banner_id: id, product_set_id }, "link_url 없음");
+        logger.warn(
+          { vote_id: voteId, product_set_id: productSetId, side },
+          "link_url 없음",
+        );
         return { success: false, error: "link_url missing" };
       }
 
@@ -265,7 +298,7 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
       const detection = PlatformDetector.detect(linkUrl);
       if (!detection.platform || !detection.productId) {
         logger.warn(
-          { banner_id: id, product_set_id, linkUrl },
+          { vote_id: voteId, product_set_id: productSetId, side, linkUrl },
           "플랫폼 감지 실패",
         );
         return {
@@ -281,7 +314,7 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
 
       if (!scanner) {
         logger.warn(
-          { banner_id: id, platform: detection.platform },
+          { vote_id: voteId, platform: detection.platform, side },
           "Scanner 없음",
         );
         return {
@@ -300,7 +333,12 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
       // 5. 결과 확인: null 또는 에러 = 실패
       if (scanResult.isNotFound || !scanResult.data) {
         logger.warn(
-          { banner_id: id, product_set_id, platform: detection.platform },
+          {
+            vote_id: voteId,
+            product_set_id: productSetId,
+            side,
+            platform: detection.platform,
+          },
           "Fetch 실패 (null/not_found)",
         );
         return {
@@ -313,8 +351,9 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
       // 성공
       logger.debug(
         {
-          banner_id: id,
-          product_set_id,
+          vote_id: voteId,
+          product_set_id: productSetId,
+          side,
           productName: scanResult.data.product_name,
         },
         "스캔 성공",
@@ -324,7 +363,7 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       logger.error(
-        { banner_id: id, product_set_id, error: message },
+        { vote_id: voteId, product_set_id: productSetId, side, error: message },
         "스캔 중 에러 발생",
       );
       return { success: false, error: message };
@@ -335,8 +374,8 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
    * Slack Alert 발송
    */
   private async sendAlert(
-    failedItems: FailedBannerItem[],
-    totalBanners: number,
+    failedItems: FailedVoteItem[],
+    totalVotes: number,
     logger: INodeContext["logger"],
   ): Promise<boolean> {
     const slackToken = process.env.SLACK_BOT_TOKEN;
@@ -347,7 +386,7 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
       return false;
     }
 
-    const message = this.buildAlertMessage(failedItems, totalBanners);
+    const message = this.buildAlertMessage(failedItems, totalVotes);
 
     try {
       const response = await fetch(SLACK_API_URL, {
@@ -388,8 +427,8 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
    * Alert 메시지 빌드
    */
   private buildAlertMessage(
-    failedItems: FailedBannerItem[],
-    totalBanners: number,
+    failedItems: FailedVoteItem[],
+    totalVotes: number,
   ): { blocks: SlackBlock[] } {
     // 실패 없음: 성공 메시지
     if (failedItems.length === 0) {
@@ -399,7 +438,7 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
             type: "section",
             text: {
               type: "mrkdwn",
-              text: "✅ Collabo Banner 모니터링 완료 - 문제 없음",
+              text: "✅ Votes 모니터링 완료 - 문제 없음",
             },
           },
         ],
@@ -408,12 +447,12 @@ export class CollaboBannerMonitorNode implements ITypedNodeStrategy<
 
     // 실패 있음: Alert 메시지
     const lines: string[] = [];
-    lines.push(`🚨 Collabo Banner Alert - ${failedItems.length}건 실패`);
+    lines.push(`🚨 Votes Alert - ${failedItems.length}건 실패`);
     lines.push("─────────────────────");
 
     for (const item of failedItems) {
-      lines.push(`• banner_id: ${item.banner_id}`);
-      lines.push(`• product_set_id: ${item.product_set_id}`);
+      lines.push(`• vote_id: ${item.vote_id}`);
+      lines.push(`• product_set_id: ${item.product_set_id} (${item.side})`);
       if (item.link_url) {
         lines.push(`• link_url: ${item.link_url}`);
       }

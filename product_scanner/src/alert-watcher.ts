@@ -53,19 +53,19 @@ const WATCH_TASKS: WatchTask[] = [
     interval_ms: 20 * 60 * 1000, // 20분
     enabled: true,
   },
-  // 추가 감시 작업 예시:
+  {
+    id: "votes",
+    name: "Votes Monitor",
+    workflow_id: "votes-monitor",
+    interval_ms: 20 * 60 * 1000, // 20분
+    enabled: true,
+  },
+  // 추가 감시 작업:
   // {
   //   id: "pick_sections",
   //   name: "Pick Sections Monitor",
   //   workflow_id: "pick-sections-monitor",
   //   interval_ms: 30 * 60 * 1000, // 30분
-  //   enabled: true,
-  // },
-  // {
-  //   id: "votes",
-  //   name: "Votes Monitor",
-  //   workflow_id: "votes-monitor",
-  //   interval_ms: 15 * 60 * 1000, // 15분
   //   enabled: true,
   // },
 ];
@@ -82,6 +82,8 @@ const WATCHER_CONFIG = {
   JOB_POLL_INTERVAL_MS: 5 * 1000,
   /** Job 완료 대기 타임아웃 (ms) - 10분 */
   JOB_TIMEOUT_MS: 10 * 60 * 1000,
+  /** 작업 간 등록 간격 (ms) - 10초 */
+  TASK_STAGGER_DELAY_MS: 10 * 1000,
 };
 
 /**
@@ -284,6 +286,9 @@ async function runAlertWatcher(): Promise<void> {
           },
           "[AlertWatcher] 감시 Job 추가",
         );
+
+        // 4.5. 다음 작업 등록 전 간격 대기 (worker_alert 부하 분산)
+        await sleep(WATCHER_CONFIG.TASK_STAGGER_DELAY_MS);
 
         // 5. Job 완료 대기
         const completed = await waitForJobCompletion(

@@ -20,7 +20,7 @@ const router = Router();
 const ALERT_WATCHER_CONFIG = {
   TASKS: [
     { id: "collabo_banner", name: "Collabo Banner Monitor", interval_min: 20 },
-    // 추가 작업은 여기에 등록
+    { id: "votes", name: "Votes Monitor", interval_min: 20 },
   ],
   CHECK_INTERVAL_MS: 60 * 1000,
 };
