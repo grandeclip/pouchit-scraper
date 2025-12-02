@@ -43,6 +43,8 @@ tags:
     description: Worker 컨테이너 관리 (재시작, 상태 조회)
   - name: Scheduler
     description: 자동 스케줄러 제어
+  - name: Alert Watcher
+    description: 테이블 모니터링 및 Slack 알림 서비스
 
 paths:
   /health:
@@ -522,6 +524,111 @@ paths:
                     musinsa: 3
                   total_cleared: 5
 
+  /api/v2/alert-watcher/status:
+    get:
+      tags: [Alert Watcher]
+      summary: Alert Watcher 상태 조회
+      description: |
+        테이블 모니터링 서비스의 활성화 상태, 설정, 작업별 상태를 조회합니다.
+
+        **감시 대상 테이블**:
+        - `collabo_banners`: 콜라보 배너 상품 접근성 모니터링
+        - `votes`: 투표 상품 접근성 모니터링
+        - `pick_sections`: Pick Sections 상품 접근성 모니터링
+
+        **Shell 스크립트**: `scripts/alert-watcher-control.sh status`
+      responses:
+        '200':
+          description: Alert Watcher 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertWatcherStatusResponse'
+              example:
+                success: true
+                data:
+                  watcher:
+                    enabled: true
+                    running: true
+                    last_changed_at: "2025-12-01T10:00:00.000Z"
+                    last_heartbeat_at: "2025-12-01T11:30:05.000Z"
+                    total_jobs_executed: 42
+                  config:
+                    tasks:
+                      - id: collabo_banner
+                        name: Collabo Banner Monitor
+                        interval_min: 20
+                      - id: votes
+                        name: Votes Monitor
+                        interval_min: 20
+                      - id: pick_sections
+                        name: Pick Sections Monitor
+                        interval_min: 20
+                    check_interval_ms: 60000
+                  tasks:
+                    collabo_banner:
+                      last_completed_at: "2025-12-01T11:20:00.000Z"
+                    votes:
+                      last_completed_at: "2025-12-01T11:25:00.000Z"
+                    pick_sections:
+                      last_completed_at: "2025-12-01T11:30:00.000Z"
+
+  /api/v2/alert-watcher/start:
+    post:
+      tags: [Alert Watcher]
+      summary: Alert Watcher 시작
+      description: |
+        테이블 모니터링 서비스를 활성화합니다.
+
+        **Shell 스크립트**: `scripts/alert-watcher-control.sh start`
+
+        **동작 방식**:
+        1. 활성화 후 감시 작업 순차 등록 (10초 간격)
+        2. 각 작업 완료 후 20분 쿨다운
+        3. ALERT_SLACK_CHANNEL_ID로 결과 알림 발송
+      responses:
+        '200':
+          description: 시작 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: Alert Watcher started
+                data:
+                  enabled: true
+                  was_enabled: false
+
+  /api/v2/alert-watcher/stop:
+    post:
+      tags: [Alert Watcher]
+      summary: Alert Watcher 중지
+      description: |
+        테이블 모니터링 서비스를 비활성화합니다.
+
+        **Shell 스크립트**: `scripts/alert-watcher-control.sh stop`
+
+        `?clear_queue=true` 옵션으로 대기 중인 alert Job을 삭제할 수 있습니다.
+      parameters:
+        - name: clear_queue
+          in: query
+          schema:
+            type: string
+            enum: ['true', 'false']
+          description: 대기 중인 alert Job 삭제 여부
+      responses:
+        '200':
+          description: 중지 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Alert Watcher stopped and 3 queued jobs cleared"
+                data:
+                  enabled: false
+                  was_enabled: true
+                  queue_cleared: true
+                  cleared_jobs: 3
+
 components:
   schemas:
     HealthResponse:
@@ -788,6 +895,49 @@ components:
             expected_restart_within_seconds:
               type: integer
 
+    AlertWatcherStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            watcher:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                running:
+                  type: boolean
+                last_changed_at:
+                  type: string
+                  format: date-time
+                last_heartbeat_at:
+                  type: string
+                  format: date-time
+                total_jobs_executed:
+                  type: integer
+            config:
+              type: object
+              properties:
+                tasks:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      name:
+                        type: string
+                      interval_min:
+                        type: integer
+                check_interval_ms:
+                  type: integer
+            tasks:
+              type: object
+              description: 작업별 상태 (last_completed_at 등)
+
 # ============================================================================
 # Shell 스크립트 사용법
 # ============================================================================
@@ -835,6 +985,39 @@ components:
 #
 # # 원격 서버
 # API_URL=http://remote-server:3989 ./scripts/worker-control.sh status
+# ```
+#
+# ## Alert Watcher 제어 (alert-watcher-control.sh)
+#
+# 테이블 모니터링 서비스 제어 스크립트 (collabo_banners, votes, pick_sections)
+#
+# ```bash
+# # 상태 확인
+# ./scripts/alert-watcher-control.sh status
+#
+# # Alert Watcher 시작
+# ./scripts/alert-watcher-control.sh start
+#
+# # Alert Watcher 중지
+# ./scripts/alert-watcher-control.sh stop
+#
+# # Alert Watcher 중지 + 대기 Job 삭제
+# ./scripts/alert-watcher-control.sh stop --clear-queue
+#
+# # 원격 서버
+# API_URL=http://remote-server:3989 ./scripts/alert-watcher-control.sh status
+# ```
+#
+# ### 개별 모니터 테스트
+# ```bash
+# # Collabo Banner 모니터 테스트
+# ./scripts/test-collabo-banner-monitor.sh
+#
+# # Votes 모니터 테스트
+# ./scripts/test-votes-monitor.sh
+#
+# # Pick Sections 모니터 테스트
+# ./scripts/test-pick-sections-monitor.sh
 # ```
 #
 # ## 워크플로우 테스트 스크립트
