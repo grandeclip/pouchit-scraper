@@ -1,0 +1,32 @@
+{
+  "description": "Pick Sections 상품 접근성 모니터링 (20분 주기)",
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-12-02",
+    "tags": [
+      "monitor",
+      "pick-sections",
+      "alert",
+      "scheduler"
+    ]
+  },
+  "name": "Pick Sections Monitor",
+  "nodes": {
+    "monitor": {
+      "config": {
+        "debug_mode": true
+      },
+      "name": "Pick Sections 모니터링",
+      "next_nodes": [],
+      "retry": {
+        "backoff_ms": 5000,
+        "max_attempts": 2
+      },
+      "timeout_ms": 600000,
+      "type": "pick_sections_monitor"
+    }
+  },
+  "start_node": "monitor",
+  "version": "1.0.0",
+  "workflow_id": "pick-sections-monitor"
+}

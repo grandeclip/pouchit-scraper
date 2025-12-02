@@ -60,14 +60,13 @@ const WATCH_TASKS: WatchTask[] = [
     interval_ms: 20 * 60 * 1000, // 20분
     enabled: true,
   },
-  // 추가 감시 작업:
-  // {
-  //   id: "pick_sections",
-  //   name: "Pick Sections Monitor",
-  //   workflow_id: "pick-sections-monitor",
-  //   interval_ms: 30 * 60 * 1000, // 30분
-  //   enabled: true,
-  // },
+  {
+    id: "pick_sections",
+    name: "Pick Sections Monitor",
+    workflow_id: "pick-sections-monitor",
+    interval_ms: 20 * 60 * 1000, // 20분
+    enabled: true,
+  },
 ];
 
 /**

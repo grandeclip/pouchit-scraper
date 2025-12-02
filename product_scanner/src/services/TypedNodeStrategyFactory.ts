@@ -29,6 +29,7 @@ import {
 import { UpdateProductSetNode } from "@/strategies/update/UpdateProductSetNode";
 import { CollaboBannerMonitorNode } from "@/strategies/monitor/CollaboBannerMonitorNode";
 import { VotesMonitorNode } from "@/strategies/monitor/VotesMonitorNode";
+import { PickSectionsMonitorNode } from "@/strategies/monitor/PickSectionsMonitorNode";
 import { logger } from "@/config/logger";
 
 /**
@@ -124,6 +125,13 @@ export class TypedNodeStrategyFactory {
       "votes_monitor",
       "VotesMonitorNode",
       () => new VotesMonitorNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    this.registerTypedNode(
+      "pick_sections_monitor",
+      "PickSectionsMonitorNode",
+      () =>
+        new PickSectionsMonitorNode() as ITypedNodeStrategy<unknown, unknown>,
     );
   }
 

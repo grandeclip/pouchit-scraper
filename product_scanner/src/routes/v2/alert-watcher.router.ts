@@ -21,6 +21,7 @@ const ALERT_WATCHER_CONFIG = {
   TASKS: [
     { id: "collabo_banner", name: "Collabo Banner Monitor", interval_min: 20 },
     { id: "votes", name: "Votes Monitor", interval_min: 20 },
+    { id: "pick_sections", name: "Pick Sections Monitor", interval_min: 20 },
   ],
   CHECK_INTERVAL_MS: 60 * 1000,
 };

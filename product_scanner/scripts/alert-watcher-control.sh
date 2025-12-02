@@ -60,7 +60,7 @@ usage() {
     echo "감시 작업:"
     echo "  - collabo_banner (완료 후 20분 대기)"
     echo "  - votes (완료 후 20분 대기)"
-    echo "  - (추가 예정) pick_sections"
+    echo "  - pick_sections (완료 후 20분 대기)"
     echo ""
     echo "예시:"
     echo "  $0 start"
@@ -71,6 +71,7 @@ usage() {
     echo "개별 테스트:"
     echo "  ./test-collabo-banner-monitor.sh"
     echo "  ./test-votes-monitor.sh"
+    echo "  ./test-pick-sections-monitor.sh"
     exit 1
 }
 
