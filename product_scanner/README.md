@@ -253,6 +253,16 @@ product_scanner/
 │   │   ├── HwahaeValidationNode.ts
 │   │   ├── MusinsaValidationNode.ts   # 무신사 검증 노드 (HTTP API)
 │   │   └── SupabaseSearchNode.ts
+│   ├── llm/                       # LLM 모듈 (Product Labeling)
+│   │   ├── index.ts               # Barrel export
+│   │   ├── GeminiApiClient.ts     # Gemini REST API 클라이언트
+│   │   ├── ProductLabelingService.ts  # 라벨링 파이프라인
+│   │   ├── prompts/               # LLM 프롬프트
+│   │   │   ├── normalizeProductPrompt.ts  # 정규화 프롬프트
+│   │   │   └── classificationPrompt.ts    # 분류 프롬프트
+│   │   └── postprocessors/        # 전처리/후처리 로직
+│   │       ├── normalizePostprocessor.ts  # 정규화 후처리
+│   │       └── labelPostprocessor.ts      # 라벨 전/후처리
 │   ├── extractors/                # 데이터 추출기
 │   │   ├── PriceExtractor.ts
 │   │   └── StockExtractor.ts
@@ -277,7 +287,8 @@ product_scanner/
 ├── scripts/                       # 독립 실행 스크립트
 │   ├── test-hwahae-workflow.sh    # 화해 워크플로우 테스트
 │   ├── test-oliveyoung-workflow.sh  # 올영 워크플로우 테스트
-│   └── test-oliveyoung-strategy.ts  # 올영 전략 단위 테스트
+│   ├── test-oliveyoung-strategy.ts  # 올영 전략 단위 테스트
+│   └── test-product-labeling.ts   # LLM 라벨링 테스트
 ├── workflows/                     # Workflow 정의 (JSON)
 │   ├── hwahae-validation-v1.json    # 화해 검증 워크플로우
 │   ├── oliveyoung-validation-v1.json  # 올영 검증 워크플로우
@@ -578,12 +589,74 @@ DEFAULT_SEARCH_LIMIT=3    # 기본 검색 결과 개수
 WORKFLOW_PLATFORMS=default,hwahae,oliveyoung,coupang,zigzag,musinsa,ably,kurly,naver  # 지원 Platform 목록
 WORKER_POLL_INTERVAL=5000 # Worker 폴링 간격 (ms)
 
+# LLM 설정 (Product Labeling)
+GEMINI_API_KEY=your-gemini-api-key  # Gemini API 키 (필수)
+GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta  # API URL (선택)
+
 # 로깅 설정 (선택)
 LOG_LEVEL=info            # 로그 레벨: debug, info, warn, error
 LOG_DIR=./logs            # 로그 파일 저장 디렉토리
 LOG_PRETTY=true           # 개발 환경에서 예쁜 출력 (true/false)
 TZ=Asia/Seoul             # 타임존 설정
 ```
+
+## 🤖 LLM 모듈 (Product Labeling)
+
+Gemini API를 사용하여 `product_name`에서 `normalized_product_name`과 `label`을 자동 생성하는 모듈입니다.
+
+### 목적
+
+- **normalized_product_name**: 증정품/프로모션 정보 추출 (본품 제거)
+- **label**: 제품 카테고리 분류 (단품, 1+1, 리필, 거울, 크림 등)
+
+### 처리 흐름
+
+```mermaid
+graph LR
+    A[product_name] --> B[normalizeProductName]
+    B --> C[normalized_product_name]
+    C --> D[extractLabel]
+    D --> E[label]
+```
+
+```
+product_name: "[어워즈특가] 메디힐 에센셜 마스크 10+2매"
+    ↓ Gemini API + 후처리 (본품 제거, 증정품 추출)
+normalized_product_name: ""
+    ↓ Gemini API + 전/후처리 (카테고리 분류)
+label: "단품"
+```
+
+### 주요 기능
+
+| 파일                        | 설명                                   |
+| --------------------------- | -------------------------------------- |
+| `GeminiApiClient.ts`        | Gemini REST API 클라이언트             |
+| `ProductLabelingService.ts` | 메인 서비스 (파이프라인 통합)          |
+| `postprocessors/`           | 전처리/후처리 로직 (리필, 1+1 패턴 등) |
+| `prompts/`                  | 정규화/분류 프롬프트                   |
+
+### 결과 예시
+
+| product_name                     | normalized_product_name | label  |
+| -------------------------------- | ----------------------- | ------ |
+| `클리오 킬커버 쿠션 + 하트거울`  | `하트거울`              | `거울` |
+| `에스쁘아 리퀴드 파운데이션 1+1` | `1+1`                   | `1+1`  |
+| `아이오페 레티놀 세럼 + 리필`    | `리필`                  | `리필` |
+| `롬앤 틴트 단품`                 | ``                      | `단품` |
+
+### 테스트 실행
+
+```bash
+# Docker 개발 환경에서 실행
+make dev
+
+# 테스트 스크립트 (product_set_id 필요)
+docker compose -f docker/docker-compose.dev.yml exec product_scanner_dev \
+  npx tsx scripts/test-product-labeling.ts <product_set_id>
+```
+
+**환경변수**: `GEMINI_API_KEY` 필요 (`.env.local`에 설정)
 
 ## 📊 로깅 시스템
 
