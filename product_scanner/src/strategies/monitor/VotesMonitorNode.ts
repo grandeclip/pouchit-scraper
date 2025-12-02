@@ -29,6 +29,7 @@ import { VotesRepository, ActiveVote } from "@/repositories/VotesRepository";
 import { PlatformDetector } from "@/services/extract/url/PlatformDetector";
 import { PlatformScannerRegistry } from "@/scanners/platform/PlatformScannerRegistry";
 import { BrowserScanExecutor } from "@/scanners/base/BrowserScanExecutor";
+import { applyAlertFilter, isNoFilterTimeWindow } from "@/utils/AlertFilter";
 
 /**
  * 노드 입력 타입
@@ -175,18 +176,37 @@ export class VotesMonitorNode implements ITypedNodeStrategy<
         "[VotesMonitorNode] 스캔 완료",
       );
 
-      // 3. Alert 발송
-      const shouldNotify = debugMode || failedItems.length > 0;
-      if (shouldNotify) {
-        await this.sendAlert(failedItems, activeVotes.length, logger);
+      // 3. Alert 필터링 (플랫폼 기반)
+      const filterResult = applyAlertFilter(
+        failedItems,
+        (item) => item.link_url,
+      );
+      const filteredFailedItems = filterResult.filteredItems;
+
+      if (filterResult.wasFiltered && filterResult.excludedCount > 0) {
+        logger.info(
+          {
+            original: failedItems.length,
+            filtered: filteredFailedItems.length,
+            excluded: filterResult.excludedCount,
+            isNoFilterWindow: isNoFilterTimeWindow(),
+          },
+          "[VotesMonitorNode] 플랫폼 필터링 적용",
+        );
       }
 
-      // 4. 결과 반환
+      // 4. Alert 발송
+      const shouldNotify = debugMode || filteredFailedItems.length > 0;
+      if (shouldNotify) {
+        await this.sendAlert(filteredFailedItems, activeVotes.length, logger);
+      }
+
+      // 5. 결과 반환
       const output: VotesMonitorOutput = {
         total_votes: activeVotes.length,
         success_count: successCount,
-        failed_count: failedItems.length,
-        failed_items: failedItems,
+        failed_count: failedItems.length, // 원본 실패 수
+        failed_items: failedItems, // 원본 실패 항목 (로깅용)
         notified: shouldNotify,
       };
 
