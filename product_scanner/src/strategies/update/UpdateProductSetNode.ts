@@ -39,7 +39,7 @@ import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { UPDATE_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
 import { createJobLogger, logImportant } from "@/utils/LoggerContext";
-import { processProductLabeling } from "@/llm";
+import { processProductLabelingWithUsage, logLlmCost } from "@/llm";
 import { createClient } from "@supabase/supabase-js";
 import type { Logger } from "pino";
 import {
@@ -141,9 +141,15 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
       const inputData = input as unknown as Record<string, unknown>;
       const jsonl_path = (input.jsonl_path || inputData.jsonl_path) as string;
 
-      // platform은 context.config 또는 context.platform에서 가져옴
+      // platform은 context.platform 우선, config.platform은 템플릿 변수일 수 있음
+      const configPlatform = config?.platform as string | undefined;
       const platform =
-        (config?.platform as string) || context.platform || input.platform;
+        context.platform ||
+        (configPlatform && !configPlatform.includes("${")
+          ? configPlatform
+          : null) ||
+        input.platform ||
+        "unknown";
 
       // options는 context.config에서 가져옴
       const recordHistory =
@@ -185,9 +191,12 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
 
       // 3. [임시/테스트] LLM Product Labeling 처리
       // product_name 변경 시 LLM 호출하여 test_normalized_product_name, test_label 생성
+      // 비용 정보는 results/{yyyy-mm-dd}/llm_cost__{yyyy-mm-dd}.jsonl에 기록됨
       const updatesWithLlm = await this.processLlmLabeling(
         allResults,
         rawUpdates,
+        job_id,
+        platform,
         jobLogger,
       );
 
@@ -344,14 +353,20 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
    * - test_label: LLM 상품 라벨
    * - 테스트 완료 후 실제 컬럼으로 전환 예정
    *
+   * 비용 정보는 results/{yyyy-mm-dd}/llm_cost__{yyyy-mm-dd}.jsonl에 기록됩니다.
+   *
    * @param allResults 전체 검증 결과
    * @param updates 업데이트 데이터 배열
+   * @param jobId Job ID (비용 로깅용)
+   * @param platform 플랫폼명 (비용 로깅용)
    * @param jobLogger 로거
    * @returns LLM 결과가 추가된 업데이트 데이터 배열
    */
   private async processLlmLabeling(
     allResults: ProductValidationResult[],
     updates: ProductUpdateData[],
+    jobId: string,
+    platform: string,
     jobLogger: Logger,
   ): Promise<ProductUpdateData[]> {
     // product_name이 변경된 항목 필터링
@@ -374,12 +389,28 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
     const llmPromises = nameChangedItems.map(async (item) => {
       try {
         const productName = item.fetch!.product_name!;
-        const result = await processProductLabeling(productName);
+        const result = await processProductLabelingWithUsage(productName);
+
+        // 비용 로깅 (각 usage 항목별로 기록)
+        for (const usage of result.usages) {
+          logLlmCost({
+            job_id: jobId,
+            platform,
+            product_set_id: item.product_set_id,
+            operation: usage.operation,
+            model: usage.model,
+            input_tokens: usage.input_tokens,
+            output_tokens: usage.output_tokens,
+          });
+        }
+
         return {
           product_set_id: item.product_set_id,
           normalized_product_name: result.normalizedProductName,
           label: result.label,
           success: true,
+          totalInputTokens: result.totalInputTokens,
+          totalOutputTokens: result.totalOutputTokens,
         };
       } catch (error) {
         jobLogger.warn(
@@ -394,6 +425,8 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
           normalized_product_name: null,
           label: null,
           success: false,
+          totalInputTokens: 0,
+          totalOutputTokens: 0,
         };
       }
     });
@@ -408,6 +441,8 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
 
     let successCount = 0;
     let failedCount = 0;
+    let totalInputTokens = 0;
+    let totalOutputTokens = 0;
 
     for (const result of llmResults) {
       if (result.status === "fulfilled" && result.value.success) {
@@ -416,13 +451,20 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
           label: result.value.label,
         });
         successCount++;
+        totalInputTokens += result.value.totalInputTokens;
+        totalOutputTokens += result.value.totalOutputTokens;
       } else {
         failedCount++;
       }
     }
 
     jobLogger.info(
-      { success: successCount, failed: failedCount },
+      {
+        success: successCount,
+        failed: failedCount,
+        total_input_tokens: totalInputTokens,
+        total_output_tokens: totalOutputTokens,
+      },
       "[임시/테스트] LLM Product Labeling 완료",
     );
 

@@ -53,6 +53,17 @@ export interface GeminiCompletionParams {
   thinkingBudget?: number;
 }
 
+/** Gemini API 토큰 사용량 메타데이터 */
+export interface GeminiUsageMetadata {
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+  promptTokensDetails?: Array<{
+    modality: string;
+    tokenCount: number;
+  }>;
+}
+
 export interface GeminiApiResponse {
   candidates?: Array<{
     content?: {
@@ -61,6 +72,15 @@ export interface GeminiApiResponse {
       }>;
     };
   }>;
+  usageMetadata?: GeminiUsageMetadata;
+  modelVersion?: string;
+}
+
+/** 비용 정보가 포함된 응답 */
+export interface GeminiCompletionWithUsage<T = unknown> {
+  result: T;
+  usage: GeminiUsageMetadata;
+  model: string;
 }
 
 /**
@@ -98,18 +118,32 @@ function getApiBaseUrl(): string {
   return process.env.GEMINI_API_BASE_URL || DEFAULT_GEMINI_API_BASE_URL;
 }
 
+/** 내부 API 호출 결과 (raw response + parsed result) */
+interface GeminiRawResult<T> {
+  result: T;
+  usage: GeminiUsageMetadata;
+  model: string;
+}
+
 /**
- * Gemini API 호출 및 JSON 응답 반환
+ * Gemini API 공통 호출 로직 (내부 함수)
+ *
+ * API 호출, 응답 검증, JSON 파싱을 수행합니다.
  */
-export async function fetchGeminiCompletion<T = unknown>({
-  model = DEFAULT_MODEL,
-  systemPrompt,
-  userPrompt,
-  temperature = DEFAULT_TEMPERATURE,
-  topP = DEFAULT_TOP_P,
-  maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS,
-  thinkingBudget = DEFAULT_THINKING_BUDGET,
-}: GeminiCompletionParams): Promise<T> {
+async function fetchGeminiCompletionInternal<T = unknown>(
+  params: GeminiCompletionParams,
+  logSuffix = "",
+): Promise<GeminiRawResult<T>> {
+  const {
+    model = DEFAULT_MODEL,
+    systemPrompt,
+    userPrompt,
+    temperature = DEFAULT_TEMPERATURE,
+    topP = DEFAULT_TOP_P,
+    maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS,
+    thinkingBudget = DEFAULT_THINKING_BUDGET,
+  } = params;
+
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
@@ -184,7 +218,7 @@ export async function fetchGeminiCompletion<T = unknown>({
 
   logger.debug(
     { model, temperature, topP, maxOutputTokens, thinkingBudget },
-    "[GeminiAPI] API 호출 시작",
+    `[GeminiAPI] API 호출 시작${logSuffix}`,
   );
 
   let response: Response;
@@ -232,11 +266,24 @@ export async function fetchGeminiCompletion<T = unknown>({
 
   const responseText = data.candidates[0].content.parts[0].text;
 
+  // usageMetadata 추출 (없으면 기본값)
+  const usage: GeminiUsageMetadata = data.usageMetadata ?? {
+    promptTokenCount: 0,
+    candidatesTokenCount: 0,
+    totalTokenCount: 0,
+  };
+
   // JSON 파싱 시도
   try {
     const result = JSON.parse(responseText) as T;
-    logger.debug("[GeminiAPI] API 호출 성공");
-    return result;
+    logger.debug(
+      {
+        input_tokens: usage.promptTokenCount,
+        output_tokens: usage.candidatesTokenCount,
+      },
+      `[GeminiAPI] API 호출 성공${logSuffix}`,
+    );
+    return { result, usage, model };
   } catch {
     // 마크다운 코드블록 제거 후 재시도
     const codeBlockMatch = responseText.match(
@@ -244,8 +291,8 @@ export async function fetchGeminiCompletion<T = unknown>({
     );
     if (codeBlockMatch) {
       const result = JSON.parse(codeBlockMatch[1]) as T;
-      logger.debug("[GeminiAPI] 코드블록에서 JSON 파싱 성공");
-      return result;
+      logger.debug(`[GeminiAPI] 코드블록에서 JSON 파싱 성공${logSuffix}`);
+      return { result, usage, model };
     }
 
     const error = new GeminiApiError(
@@ -257,6 +304,27 @@ export async function fetchGeminiCompletion<T = unknown>({
     );
     throw error;
   }
+}
+
+/**
+ * Gemini API 호출 및 JSON 응답 반환
+ */
+export async function fetchGeminiCompletion<T = unknown>(
+  params: GeminiCompletionParams,
+): Promise<T> {
+  const { result } = await fetchGeminiCompletionInternal<T>(params);
+  return result;
+}
+
+/**
+ * Gemini API 호출 및 JSON 응답 + 사용량 메타데이터 반환
+ *
+ * 비용 추적이 필요한 경우 이 함수를 사용합니다.
+ */
+export async function fetchGeminiCompletionWithUsage<T = unknown>(
+  params: GeminiCompletionParams,
+): Promise<GeminiCompletionWithUsage<T>> {
+  return fetchGeminiCompletionInternal<T>(params, " (with usage)");
 }
 
 // ============================================
@@ -273,5 +341,11 @@ export class GeminiApiClient implements IGeminiApiClient {
     params: GeminiCompletionParams,
   ): Promise<T> {
     return fetchGeminiCompletion<T>(params);
+  }
+
+  async fetchCompletionWithUsage<T = unknown>(
+    params: GeminiCompletionParams,
+  ): Promise<GeminiCompletionWithUsage<T>> {
+    return fetchGeminiCompletionWithUsage<T>(params);
   }
 }

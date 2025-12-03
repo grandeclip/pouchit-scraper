@@ -17,10 +17,24 @@ export type {
 // Product Labeling Service
 export {
   processProductLabeling,
+  processProductLabelingWithUsage,
   normalizeProductName,
   extractLabel,
 } from "./ProductLabelingService";
-export type { ProductLabelingResult } from "./ProductLabelingService";
+export type {
+  ProductLabelingResult,
+  ProductLabelingResultWithUsage,
+  LlmUsageInfo,
+} from "./ProductLabelingService";
+
+// LLM Cost Logger
+export {
+  logLlmCost,
+  logLlmCostBatch,
+  getTodayTotalCost,
+  getTodayCostStats,
+} from "./LlmCostLogger";
+export type { LlmCostRecord, LlmCostLogParams } from "./LlmCostLogger";
 
 // Postprocessors
 export {

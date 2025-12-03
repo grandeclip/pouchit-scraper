@@ -688,6 +688,46 @@ docker compose -f docker/docker-compose.dev.yml exec product_scanner_dev \
 
 **환경변수**: `GEMINI_API_KEY` 필요 (`.env.local`에 설정)
 
+### 비용 추적
+
+LLM API 호출 비용을 JSONL 파일로 자동 기록합니다.
+
+**파일 위치**: `results/{yyyy-mm-dd}/llm_cost__{yyyy-mm-dd}.jsonl`
+
+**레코드 구조**:
+
+```jsonl
+{
+  "timestamp": "2025-12-03T14:45:15.138+09:00",
+  "job_id": "019ae2be-...",
+  "platform": "oliveyoung",
+  "product_set_id": "aa5347ff-...",
+  "operation": "normalize",
+  "model": "gemini-2.5-flash",
+  "input_tokens": 2333,
+  "output_tokens": 135,
+  "total_tokens": 2468,
+  "cost_usd": 0.00043095
+}
+```
+
+**비용 통계 조회**:
+
+```typescript
+import { getTodayCostStats } from "@/llm";
+
+const stats = getTodayCostStats();
+console.log(`오늘 비용: $${stats.total_cost_usd.toFixed(4)}`);
+console.log(`총 레코드: ${stats.total_records}개`);
+```
+
+**예상 비용** (gemini-2.5-flash 기준):
+
+| 처리 건수 | 비용   |
+| --------- | ------ |
+| 1,000건   | ~$0.60 |
+| 10,000건  | ~$6.00 |
+
 ## 📊 로깅 시스템
 
 ### Pino 기반 구조화 로깅
