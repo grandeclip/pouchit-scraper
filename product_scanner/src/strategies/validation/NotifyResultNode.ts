@@ -49,6 +49,38 @@ type UnifiedResult = {
 };
 
 /**
+ * 알림 레벨 타입
+ *
+ * 우선순위 (높음 → 낮음):
+ * - critical: fetch 실패/삭제 (failed > 0 || not_found > 0) - Slack 전송 O + 스레드
+ * - warning: 판매상태 변경 (saleStatusChanged > 0) - Slack 전송 O
+ * - info: 업데이트 발생 (mismatch > 0) - Slack 전송 O
+ * - success: 완벽 일치 (match === total) - Slack 전송 X
+ * - neutral: 기타 (url 워크플로우 등) - Slack 전송 X
+ * - empty: 결과 없음 (total === 0) - Slack 전송 X
+ */
+type NotificationLevel =
+  | "critical"
+  | "warning"
+  | "info"
+  | "success"
+  | "neutral"
+  | "empty";
+
+/** 알림 레벨별 이모지 매핑 */
+const NOTIFICATION_EMOJI: Record<NotificationLevel, string> = {
+  critical: "🚨",
+  warning: "⚠️",
+  info: "👍",
+  success: "✅",
+  neutral: "📊",
+  empty: "📭",
+};
+
+/** Slack 전송 대상 알림 레벨 */
+const NOTIFIABLE_LEVELS: NotificationLevel[] = ["critical", "warning", "info"];
+
+/**
  * 알림 채널 인터페이스 (확장용)
  */
 export interface INotificationChannel {
@@ -110,6 +142,25 @@ interface JobParams {
 }
 
 /**
+ * Slack API 응답 타입
+ */
+interface SlackApiResponse {
+  ok: boolean;
+  ts?: string;
+  channel?: string;
+  error?: string;
+}
+
+/**
+ * Failed 항목 정보 (스레드용)
+ */
+interface FailedItem {
+  product_id: string;
+  product_set_id: string;
+  platform: string;
+}
+
+/**
  * NotifyResultNode 설정
  */
 export interface NotifyResultNodeConfig {
@@ -136,6 +187,11 @@ export interface NotifyResultNodeConfig {
  * Slack Bot API URL
  */
 const SLACK_API_URL = "https://slack.com/api/chat.postMessage";
+
+/**
+ * Magpie Admin 상품 페이지 URL 베이스
+ */
+const MAGPIE_ADMIN_BASE_URL = "https://magpie.scoob.beauty/admin/products";
 
 /**
  * 기본 설정
@@ -371,6 +427,22 @@ export class NotifyResultNode implements ITypedNodeStrategy<
       }
     }
 
+    // 알림 대상 조건 확인: critical, warning, info만 전송
+    // success, neutral, empty는 전송하지 않음
+    const level = this.getNotificationLevel(result.summary, saleStatusChanged);
+
+    if (!NOTIFIABLE_LEVELS.includes(level)) {
+      logger.info(
+        {
+          platform: input.platform,
+          level,
+          summary: result.summary,
+        },
+        "알림 대상 아님 - 스킵 (success/neutral/empty)",
+      );
+      return false;
+    }
+
     const message = this.buildSlackMessage(
       input,
       result,
@@ -409,10 +481,40 @@ export class NotifyResultNode implements ITypedNodeStrategy<
         return false;
       }
 
-      const result = (await response.json()) as { ok: boolean; error?: string };
-      if (!result.ok) {
-        logger.warn({ error: result.error }, "Slack API 에러");
+      const slackResponse = (await response.json()) as SlackApiResponse;
+      if (!slackResponse.ok) {
+        logger.warn({ error: slackResponse.error }, "Slack API 에러");
         return false;
+      }
+
+      // critical 레벨 && ts 존재 시 스레드에 failed 항목 전송
+      if (level === "critical" && slackResponse.ts && result.jsonl_path) {
+        try {
+          const failedItems = await JsonlParser.extractFailedItemsFromFile(
+            result.jsonl_path,
+          );
+
+          if (failedItems.length > 0) {
+            await this.sendSlackThreadMessages(
+              slack_bot_token,
+              slack_channel_id,
+              slackResponse.ts,
+              failedItems,
+              logger,
+            );
+          }
+        } catch (threadError) {
+          logger.warn(
+            {
+              error:
+                threadError instanceof Error
+                  ? threadError.message
+                  : String(threadError),
+            },
+            "스레드 메시지 발송 실패",
+          );
+          // 스레드 실패해도 메인 메시지는 성공 처리
+        }
       }
 
       return true;
@@ -422,6 +524,80 @@ export class NotifyResultNode implements ITypedNodeStrategy<
         "Slack 알림 발송 실패",
       );
       return false;
+    }
+  }
+
+  /**
+   * Slack 스레드에 failed 항목 메시지 발송
+   *
+   * @param token Slack Bot Token
+   * @param channel 채널 ID
+   * @param threadTs 부모 메시지 ts (스레드 시작점)
+   * @param failedItems failed 항목 목록
+   * @param logger 로거
+   */
+  private async sendSlackThreadMessages(
+    token: string,
+    channel: string,
+    threadTs: string,
+    failedItems: FailedItem[],
+    logger: INodeContext["logger"],
+  ): Promise<void> {
+    // failed 항목들을 하나의 메시지로 묶어서 전송
+    // 형식: <링크|platform>: `product_set_id` (링크는 product_id 사용)
+    const lines = failedItems.map((item) => {
+      const linkUrl = `${MAGPIE_ADMIN_BASE_URL}/${item.product_id}`;
+      return `• <${linkUrl}|${item.platform}>: \`${item.product_set_id}\``;
+    });
+
+    const threadMessage = {
+      channel,
+      thread_ts: threadTs,
+      text: `🔍 *Failed 항목 (${failedItems.length}건)*\n\n${lines.join("\n")}`,
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        this.nodeConfig.request_timeout_ms,
+      );
+
+      const response = await fetch(SLACK_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(threadMessage),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        logger.warn(
+          { status: response.status, statusText: response.statusText },
+          "스레드 메시지 API 응답 오류",
+        );
+        return;
+      }
+
+      const slackResponse = (await response.json()) as SlackApiResponse;
+      if (!slackResponse.ok) {
+        logger.warn({ error: slackResponse.error }, "스레드 메시지 API 에러");
+        return;
+      }
+
+      logger.info(
+        { failedCount: failedItems.length },
+        "스레드 메시지 발송 완료",
+      );
+    } catch (error) {
+      logger.warn(
+        { error: error instanceof Error ? error.message : String(error) },
+        "스레드 메시지 발송 실패",
+      );
     }
   }
 
@@ -621,7 +797,7 @@ export class NotifyResultNode implements ITypedNodeStrategy<
     // 결과 (한 줄)
     if (workflowType === "url") {
       lines.push(
-        `• Total ${summary.total}: (success ${summary.success} | failed ${summary.failed})`,
+        `• Total ${summary.total}: (success ${summary.success} | failed ${summary.failed + summary.not_found})`,
       );
     } else {
       const statusPart =
@@ -629,7 +805,7 @@ export class NotifyResultNode implements ITypedNodeStrategy<
           ? ` | status changed ${saleStatusChanged}`
           : "";
       lines.push(
-        `• Total ${summary.total}: (match ${summary.match ?? 0} | update ${summary.mismatch ?? 0} | failed ${summary.failed}${statusPart})`,
+        `• Total ${summary.total}: (match ${summary.match ?? 0} | update ${summary.mismatch ?? 0} | failed ${summary.failed + summary.not_found}${statusPart})`,
       );
     }
 
@@ -670,36 +846,61 @@ export class NotifyResultNode implements ITypedNodeStrategy<
   }
 
   /**
-   * 상태에 따른 이모지 반환
+   * 알림 레벨 결정
    *
-   * 우선순위:
-   * 1. failed > 0 → 🚨 (fetch 실패)
-   * 2. status_changed > 0 → ⚠️ (판매상태 변경)
-   * 3. mismatch > 0 → 👍 (업데이트 발생)
-   * 4. perfect_match → ✅ (모든 상품 일치)
-   * 5. default (url 등) → 📊
+   * 우선순위 (높음 → 낮음):
+   * 1. empty: total === 0
+   * 2. critical: failed > 0 또는 not_found > 0 (fetch 실패/삭제)
+   * 3. warning: saleStatusChanged > 0 (판매상태 변경)
+   * 4. info: mismatch > 0 (업데이트 발생)
+   * 5. success: match === total (완벽 일치)
+   * 6. neutral: 기타 (url 워크플로우 등)
+   */
+  private getNotificationLevel(
+    summary: UnifiedResult["summary"],
+    saleStatusChanged?: number,
+  ): NotificationLevel {
+    const total = summary.total;
+
+    // 1. empty
+    if (total === 0) return "empty";
+
+    // 2. critical (fetch 실패 또는 not_found)
+    if (summary.failed > 0 || summary.not_found > 0) return "critical";
+
+    // 3. warning (판매상태 변경)
+    if (saleStatusChanged && saleStatusChanged > 0) return "warning";
+
+    // 4. info (업데이트 발생)
+    if ((summary.mismatch ?? 0) > 0) return "info";
+
+    // 5. success (완벽 일치)
+    const match = summary.match ?? 0;
+    if (match === total) return "success";
+
+    // 6. neutral (기타)
+    return "neutral";
+  }
+
+  /**
+   * 상태에 따른 이모지 반환
    */
   private getStatusEmoji(
     summary: UnifiedResult["summary"],
     saleStatusChanged?: number,
   ): string {
-    const total = summary.total;
-    if (total === 0) return "📭";
+    const level = this.getNotificationLevel(summary, saleStatusChanged);
+    return NOTIFICATION_EMOJI[level];
+  }
 
-    // 1. failed (fetch 실패) - 최우선
-    if (summary.failed > 0) return "🚨";
-
-    // 2. status_changed (판매상태 변경)
-    if (saleStatusChanged && saleStatusChanged > 0) return "⚠️";
-
-    // 3. update (mismatch > 0)
-    if ((summary.mismatch ?? 0) > 0) return "👍";
-
-    // 4. perfect_match (모든 상품 일치)
-    const match = summary.match ?? 0;
-    if (match === total) return "✅";
-
-    // 5. default (url 워크플로우 등)
-    return "📊";
+  /**
+   * Slack 전송 대상 여부 확인
+   */
+  private shouldNotifySlack(
+    summary: UnifiedResult["summary"],
+    saleStatusChanged?: number,
+  ): boolean {
+    const level = this.getNotificationLevel(summary, saleStatusChanged);
+    return NOTIFIABLE_LEVELS.includes(level);
   }
 }

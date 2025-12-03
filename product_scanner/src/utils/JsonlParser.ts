@@ -18,6 +18,9 @@ export interface ProductValidationResult {
   /** 상품 ID */
   product_id: string;
 
+  /** 플랫폼 */
+  platform?: string;
+
   /** 상품 URL */
   url: string;
 
@@ -314,5 +317,45 @@ export class JsonlParser {
   }> {
     const results = await this.parseValidationResults(filePath);
     return this.extractStatistics(results);
+  }
+
+  /**
+   * Failed/NotFound 항목 정보 추출 (Slack 스레드용)
+   *
+   * - failed: fetch 실패 (에러 발생)
+   * - not_found: 삭제된 상품 (fetch가 null)
+   *
+   * @param results 검증 결과 배열
+   * @returns failed/not_found 항목 정보 배열
+   */
+  static extractFailedItems(results: ProductValidationResult[]): Array<{
+    product_id: string;
+    product_set_id: string;
+    platform: string;
+  }> {
+    return results
+      .filter((r) => r.status === "failed" || r.status === "not_found")
+      .map((r) => ({
+        product_id: r.product_id,
+        product_set_id: r.product_set_id,
+        platform: r.platform ?? "unknown",
+      }));
+  }
+
+  /**
+   * JSONL 파일에서 failed 항목 추출 (통합 메서드)
+   *
+   * @param filePath JSONL 파일 경로
+   * @returns failed 항목 정보 배열
+   */
+  static async extractFailedItemsFromFile(filePath: string): Promise<
+    Array<{
+      product_id: string;
+      product_set_id: string;
+      platform: string;
+    }>
+  > {
+    const results = await this.parseValidationResults(filePath);
+    return this.extractFailedItems(results);
   }
 }
