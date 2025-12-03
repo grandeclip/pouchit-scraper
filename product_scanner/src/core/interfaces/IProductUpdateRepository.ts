@@ -28,6 +28,26 @@ export interface ProductUpdateData {
 
   /** 업데이트 타임스탬프 (ISO 8601 with timezone) */
   updated_at: string;
+
+  /**
+   * [임시/테스트] LLM 정규화 상품명
+   *
+   * ⚠️ 중요: 테스트 목적으로 test_ 접두사 컬럼에 저장됩니다.
+   * - LLM 결과값: normalized_product_name
+   * - DB 저장 컬럼: test_normalized_product_name
+   * - 테스트 완료 후 실제 컬럼으로 전환 예정
+   */
+  test_normalized_product_name?: string | null;
+
+  /**
+   * [임시/테스트] LLM 상품 라벨
+   *
+   * ⚠️ 중요: 테스트 목적으로 test_ 접두사 컬럼에 저장됩니다.
+   * - LLM 결과값: label
+   * - DB 저장 컬럼: test_label
+   * - 테스트 완료 후 실제 컬럼으로 전환 예정
+   */
+  test_label?: string | null;
 }
 
 /**

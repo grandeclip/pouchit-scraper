@@ -39,6 +39,7 @@ import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { UPDATE_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
 import { createJobLogger, logImportant } from "@/utils/LoggerContext";
+import { processProductLabeling } from "@/llm";
 import { createClient } from "@supabase/supabase-js";
 import type { Logger } from "pino";
 import {
@@ -182,9 +183,17 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         "JSONL 파싱 완료",
       );
 
-      // 3. 예외 필드 제거 적용 + sale_status 옵션 처리
-      const updates = this.applyExclusions(
+      // 3. [임시/테스트] LLM Product Labeling 처리
+      // product_name 변경 시 LLM 호출하여 test_normalized_product_name, test_label 생성
+      const updatesWithLlm = await this.processLlmLabeling(
+        allResults,
         rawUpdates,
+        jobLogger,
+      );
+
+      // 4. 예외 필드 제거 적용 + sale_status 옵션 처리
+      const updates = this.applyExclusions(
+        updatesWithLlm,
         exclusions,
         updateSaleStatus,
         jobLogger,
@@ -325,6 +334,119 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
   }
 
   /**
+   * [임시/테스트] LLM Product Labeling 처리
+   *
+   * product_name이 변경된 상품에 대해 LLM을 호출하여
+   * normalized_product_name과 label을 생성합니다.
+   *
+   * ⚠️ 중요: 테스트 목적으로 test_ 접두사 컬럼에 저장됩니다.
+   * - test_normalized_product_name: LLM 정규화 상품명
+   * - test_label: LLM 상품 라벨
+   * - 테스트 완료 후 실제 컬럼으로 전환 예정
+   *
+   * @param allResults 전체 검증 결과
+   * @param updates 업데이트 데이터 배열
+   * @param jobLogger 로거
+   * @returns LLM 결과가 추가된 업데이트 데이터 배열
+   */
+  private async processLlmLabeling(
+    allResults: ProductValidationResult[],
+    updates: ProductUpdateData[],
+    jobLogger: Logger,
+  ): Promise<ProductUpdateData[]> {
+    // product_name이 변경된 항목 필터링
+    const nameChangedItems = allResults.filter(
+      (result) =>
+        result.comparison?.product_name === false && result.fetch?.product_name,
+    );
+
+    if (nameChangedItems.length === 0) {
+      jobLogger.debug("product_name 변경 항목 없음 - LLM 스킵");
+      return updates;
+    }
+
+    jobLogger.info(
+      { count: nameChangedItems.length },
+      "[임시/테스트] LLM Product Labeling 시작",
+    );
+
+    // 병렬 LLM 호출 (Promise.allSettled로 실패 허용)
+    const llmPromises = nameChangedItems.map(async (item) => {
+      try {
+        const productName = item.fetch!.product_name!;
+        const result = await processProductLabeling(productName);
+        return {
+          product_set_id: item.product_set_id,
+          normalized_product_name: result.normalizedProductName,
+          label: result.label,
+          success: true,
+        };
+      } catch (error) {
+        jobLogger.warn(
+          {
+            product_set_id: item.product_set_id,
+            error: error instanceof Error ? error.message : String(error),
+          },
+          "[임시/테스트] LLM 호출 실패 - 스킵",
+        );
+        return {
+          product_set_id: item.product_set_id,
+          normalized_product_name: null,
+          label: null,
+          success: false,
+        };
+      }
+    });
+
+    const llmResults = await Promise.allSettled(llmPromises);
+
+    // LLM 결과를 Map으로 변환
+    const llmResultMap = new Map<
+      string,
+      { normalized_product_name: string | null; label: string | null }
+    >();
+
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (const result of llmResults) {
+      if (result.status === "fulfilled" && result.value.success) {
+        llmResultMap.set(result.value.product_set_id, {
+          normalized_product_name: result.value.normalized_product_name,
+          label: result.value.label,
+        });
+        successCount++;
+      } else {
+        failedCount++;
+      }
+    }
+
+    jobLogger.info(
+      { success: successCount, failed: failedCount },
+      "[임시/테스트] LLM Product Labeling 완료",
+    );
+
+    // updates에 LLM 결과 추가 (test_ 접두사 컬럼)
+    const updatesWithLlm = updates.map((update) => {
+      const llmResult = llmResultMap.get(update.product_set_id);
+      if (llmResult) {
+        return {
+          ...update,
+          /**
+           * [임시/테스트] LLM 결과를 test_ 접두사 컬럼에 저장
+           * 테스트 완료 후 실제 컬럼(normalized_product_name, label)으로 전환 예정
+           */
+          test_normalized_product_name: llmResult.normalized_product_name,
+          test_label: llmResult.label,
+        };
+      }
+      return update;
+    });
+
+    return updatesWithLlm;
+  }
+
+  /**
    * 예외 필드 제거 적용 + sale_status 옵션 처리
    *
    * @param updates 원본 업데이트 데이터
@@ -393,17 +515,36 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         }
       }
 
+      /**
+       * [임시/테스트] LLM Product Labeling 결과 보존
+       *
+       * ⚠️ 중요: 테스트 목적으로 test_ 접두사 컬럼에 저장됩니다.
+       * - test_normalized_product_name: LLM 정규화 상품명
+       * - test_label: LLM 상품 라벨
+       * - 테스트 완료 후 실제 컬럼으로 전환 예정
+       */
+      if (update.test_normalized_product_name !== undefined) {
+        filtered.test_normalized_product_name =
+          update.test_normalized_product_name;
+      }
+      if (update.test_label !== undefined) {
+        filtered.test_label = update.test_label;
+      }
+
       return filtered;
     });
 
     // 업데이트할 필드가 없는 항목 제거
+    // [임시/테스트] test_normalized_product_name, test_label 포함
     const nonEmptyUpdates = filteredUpdates.filter((update) => {
       return (
         update.product_name !== undefined ||
         update.thumbnail !== undefined ||
         update.original_price !== undefined ||
         update.discounted_price !== undefined ||
-        update.sale_status !== undefined
+        update.sale_status !== undefined ||
+        update.test_normalized_product_name !== undefined ||
+        update.test_label !== undefined
       );
     });
 
