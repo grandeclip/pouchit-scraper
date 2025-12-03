@@ -1,5 +1,5 @@
 # 개발 환경용 Dockerfile
-# Volume mount + Hot reload 지원
+# 코드 변경 시 이미지 재빌드 필요 (docker-compose up --build)
 FROM mcr.microsoft.com/playwright:v1.56.1-noble
 
 WORKDIR /app
@@ -13,8 +13,10 @@ COPY package.json package-lock.json tsconfig.json ./
 # 의존성 설치 (dev dependencies 포함)
 RUN npm install
 
-# 소스 코드는 volume mount로 연결됨
-# (docker-compose.dev.yml에서 ./:/app으로 마운트)
+# 소스 코드 복사
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+COPY workflows/ ./workflows/
 
 # 환경 변수 설정
 ENV NODE_ENV=development
@@ -24,5 +26,5 @@ ENV PORT=3000
 # 포트 노출
 EXPOSE 3000
 
-# Hot reload with tsx watch
+# tsx로 실행
 CMD ["npm", "run", "dev"]

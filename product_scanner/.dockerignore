@@ -48,7 +48,6 @@ docker
 
 # Development files
 assets/
-scripts/
 results/
 .dockerignore
 

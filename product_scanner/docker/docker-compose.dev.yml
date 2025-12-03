@@ -12,8 +12,6 @@ x-worker-common: &worker-common
   env_file:
     - ../.env.local
   volumes:
-    - ../:/app
-    - /app/node_modules
     - ../logs:/app/logs
     - ../results:/app/results
   depends_on:
@@ -69,8 +67,6 @@ services:
     env_file:
       - ../.env.local
     volumes:
-      - ../:/app
-      - /app/node_modules
       - ../logs:/app/logs
       - ../results:/app/results
     depends_on:
@@ -175,8 +171,6 @@ services:
     env_file:
       - ../.env.local
     volumes:
-      - ../:/app
-      - /app/node_modules
       - ../logs:/app/logs
     depends_on:
       - redis
@@ -215,8 +209,6 @@ services:
     env_file:
       - ../.env.local
     volumes:
-      - ../:/app
-      - /app/node_modules
       - ../logs:/app/logs
     depends_on:
       - redis
@@ -245,8 +237,10 @@ services:
   redis:
     image: redis:8.2-alpine
     container_name: product_scanner_redis_dev
-    command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru --save ""
     restart: unless-stopped
+    tmpfs:
+      - /data
     deploy:
       resources:
         limits:
