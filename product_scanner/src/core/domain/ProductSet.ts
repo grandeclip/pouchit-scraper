@@ -22,6 +22,12 @@ const emptyToNull = <T extends z.ZodTypeAny>(schema: T) =>
  * Note: product_set_id와 product_id는 UUID 문자열입니다.
  * Note: 대부분의 필드가 nullable입니다 (데이터 안정성 보장)
  * Note: 빈 문자열("")은 null로 변환됩니다 (emptyToNull 전처리)
+ *
+ * Test Columns (LLM Product Labeling):
+ * - test_normalized_product_name: normalized_product_name의 테스트용 복사본
+ * - test_label: label의 테스트용 복사본
+ * - 이 컬럼들은 Gemini API 기반 LLM 라벨링 시스템 테스트에 사용됩니다.
+ * - 테스트 완료 후 실제 컬럼(normalized_product_name, label)으로 대체됩니다.
  */
 export const ProductSetSchema = z.object({
   product_set_id: z.string().uuid(),
@@ -40,6 +46,10 @@ export const ProductSetSchema = z.object({
   sale_status: emptyToNull(z.string().optional().nullable()),
   original_price: z.coerce.number().optional().nullable(),
   discounted_price: z.coerce.number().optional().nullable(),
+  mobile_link_url: emptyToNull(z.string().url().optional().nullable()),
+  // Test columns for LLM Product Labeling (Gemini API)
+  test_normalized_product_name: emptyToNull(z.string().optional().nullable()),
+  test_label: emptyToNull(z.string().optional().nullable()),
 });
 
 /**

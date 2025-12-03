@@ -645,15 +645,45 @@ label: "단품"
 | `아이오페 레티놀 세럼 + 리필`    | `리필`                  | `리필` |
 | `롬앤 틴트 단품`                 | ``                      | `단품` |
 
-### 테스트 실행
+### 스크립트 실행
 
 ```bash
 # Docker 개발 환경에서 실행
 make dev
 
-# 테스트 스크립트 (product_set_id 필요)
+# 1. 단일 테스트 (조회만, DB 저장 X)
 docker compose -f docker/docker-compose.dev.yml exec product_scanner_dev \
   npx tsx scripts/test-product-labeling.ts <product_set_id>
+
+# 2. 단일 업데이트 (조회 + DB 저장)
+docker compose -f docker/docker-compose.dev.yml exec product_scanner_dev \
+  npx tsx scripts/update-product-labeling.ts <product_set_id>
+
+# 3. 배치 업데이트 (sale_status='on_sale' 전체)
+docker compose -f docker/docker-compose.dev.yml exec product_scanner_dev \
+  npx tsx scripts/batch-update-product-labeling.ts
+
+# 4. 배치 업데이트 (LIMIT 지정)
+docker compose -f docker/docker-compose.dev.yml exec product_scanner_dev \
+  npx tsx scripts/batch-update-product-labeling.ts 100
+```
+
+**배치 업데이트 출력 예시**:
+
+```
+🔍 대상 조회 중... (sale_status='on_sale')
+   3500개 조회됨...
+📦 총 3500개 상품 처리 시작
+
+[1250/3500] 35.7% | ✓ 00c22c6e... | ⏱15분 30초 → 28분 | ✓1248 ✗2
+
+──────────────────────────────────────────────────
+✅ 완료!
+   총 처리: 3500개
+   성공: 3495개
+   실패: 5개
+   소요 시간: 2520.3초
+──────────────────────────────────────────────────
 ```
 
 **환경변수**: `GEMINI_API_KEY` 필요 (`.env.local`에 설정)
