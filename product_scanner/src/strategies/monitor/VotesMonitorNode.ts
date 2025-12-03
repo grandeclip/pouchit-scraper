@@ -30,6 +30,7 @@ import { PlatformDetector } from "@/services/extract/url/PlatformDetector";
 import { PlatformScannerRegistry } from "@/scanners/platform/PlatformScannerRegistry";
 import { BrowserScanExecutor } from "@/scanners/base/BrowserScanExecutor";
 import { applyAlertFilter, isNoFilterTimeWindow } from "@/utils/AlertFilter";
+import { MonitorResultWriter } from "@/utils/MonitorResultWriter";
 
 /**
  * 노드 입력 타입
@@ -53,6 +54,8 @@ export interface VotesMonitorOutput {
   failed_items: FailedVoteItem[];
   /** 알림 발송 여부 */
   notified: boolean;
+  /** JSONL 결과 파일 경로 */
+  jsonl_path?: string;
 }
 
 /**
@@ -126,24 +129,37 @@ export class VotesMonitorNode implements ITypedNodeStrategy<
       "[VotesMonitorNode] 모니터링 시작",
     );
 
+    // JSONL 스트리밍 Writer 초기화
+    const resultWriter = new MonitorResultWriter({
+      monitorType: this.type,
+      jobId: job_id,
+      workflowId: workflow_id,
+    });
+
     try {
-      // 1. 활성 투표 조회
+      // 1. Writer 초기화 (헤더 작성)
+      await resultWriter.initialize();
+
+      // 2. 활성 투표 조회
       const activeVotes = await this.votesRepository.findActiveVotes();
 
       if (activeVotes.length === 0) {
-        logger.info("[VotesMonitorNode] 활성 투표 없음");
+        // 로그 출력: 문제 없음 (터미널 + 파일)
+        logger.info(
+          { important: true, monitor: this.type, status: "success" },
+          "✅ [VotesMonitor] 활성 투표 없음 - 문제 없음",
+        );
 
-        // 디버그 모드: 활성 투표 없음 알림
-        if (debugMode) {
-          await this.sendAlert([], 0, logger);
-        }
+        // Writer 종료 (푸터 작성)
+        const { filePath } = await resultWriter.finalize(false);
 
         return createSuccessResult({
           total_votes: 0,
           success_count: 0,
           failed_count: 0,
           failed_items: [],
-          notified: debugMode,
+          notified: false,
+          jsonl_path: filePath,
         });
       }
 
@@ -152,31 +168,81 @@ export class VotesMonitorNode implements ITypedNodeStrategy<
         "[VotesMonitorNode] 활성 투표 조회 완료",
       );
 
-      // 2. 각 투표의 상품 스캔 (product_set_a, product_set_b 모두)
+      // 3. 각 투표의 상품 스캔 (product_set_a, product_set_b 모두, 스트리밍 저장)
       const failedItems: FailedVoteItem[] = [];
       let successCount = 0;
 
       for (const vote of activeVotes) {
-        const results = await this.scanVote(vote, logger);
+        const { id, product_set_a, product_set_b } = vote;
+
+        // A 스캔
+        const resultA = await this.scanProductSet(
+          id,
+          product_set_a,
+          "A",
+          logger,
+        );
+        await resultWriter.append({
+          product_set_id: product_set_a,
+          valid: resultA.success,
+          error: resultA.error,
+          link_url: resultA.link_url,
+          metadata: { vote_id: id, side: "A" },
+        });
+
+        if (!resultA.success) {
+          failedItems.push({
+            vote_id: id,
+            product_set_id: product_set_a,
+            side: "A",
+            link_url: resultA.link_url,
+            error: resultA.error,
+          });
+        }
+
+        // B 스캔
+        const resultB = await this.scanProductSet(
+          id,
+          product_set_b,
+          "B",
+          logger,
+        );
+        await resultWriter.append({
+          product_set_id: product_set_b,
+          valid: resultB.success,
+          error: resultB.error,
+          link_url: resultB.link_url,
+          metadata: { vote_id: id, side: "B" },
+        });
+
+        if (!resultB.success) {
+          failedItems.push({
+            vote_id: id,
+            product_set_id: product_set_b,
+            side: "B",
+            link_url: resultB.link_url,
+            error: resultB.error,
+          });
+        }
 
         // 둘 다 성공해야 성공
-        if (results.failedItems.length === 0) {
+        if (resultA.success && resultB.success) {
           successCount++;
-        } else {
-          failedItems.push(...results.failedItems);
         }
       }
 
+      const summary = resultWriter.getSummary();
       logger.info(
         {
-          total: activeVotes.length,
-          success: successCount,
-          failed: failedItems.length,
+          total_votes: activeVotes.length,
+          total_products: summary.total,
+          valid: summary.valid,
+          invalid: summary.invalid,
         },
         "[VotesMonitorNode] 스캔 완료",
       );
 
-      // 3. Alert 필터링 (플랫폼 기반)
+      // 4. Alert 필터링 (플랫폼 기반)
       const filterResult = applyAlertFilter(
         failedItems,
         (item) => item.link_url,
@@ -195,23 +261,49 @@ export class VotesMonitorNode implements ITypedNodeStrategy<
         );
       }
 
-      // 4. Alert 발송
-      const shouldNotify = debugMode || filteredFailedItems.length > 0;
-      if (shouldNotify) {
+      // 5. 상태 판정 및 Slack 알림
+      const hasProblems = filteredFailedItems.length > 0;
+
+      if (hasProblems) {
+        logger.info(
+          {
+            important: true,
+            monitor: this.type,
+            status: "failed",
+            total: activeVotes.length,
+            invalid: filteredFailedItems.length,
+          },
+          `🚨 [VotesMonitor] 문제 발견 - ${filteredFailedItems.length}건 실패`,
+        );
         await this.sendAlert(filteredFailedItems, activeVotes.length, logger);
+      } else {
+        logger.info(
+          {
+            important: true,
+            monitor: this.type,
+            status: "success",
+            total: activeVotes.length,
+            valid: summary.valid,
+          },
+          `✅ [VotesMonitor] 문제 없음 - 전체 ${activeVotes.length}건 정상`,
+        );
       }
 
-      // 5. 결과 반환
+      // 6. Writer 종료 (푸터 작성)
+      const { filePath } = await resultWriter.finalize(hasProblems);
+
+      // 7. 결과 반환
       const output: VotesMonitorOutput = {
         total_votes: activeVotes.length,
         success_count: successCount,
-        failed_count: failedItems.length, // 원본 실패 수
-        failed_items: failedItems, // 원본 실패 항목 (로깅용)
-        notified: shouldNotify,
+        failed_count: summary.invalid,
+        failed_items: failedItems,
+        notified: hasProblems,
+        jsonl_path: filePath,
       };
 
       logger.info(
-        { type: this.type, output },
+        { type: this.type, jsonl_path: filePath },
         "[VotesMonitorNode] 모니터링 완료",
       );
 
@@ -223,6 +315,9 @@ export class VotesMonitorNode implements ITypedNodeStrategy<
         { type: this.type, error: message },
         "[VotesMonitorNode] 모니터링 실패",
       );
+
+      // Writer 정리
+      await resultWriter.cleanup();
 
       return createErrorResult<VotesMonitorOutput>(message, "MONITOR_FAILED");
     } finally {
@@ -244,43 +339,6 @@ export class VotesMonitorNode implements ITypedNodeStrategy<
   async rollback(context: INodeContext): Promise<void> {
     context.logger.info({ type: this.type }, "Rollback - cleanup");
     await this.scanExecutor.cleanup();
-  }
-
-  /**
-   * 단일 투표 스캔 (A, B 모두 검사)
-   */
-  private async scanVote(
-    vote: ActiveVote,
-    logger: INodeContext["logger"],
-  ): Promise<{ failedItems: FailedVoteItem[] }> {
-    const { id, product_set_a, product_set_b } = vote;
-    const failedItems: FailedVoteItem[] = [];
-
-    // A 스캔
-    const resultA = await this.scanProductSet(id, product_set_a, "A", logger);
-    if (!resultA.success) {
-      failedItems.push({
-        vote_id: id,
-        product_set_id: product_set_a,
-        side: "A",
-        link_url: resultA.link_url,
-        error: resultA.error,
-      });
-    }
-
-    // B 스캔
-    const resultB = await this.scanProductSet(id, product_set_b, "B", logger);
-    if (!resultB.success) {
-      failedItems.push({
-        vote_id: id,
-        product_set_id: product_set_b,
-        side: "B",
-        link_url: resultB.link_url,
-        error: resultB.error,
-      });
-    }
-
-    return { failedItems };
   }
 
   /**

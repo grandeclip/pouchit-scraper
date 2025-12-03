@@ -33,6 +33,7 @@ import { PlatformDetector } from "@/services/extract/url/PlatformDetector";
 import { PlatformScannerRegistry } from "@/scanners/platform/PlatformScannerRegistry";
 import { BrowserScanExecutor } from "@/scanners/base/BrowserScanExecutor";
 import { applyAlertFilter, isNoFilterTimeWindow } from "@/utils/AlertFilter";
+import { MonitorResultWriter } from "@/utils/MonitorResultWriter";
 
 /**
  * 노드 입력 타입
@@ -56,6 +57,8 @@ export interface PickSectionsMonitorOutput {
   failed_items: FailedPickSectionItem[];
   /** 알림 발송 여부 */
   notified: boolean;
+  /** JSONL 결과 파일 경로 */
+  jsonl_path?: string;
 }
 
 /**
@@ -132,24 +135,38 @@ export class PickSectionsMonitorNode implements ITypedNodeStrategy<
       "[PickSectionsMonitorNode] 모니터링 시작",
     );
 
+    // JSONL 스트리밍 Writer 초기화
+    const resultWriter = new MonitorResultWriter({
+      monitorType: this.type,
+      jobId: job_id,
+      workflowId: workflow_id,
+    });
+
     try {
-      // 1. 모든 product_set 조회 (평탄화)
+      // 1. Writer 초기화 (헤더 작성)
+      await resultWriter.initialize();
+
+      // 2. 모든 product_set 조회 (평탄화)
       const productSets =
         await this.pickSectionsRepository.findAllProductSets();
 
       if (productSets.length === 0) {
-        logger.info("[PickSectionsMonitorNode] 검사할 product_set 없음");
+        // 로그 출력: 문제 없음 (터미널 + 파일)
+        logger.info(
+          { important: true, monitor: this.type, status: "success" },
+          "✅ [PickSectionsMonitor] 검사할 product_set 없음 - 문제 없음",
+        );
 
-        if (debugMode) {
-          await this.sendAlert([], 0, logger);
-        }
+        // Writer 종료 (푸터 작성)
+        const { filePath } = await resultWriter.finalize(false);
 
         return createSuccessResult({
           total_product_sets: 0,
           success_count: 0,
           failed_count: 0,
           failed_items: [],
-          notified: debugMode,
+          notified: false,
+          jsonl_path: filePath,
         });
       }
 
@@ -158,16 +175,26 @@ export class PickSectionsMonitorNode implements ITypedNodeStrategy<
         "[PickSectionsMonitorNode] product_set 조회 완료",
       );
 
-      // 2. 각 product_set 스캔
+      // 3. 각 product_set 스캔 (스트리밍 저장)
       const failedItems: FailedPickSectionItem[] = [];
-      let successCount = 0;
 
       for (const ps of productSets) {
         const result = await this.scanProductSet(ps, logger);
 
-        if (result.success) {
-          successCount++;
-        } else {
+        // 즉시 JSONL에 append
+        await resultWriter.append({
+          product_set_id: ps.product_set_id,
+          valid: result.success,
+          error: result.error,
+          link_url: result.link_url,
+          metadata: {
+            section: ps.section,
+            keyword: ps.keyword,
+            product_id: ps.product_id,
+          },
+        });
+
+        if (!result.success) {
           failedItems.push({
             section: ps.section,
             keyword: ps.keyword,
@@ -179,16 +206,17 @@ export class PickSectionsMonitorNode implements ITypedNodeStrategy<
         }
       }
 
+      const summary = resultWriter.getSummary();
       logger.info(
         {
-          total: productSets.length,
-          success: successCount,
-          failed: failedItems.length,
+          total: summary.total,
+          valid: summary.valid,
+          invalid: summary.invalid,
         },
         "[PickSectionsMonitorNode] 스캔 완료",
       );
 
-      // 3. Alert 필터링 (플랫폼 기반)
+      // 4. Alert 필터링 (플랫폼 기반)
       const filterResult = applyAlertFilter(
         failedItems,
         (item) => item.link_url,
@@ -207,23 +235,49 @@ export class PickSectionsMonitorNode implements ITypedNodeStrategy<
         );
       }
 
-      // 4. Alert 발송
-      const shouldNotify = debugMode || filteredFailedItems.length > 0;
-      if (shouldNotify) {
-        await this.sendAlert(filteredFailedItems, productSets.length, logger);
+      // 5. 상태 판정 및 Slack 알림
+      const hasProblems = filteredFailedItems.length > 0;
+
+      if (hasProblems) {
+        logger.info(
+          {
+            important: true,
+            monitor: this.type,
+            status: "failed",
+            total: summary.total,
+            invalid: filteredFailedItems.length,
+          },
+          `🚨 [PickSectionsMonitor] 문제 발견 - ${filteredFailedItems.length}건 실패`,
+        );
+        await this.sendAlert(filteredFailedItems, summary.total, logger);
+      } else {
+        logger.info(
+          {
+            important: true,
+            monitor: this.type,
+            status: "success",
+            total: summary.total,
+            valid: summary.valid,
+          },
+          `✅ [PickSectionsMonitor] 문제 없음 - 전체 ${summary.total}건 정상`,
+        );
       }
 
-      // 5. 결과 반환
+      // 6. Writer 종료 (푸터 작성)
+      const { filePath } = await resultWriter.finalize(hasProblems);
+
+      // 7. 결과 반환
       const output: PickSectionsMonitorOutput = {
-        total_product_sets: productSets.length,
-        success_count: successCount,
-        failed_count: failedItems.length, // 원본 실패 수
-        failed_items: failedItems, // 원본 실패 항목 (로깅용)
-        notified: shouldNotify,
+        total_product_sets: summary.total,
+        success_count: summary.valid,
+        failed_count: summary.invalid,
+        failed_items: failedItems,
+        notified: hasProblems,
+        jsonl_path: filePath,
       };
 
       logger.info(
-        { type: this.type, output },
+        { type: this.type, jsonl_path: filePath },
         "[PickSectionsMonitorNode] 모니터링 완료",
       );
 
@@ -235,6 +289,9 @@ export class PickSectionsMonitorNode implements ITypedNodeStrategy<
         { type: this.type, error: message },
         "[PickSectionsMonitorNode] 모니터링 실패",
       );
+
+      // Writer 정리
+      await resultWriter.cleanup();
 
       return createErrorResult<PickSectionsMonitorOutput>(
         message,

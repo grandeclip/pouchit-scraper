@@ -1139,7 +1139,13 @@ SCHEDULER_DEFAULT_LIMIT=1000             # 기본 LIMIT
 3. **플랫폼 필터링**: 기본적으로 6개 주요 플랫폼만 Alert 발송
    - oliveyoung, hwahae, musinsa, zigzag, ably, kurly
 4. **시간대 예외**: 15:00-15:30 KST에는 필터링 없이 전체 Alert 발송
-5. **Slack 알림**: ALERT_SLACK_CHANNEL_ID로 결과 발송
+5. **Slack 알림**: 문제 발견 시에만 ALERT_SLACK_CHANNEL_ID로 알림 발송
+   - "문제 없음" 상태에서는 Slack 알림을 보내지 않음
+6. **JSONL 결과 저장**: 모든 모니터링 결과를 JSONL 파일로 저장
+   - 경로: `results/{YYYY-MM-DD}/job_monitor_{type}_{job_id}.jsonl`
+   - 문제 있음/없음 모두 기록
+7. **로그 출력**: 성공/실패 상태를 터미널 및 파일 로그에 기록
+   - worker_alert 컨테이너에서 실행되어 로그 분리
 
 ### API 제어
 
@@ -1452,6 +1458,20 @@ workflow:
 ```
 
 ## 📝 변경 이력
+
+### v2.6.1 (2025-12-03) - Alert Watcher 개선
+
+**주요 변경사항**:
+
+- ✅ **JSONL 결과 저장**: 모니터링 결과를 JSONL 파일로 저장
+- ✅ **Slack 알림 조건 변경**: "문제 없음" 시 Slack 알림 미발송
+- ✅ **로그 개선**: 성공/실패 상태를 터미널 및 파일 로그에 명시적 기록
+
+**기술적 개선**:
+
+- `MonitorResultWriter`: 모니터링 전용 JSONL 저장 유틸리티 추가
+- 모든 모니터 노드: important 플래그로 로그 가시성 향상
+- 결과 파일 경로: `results/{YYYY-MM-DD}/job_monitor_{type}_{job_id}.jsonl`
 
 ### v2.6.0 (2025-12-02) - Alert Watcher 테이블 모니터링
 
