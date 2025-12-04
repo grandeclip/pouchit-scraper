@@ -234,19 +234,22 @@ LLM JSON 출력 → 각 컬럼 텍스트 생성:
 ## 구현 체크리스트
 
 - [x] LLM 프롬프트 초안 작성
-- [ ] package.json 패키지 추가 (`@google/genai`, `zod-to-json-schema`)
-- [ ] Zod 스키마 파일 생성
-- [ ] GeminiApiClient 리팩토링 (공식 SDK 사용)
-- [ ] ProductSetParsingService 구현
-- [ ] Postprocessor 구현
-- [ ] 테스트 작성
+- [x] package.json 패키지 추가 (`@google/genai`, `zod-to-json-schema`)
+- [x] Zod 스키마 파일 생성
+- [x] GoogleGenAIClient 구현 (공식 SDK 사용, 새 클라이언트)
+- [x] ProductSetParsingService 구현
+- [x] Postprocessor 구현
+- [x] 테스트 스크립트 작성
 - [ ] 메인 상품 2개 이상 케이스 예시 확인
 
 ## 관련 파일
 
-| 파일                                         | 설명                                  |
-| -------------------------------------------- | ------------------------------------- |
-| `src/llm/prompts/productSetParsingPrompt.ts` | LLM 프롬프트                          |
-| `src/llm/GeminiApiClient.ts`                 | Gemini API 클라이언트 (리팩토링 예정) |
-| `src/llm/schemas/`                           | Zod 스키마 (생성 예정)                |
-| `src/llm/postprocessors/`                    | 후처리 로직 (생성 예정)               |
+| 파일                                                | 설명                         |
+| --------------------------------------------------- | ---------------------------- |
+| `src/llm/prompts/productSetParsingPrompt.ts`        | LLM 프롬프트                 |
+| `src/llm/GoogleGenAIClient.ts`                      | Gemini 공식 SDK 클라이언트   |
+| `src/llm/ProductSetParsingService.ts`               | 파싱 서비스                  |
+| `src/llm/schemas/ProductSetParsingSchema.ts`        | Zod 스키마                   |
+| `src/llm/postprocessors/productSetPostprocessor.ts` | 후처리 로직                  |
+| `scripts/test-product-set-parsing.ts`               | 테스트 (문자열 입력)         |
+| `scripts/test-product-set-parsing-by-id.ts`         | 테스트 (product_set_id 입력) |

@@ -56,3 +56,38 @@ export type { LabelPreprocessResult } from "./postprocessors/labelPostprocessor"
 // Prompts
 export { normalizeProductPrompt } from "./prompts/normalizeProductPrompt";
 export { classificationPrompt } from "./prompts/classificationPrompt";
+export { productSetParsingPrompt } from "./prompts/productSetParsingPrompt";
+
+// Google GenAI Client (공식 SDK)
+export {
+  GoogleGenAIClient,
+  GoogleGenAIError,
+  getGoogleGenAIClient,
+} from "./GoogleGenAIClient";
+export type {
+  StructuredOutputParams,
+  StructuredOutputResult,
+  GenAIUsageMetadata,
+} from "./GoogleGenAIClient";
+
+// Schemas
+export { ProductItemSchema, ProductSetParsingSchema } from "./schemas";
+export type { ProductItem, ProductSetParsingResult } from "./schemas";
+
+// Product Set Parsing Service
+export {
+  ProductSetParsingService,
+  getProductSetParsingService,
+  parseProductSet,
+} from "./ProductSetParsingService";
+export type {
+  ProductSetParsingParams,
+  ProductSetParsingResponse,
+} from "./ProductSetParsingService";
+
+// Product Set Postprocessor
+export {
+  buildProductSetColumns,
+  createEmptyColumns,
+} from "./postprocessors/productSetPostprocessor";
+export type { ProductSetColumns } from "./postprocessors/productSetPostprocessor";
