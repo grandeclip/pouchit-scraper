@@ -22,10 +22,44 @@
 
 - `gemini-2.5-flash` (기본) 또는 `gemini-2.5-pro-preview`
 
+### thinkingBudget 설정
+
+Gemini 2.5의 `thinkingBudget` 파라미터로 reasoning 토큰 사용량 제어.
+
+**모델별 Range**:
+
+| 모델           | 범위         | 비고           |
+| -------------- | ------------ | -------------- |
+| 2.5 Flash      | 0 ~ 24,576   | 0으로 비활성화 |
+| 2.5 Flash-Lite | 512 ~ 24,576 | 기본값 OFF     |
+| 2.5 Pro        | 128 ~ 32,768 | 비활성화 불가  |
+
+**특수값**:
+
+| 값   | 의미                              |
+| ---- | --------------------------------- |
+| `0`  | Thinking 비활성화 (Pro 제외)      |
+| `-1` | Dynamic (복잡도에 따라 자동 조절) |
+
+**가격 (Gemini 2.5 Flash, per 1M tokens)**:
+
+| 항목                   | Free Tier | Paid Tier |
+| ---------------------- | --------- | --------- |
+| Input                  | 무료      | $0.30     |
+| Output (thinking 포함) | 무료      | $2.50     |
+
+**현재 설정**: `thinkingBudget: 0`
+
+- 이유: 패턴 매칭/텍스트 추출 작업 → reasoning 불필요
+- 복잡한 추론 없이 규칙 기반 분류만 수행
+- thinking ON 시 비용만 증가, 품질 향상 기대 어려움
+
 ### 참고 문서
 
 - [Google GenAI SDK (GitHub)](https://github.com/googleapis/js-genai)
 - [Gemini Structured Output](https://ai.google.dev/gemini-api/docs/structured-output)
+- [Gemini Thinking](https://ai.google.dev/gemini-api/docs/thinking)
+- [Gemini API Pricing](https://ai.google.dev/gemini-api/docs/pricing)
 
 ## 데이터 소스
 
@@ -117,6 +151,36 @@
 - **1회 호출**로 3개 컬럼 모두 생성
 - 핵심: 메인/증정품 분리 + 용량 파싱 (동일 로직)
 - 3개 컬럼 차이는 Postprocessing에서 필드 조합으로 해결
+
+### LLM 프롬프트 규칙
+
+```
+1. main_product_name과 매칭되는 상품만 main_products에 포함 (부분 일치 허용)
+2. 그 외 모든 상품은 gifts로 분류 (SET 구성품, 증정품, 샘플 모두 포함)
+3. SET 상품: main_product_name 외 다른 본품(50ml 등)도 매칭 안 되면 gifts
+4. 제거 대상: 브랜드명, 쇼핑몰 태그([직잭픽], [올영픽], [SET] 등)
+5. 용량 형식: "50ml", "2ml*3", "10g" 등에서 숫자와 단위 분리
+6. 단위(unit) 규칙:
+   - 부피/무게: ml, g, L, kg (영어)
+   - 개수: 매, 개, 장, 팩 (한글)
+   - ea, EA → "개"로 변환
+7. 개수(count): "*3", "x2" 등에서 추출, 없으면 1
+```
+
+**SET 상품 처리 예시**:
+
+```
+입력:
+  product_name: "[SET] 다이브인 세럼 50ml+밸런스풀 시카 컨트롤 세럼 50ml (+시카컨트롤세럼 10ml 2개)"
+  main_product_name: "다이브인 저분자 히알루론산 세럼"
+
+출력:
+  main_products: [다이브인 세럼 50ml]
+  gifts: [밸런스풀 시카 컨트롤 세럼 50ml, 시카컨트롤세럼 10ml*2]
+
+// "밸런스풀 시카 컨트롤 세럼"은 본품급(50ml)이지만
+// main_product_name과 매칭 안 됨 → gifts로 분류
+```
 
 ## Gemini Structured Output
 
@@ -240,7 +304,7 @@ LLM JSON 출력 → 각 컬럼 텍스트 생성:
 - [x] ProductSetParsingService 구현
 - [x] Postprocessor 구현
 - [x] 테스트 스크립트 작성
-- [ ] 메인 상품 2개 이상 케이스 예시 확인
+- [x] SET 상품 (본품 2개) 케이스 프롬프트 추가
 
 ## 관련 파일
 

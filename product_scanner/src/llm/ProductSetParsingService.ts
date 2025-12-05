@@ -79,10 +79,10 @@ main_product_name: "${mainProductName}"`;
   ): Promise<ProductSetParsingResponse> {
     const { productName, mainProductName, model } = params;
 
-    logger.debug(
-      { productName, mainProductName },
-      "[ProductSetParsing] 파싱 시작",
-    );
+    // logger.debug(
+    //   { productName, mainProductName },
+    //   "[ProductSetParsing] 파싱 시작",
+    // );
 
     try {
       const userPrompt = this.buildUserPrompt(productName, mainProductName);
@@ -95,14 +95,14 @@ main_product_name: "${mainProductName}"`;
           schema: ProductSetParsingSchema,
         });
 
-      logger.debug(
-        {
-          mainProductsCount: response.result.main_products.length,
-          giftsCount: response.result.gifts.length,
-          tokens: response.usage.totalTokenCount,
-        },
-        "[ProductSetParsing] 파싱 완료",
-      );
+      // logger.debug(
+      //   {
+      //     mainProductsCount: response.result.main_products.length,
+      //     giftsCount: response.result.gifts.length,
+      //     tokens: response.usage.totalTokenCount,
+      //   },
+      //   "[ProductSetParsing] 파싱 완료",
+      // );
 
       return response;
     } catch (err) {

@@ -166,10 +166,10 @@ export class GoogleGenAIClient {
     // Gemini 2.5 모델 thinking mode 지원 여부
     const supportsThinking = model.includes("2.5");
 
-    logger.debug(
-      { model, temperature, topP, maxOutputTokens, thinkingBudget },
-      "[GoogleGenAI] API 호출 시작",
-    );
+    // logger.debug(
+    //   { model, temperature, topP, maxOutputTokens, thinkingBudget },
+    //   "[GoogleGenAI] API 호출 시작",
+    // );
 
     try {
       const response = await this.client.models.generateContent({
@@ -204,13 +204,13 @@ export class GoogleGenAIClient {
         totalTokenCount: response.usageMetadata?.totalTokenCount ?? 0,
       };
 
-      logger.debug(
-        {
-          input_tokens: usage.promptTokenCount,
-          output_tokens: usage.candidatesTokenCount,
-        },
-        "[GoogleGenAI] API 호출 성공",
-      );
+      // logger.debug(
+      //   {
+      //     input_tokens: usage.promptTokenCount,
+      //     output_tokens: usage.candidatesTokenCount,
+      //   },
+      //   "[GoogleGenAI] API 호출 성공",
+      // );
 
       return { result, usage, model };
     } catch (err) {

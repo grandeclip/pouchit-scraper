@@ -16,15 +16,16 @@ export const productSetParsingPrompt = `
 - main_product_name: 메인 상품의 정식 이름 (브랜드명 제외)
 
 ## 규칙
-1. main_product_name과 일치하는 부분 = 메인 상품
-2. 나머지 = 증정품 (gift)
-3. 제거 대상: 브랜드명, 쇼핑몰 태그([직잭픽], [올영픽] 등)
-4. 용량 형식: "50ml", "2ml*3", "10g" 등에서 숫자와 단위 분리
-5. 단위(unit) 규칙:
+1. **main_product_name과 매칭되는 상품만** main_products에 포함 (부분 일치 허용)
+2. **그 외 모든 상품**은 gifts로 분류 (SET 구성품, 증정품, 샘플 모두 포함)
+3. SET 상품: main_product_name 외 다른 본품(50ml 등)도 매칭 안 되면 gifts
+4. 제거 대상: 브랜드명, 쇼핑몰 태그([직잭픽], [올영픽], [SET] 등)
+5. 용량 형식: "50ml", "2ml*3", "10g" 등에서 숫자와 단위 분리
+6. 단위(unit) 규칙:
    - 부피/무게 단위: ml, g, L, kg 등 → 영어 그대로 사용
    - 개수 단위: "매", "개", "장", "팩" 등 → 한글 그대로 사용
    - ea, EA → "개"로 변환
-6. 개수(count): "*3", "x2" 등에서 추출, 없으면 1
+7. 개수(count): "*3", "x2" 등에서 추출, 없으면 1
 
 ## 출력 JSON 스키마
 {
@@ -134,4 +135,45 @@ main_product_name: "워터뱅크 크림"
     }
   ]
 }
+
+### 입력 4 (SET 상품 - 본품 2개 포함)
+product_name: "[SET] 다이브인 세럼 50ml+밸런스풀 시카 컨트롤 세럼 50ml (+시카컨트롤세럼 10ml 2개+시카마스크 1매)"
+main_product_name: "다이브인 저분자 히알루론산 세럼"
+
+### 출력 4
+{
+  "main_products": [
+    {
+      "full_name": "다이브인 세럼",
+      "type": "세럼",
+      "volume": 50,
+      "unit": "ml",
+      "count": 1
+    }
+  ],
+  "gifts": [
+    {
+      "full_name": "밸런스풀 시카 컨트롤 세럼",
+      "type": "세럼",
+      "volume": 50,
+      "unit": "ml",
+      "count": 1
+    },
+    {
+      "full_name": "시카컨트롤세럼",
+      "type": "세럼",
+      "volume": 10,
+      "unit": "ml",
+      "count": 2
+    },
+    {
+      "full_name": "시카마스크",
+      "type": "마스크",
+      "volume": 1,
+      "unit": "매",
+      "count": 1
+    }
+  ]
+}
+// 주의: "밸런스풀 시카 컨트롤 세럼"은 본품급(50ml)이지만 main_product_name과 매칭 안 됨 → gifts
 `;
