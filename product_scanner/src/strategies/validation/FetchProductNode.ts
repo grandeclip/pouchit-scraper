@@ -54,9 +54,10 @@ const DEFAULT_CONFIG: FetchProductNodeConfig = {
 /**
  * FetchProductNode - Supabase 상품 조회 노드
  */
-export class FetchProductNode
-  implements ITypedNodeStrategy<FetchProductInput, FetchProductOutput>
-{
+export class FetchProductNode implements ITypedNodeStrategy<
+  FetchProductInput,
+  FetchProductOutput
+> {
   public readonly type = "fetch_product";
   public readonly name = "FetchProductNode";
 
@@ -79,10 +80,13 @@ export class FetchProductNode
     input: FetchProductInput,
     context: INodeContext,
   ): Promise<ITypedNodeResult<FetchProductOutput>> {
-    const { logger, platform, config } = context;
+    const { logger, platform, config, params } = context;
 
-    // Config 병합 (context.config > input)
-    const mergedInput = this.mergeInputWithConfig(input, config);
+    // Config 병합 (params > config > input)
+    // params: API 호출 시 전달된 파라미터 (limit 등)
+    // config: workflow JSON의 노드 설정
+    const mergedConfig = { ...config, ...params };
+    const mergedInput = this.mergeInputWithConfig(input, mergedConfig);
 
     logger.info(
       {
@@ -107,11 +111,12 @@ export class FetchProductNode
       }
 
       // Supabase 검색 실행
+      // limit이 undefined면 전체 조회 (자동 pagination)
       const products = await this.service.searchProducts({
         link_url_pattern: mergedInput.link_url_pattern,
         sale_status: mergedInput.sale_status,
         product_id: mergedInput.product_id,
-        limit: mergedInput.limit ?? this.nodeConfig.default_limit,
+        limit: mergedInput.limit,
       });
 
       // 배치 정보 계산
@@ -247,7 +252,7 @@ export class FetchProductNode
         input.link_url_pattern ?? (config.link_url_pattern as string),
       sale_status: input.sale_status ?? (config.sale_status as string),
       product_id: input.product_id ?? (config.product_id as string),
-      limit: input.limit ?? (config.limit as number),
+      limit: input.limit ?? (config.limit as number | undefined),
       batch_size: input.batch_size ?? (config.batch_size as number),
     };
   }

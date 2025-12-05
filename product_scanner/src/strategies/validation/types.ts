@@ -25,7 +25,7 @@ export interface FetchProductInput {
   /** 특정 product_id 조회 (Multi-Platform) */
   product_id?: string;
 
-  /** 조회 제한 수 */
+  /** 조회 제한 수. undefined면 전체 조회 (자동 pagination) */
   limit?: number;
 
   /** 배치 크기 (병렬 처리용) */

@@ -9,14 +9,18 @@ set -e
 
 API_BASE_URL="http://localhost:3989/api/v2"
 SALE_STATUS="${SALE_STATUS:-on_sale}"
-LIMIT="${LIMIT:-5}"
+# LIMIT: 생략 시 전체 조회, 지정 시 해당 개수만 조회
 BATCH_SIZE="${BATCH_SIZE:-10}"
 CONCURRENCY="${CONCURRENCY:-4}"
 UPDATE_SALE_STATUS="${UPDATE_SALE_STATUS:-true}"
 
 echo "🧪 올리브영 업데이트 워크플로우 테스트 시작"
 echo "📊 설정:"
-echo "   - LIMIT=${LIMIT}"
+if [ -n "$LIMIT" ]; then
+  echo "   - LIMIT=${LIMIT}"
+else
+  echo "   - LIMIT=(전체 조회)"
+fi
 echo "   - BATCH_SIZE=${BATCH_SIZE}"
 echo "   - CONCURRENCY=${CONCURRENCY}"
 echo "   - SALE_STATUS=${SALE_STATUS}"
@@ -25,6 +29,13 @@ echo ""
 
 # Step 1: 워크플로우 실행 요청
 echo "📤 워크플로우 실행 요청..."
+
+# LIMIT 파라미터 조건부 생성
+if [ -n "$LIMIT" ]; then
+  LIMIT_PARAM="\"limit\": ${LIMIT},"
+else
+  LIMIT_PARAM=""
+fi
 
 # JSON Payload 생성
 JSON_PAYLOAD=$(cat <<EOF
@@ -35,14 +46,13 @@ JSON_PAYLOAD=$(cat <<EOF
     "platform": "oliveyoung",
     "link_url_pattern": "oliveyoung.co.kr",
     "sale_status": "${SALE_STATUS}",
-    "limit": ${LIMIT},
+    ${LIMIT_PARAM}
     "batch_size": ${BATCH_SIZE},
     "concurrency": ${CONCURRENCY},
     "update_sale_status": ${UPDATE_SALE_STATUS}
   },
   "metadata": {
     "test": true,
-    
     "description": "올리브영 타입드 노드 업데이트 파이프라인 테스트"
   }
 }

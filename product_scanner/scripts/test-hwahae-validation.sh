@@ -13,14 +13,18 @@ set -e
 
 API_BASE_URL="http://localhost:3989/api/v2"
 SALE_STATUS="${SALE_STATUS:-on_sale}"
-LIMIT="${LIMIT:-5}"
+# LIMIT: 생략 시 전체 조회, 지정 시 해당 개수만 조회
 BATCH_SIZE="${BATCH_SIZE:-10}"
 CONCURRENCY="${CONCURRENCY:-1}"
 WAIT_TIME_MS="${WAIT_TIME_MS:-2500}"
 
 echo "🧪 화해 워크플로우 테스트 시작"
 echo "📊 설정:"
-echo "   - LIMIT=${LIMIT}"
+if [ -n "$LIMIT" ]; then
+  echo "   - LIMIT=${LIMIT}"
+else
+  echo "   - LIMIT=(전체 조회)"
+fi
 echo "   - BATCH_SIZE=${BATCH_SIZE}"
 echo "   - CONCURRENCY=${CONCURRENCY} (순차 처리)"
 echo "   - WAIT_TIME_MS=${WAIT_TIME_MS} (요청 간 대기)"
@@ -32,6 +36,13 @@ echo ""
 # Step 1: 워크플로우 실행 요청
 echo "📤 워크플로우 실행 요청..."
 
+# LIMIT 파라미터 조건부 생성
+if [ -n "$LIMIT" ]; then
+  LIMIT_PARAM="\"limit\": ${LIMIT},"
+else
+  LIMIT_PARAM=""
+fi
+
 # JSON Payload 생성
 JSON_PAYLOAD=$(cat <<EOF
 {
@@ -41,14 +52,13 @@ JSON_PAYLOAD=$(cat <<EOF
     "platform": "hwahae",
     "link_url_pattern": "hwahae.co.kr",
     "sale_status": "${SALE_STATUS}",
-    "limit": ${LIMIT},
+    ${LIMIT_PARAM}
     "batch_size": ${BATCH_SIZE},
     "concurrency": ${CONCURRENCY},
     "wait_time_ms": ${WAIT_TIME_MS}
   },
   "metadata": {
     "test": true,
-    
     "description": "화해 API 기반 검증 테스트 (Gentle Rate Limiting)"
   }
 }

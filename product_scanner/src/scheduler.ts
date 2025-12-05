@@ -77,7 +77,7 @@ function createUpdateJob(
       platform,
       link_url_pattern: PLATFORM_URL_PATTERNS[platform] || "",
       sale_status: saleStatus,
-      limit: SCHEDULER_CONFIG.DEFAULT_LIMIT,
+      // limit 생략 → undefined → 전체 조회 (자동 pagination)
       batch_size: SCHEDULER_CONFIG.DEFAULT_BATCH_SIZE,
       concurrency: SCHEDULER_CONFIG.DEFAULT_CONCURRENCY,
       update_sale_status: true,
@@ -114,7 +114,7 @@ async function runScheduler(): Promise<void> {
       inter_platform_delay_ms: SCHEDULER_CONFIG.INTER_PLATFORM_DELAY_MS,
       same_platform_cooldown_ms: SCHEDULER_CONFIG.SAME_PLATFORM_COOLDOWN_MS,
       on_sale_ratio: SCHEDULER_CONFIG.ON_SALE_RATIO,
-      default_limit: SCHEDULER_CONFIG.DEFAULT_LIMIT,
+      limit: "전체 조회 (자동 pagination)",
     },
     "[Scheduler] 스케줄러 컨테이너 시작 (API로 활성화 필요)",
   );
@@ -235,7 +235,7 @@ function logBanner(): void {
       same_platform_cooldown_s:
         SCHEDULER_CONFIG.SAME_PLATFORM_COOLDOWN_MS / 1000,
       on_sale_ratio: `${SCHEDULER_CONFIG.ON_SALE_RATIO}:1`,
-      default_limit: SCHEDULER_CONFIG.DEFAULT_LIMIT,
+      limit: "전체 조회 (자동 pagination)",
     },
     "[Scheduler] Platform Scheduler 시작",
   );

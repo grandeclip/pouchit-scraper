@@ -685,7 +685,14 @@ components:
           description: 우선순위 (1=최고, 10=최저)
         params:
           type: object
-          description: 워크플로우 파라미터
+          description: |
+            워크플로우 파라미터
+
+            **주요 파라미터**:
+            - `limit`: 조회할 상품 수. **생략 시 전체 조회** (자동 pagination)
+            - `sale_status`: 판매 상태 필터 (on_sale, off_sale)
+            - `batch_size`: 배치 크기
+            - `concurrency`: 동시 처리 수
         metadata:
           type: object
           description: 추가 메타데이터
@@ -810,8 +817,9 @@ components:
                   type: integer
                 on_sale_ratio:
                   type: integer
-                default_limit:
-                  type: integer
+                limit:
+                  type: string
+                  description: "전체 조회 (자동 pagination)"
             platforms:
               type: object
               description: 플랫폼별 상태
@@ -1059,11 +1067,14 @@ components:
 # | 변수 | 설명 | 기본값 |
 # |------|------|--------|
 # | API_URL | API 서버 주소 | http://localhost:3989 |
-# | LIMIT | 처리할 상품 수 | 5 |
+# | LIMIT | 조회할 상품 수. **생략 시 전체 조회** | 5 (테스트 스크립트) |
 # | BATCH_SIZE | 배치 크기 | 10 |
 # | CONCURRENCY | 동시 처리 수 | 1 (API), 4 (Playwright) |
 # | WAIT_TIME_MS | Rate limiting 대기 시간 | 2500 |
 # | SALE_STATUS | 대상 판매 상태 | on_sale |
 # | UPDATE_SALE_STATUS | 판매 상태 업데이트 여부 | true |
+#
+# **주의**: 스케줄러는 limit 없이 실행되어 **전체 상품을 자동 pagination으로 조회**합니다.
+# 테스트 시에만 LIMIT 환경변수를 사용하세요.
 #
 # ============================================================================

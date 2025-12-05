@@ -44,7 +44,7 @@ router.get("/status", async (_req: Request, res: Response) => {
           inter_platform_delay_ms: SCHEDULER_CONFIG.INTER_PLATFORM_DELAY_MS,
           same_platform_cooldown_ms: SCHEDULER_CONFIG.SAME_PLATFORM_COOLDOWN_MS,
           on_sale_ratio: SCHEDULER_CONFIG.ON_SALE_RATIO,
-          default_limit: SCHEDULER_CONFIG.DEFAULT_LIMIT,
+          limit: "전체 조회 (자동 pagination)",
         },
         platforms: platformStates,
       },

@@ -31,7 +31,6 @@
     },
     "fetch": {
       "config": {
-        "limit": "${limit}",
         "link_url_pattern": "zigzag.kr",
         "sale_status": "${sale_status}"
       },

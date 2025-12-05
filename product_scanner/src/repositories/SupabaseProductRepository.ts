@@ -68,12 +68,10 @@ export class SupabaseProductRepository implements IProductRepository {
    * @returns 검색된 상품 목록
    */
   async search(request: ProductSetSearchRequest): Promise<ProductSetEntity[]> {
-    const {
-      link_url_pattern,
-      sale_status,
-      product_id,
-      limit = API_CONFIG.DEFAULT_SEARCH_LIMIT,
-    } = request;
+    const { link_url_pattern, sale_status, product_id, limit } = request;
+
+    // limit이 없으면 전체 조회 (pagination), 있으면 제한 조회
+    const shouldFetchAll = limit === undefined;
 
     logger.info(
       {
@@ -81,33 +79,20 @@ export class SupabaseProductRepository implements IProductRepository {
         sale_status,
         product_id,
         limit,
+        fetchAll: shouldFetchAll,
       },
       "[Repository] 상품 검색 시작",
     );
 
     try {
-      // 쿼리 빌더 시작 (설정된 필드 목록 사용)
-      let query = this.client
-        .from(this.tableName)
-        .select(this.defaultFields.join(", "));
-
-      // WHERE 조건 추가
-      if (product_id) {
-        query = query.eq("product_id", product_id);
+      // 전체 조회 모드: pagination으로 모든 데이터 조회
+      if (shouldFetchAll) {
+        return await this.searchWithPagination(request);
       }
 
-      if (link_url_pattern) {
-        query = query.ilike("link_url", `%${link_url_pattern}%`);
-      }
+      // 제한 조회 모드: limit 적용
+      const query = this.buildSearchQuery(request).limit(limit);
 
-      if (sale_status) {
-        query = query.eq("sale_status", sale_status);
-      }
-
-      // LIMIT 적용
-      query = query.limit(limit);
-
-      // 쿼리 실행
       const { data, error } = await query;
 
       if (error) {
@@ -125,15 +110,7 @@ export class SupabaseProductRepository implements IProductRepository {
 
       logger.info({ count: data.length }, "[Repository] 검색 완료");
 
-      // 데이터 검증 및 변환
-      const entities = data.map((record) => {
-        // Zod 스키마로 검증
-        const validated = ProductSetSchema.parse(record);
-        // 도메인 엔티티로 변환
-        return ProductSetEntity.fromDbRecord(validated);
-      });
-
-      return entities;
+      return this.parseResults(data);
     } catch (error) {
       logger.error(
         { error: error instanceof Error ? error.message : String(error) },
@@ -141,6 +118,105 @@ export class SupabaseProductRepository implements IProductRepository {
       );
       throw error;
     }
+  }
+
+  /**
+   * 검색 쿼리 빌더 (공통 로직)
+   */
+  private buildSearchQuery(request: ProductSetSearchRequest) {
+    const { link_url_pattern, sale_status, product_id } = request;
+
+    let query = this.client
+      .from(this.tableName)
+      .select(this.defaultFields.join(", "));
+
+    if (product_id) {
+      query = query.eq("product_id", product_id);
+    }
+
+    if (link_url_pattern) {
+      query = query.ilike("link_url", `%${link_url_pattern}%`);
+    }
+
+    if (sale_status) {
+      query = query.eq("sale_status", sale_status);
+    }
+
+    return query;
+  }
+
+  /**
+   * Pagination으로 모든 결과 조회
+   *
+   * Supabase 1000개 제한을 우회하여 조건에 맞는 모든 데이터 조회
+   */
+  private async searchWithPagination(
+    request: ProductSetSearchRequest,
+  ): Promise<ProductSetEntity[]> {
+    const PAGE_SIZE = REPOSITORY_CONFIG.PAGINATION_PAGE_SIZE;
+    const allResults: ProductSetEntity[] = [];
+    let offset = 0;
+    let hasMore = true;
+    let pageCount = 0;
+
+    logger.info(
+      { request, pageSize: PAGE_SIZE },
+      "[Repository] Pagination 검색 시작",
+    );
+
+    while (hasMore) {
+      const query = this.buildSearchQuery(request).range(
+        offset,
+        offset + PAGE_SIZE - 1,
+      );
+
+      const { data, error } = await query;
+
+      if (error) {
+        logger.error(
+          { error: error.message, code: error.code, offset },
+          "[Repository] Pagination 쿼리 실패",
+        );
+        throw new Error(`Supabase query failed: ${error.message}`);
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+      } else {
+        const entities = this.parseResults(data);
+        allResults.push(...entities);
+        offset += PAGE_SIZE;
+        pageCount++;
+        hasMore = data.length === PAGE_SIZE;
+
+        logger.info(
+          {
+            page: pageCount,
+            fetched: data.length,
+            total: allResults.length,
+            hasMore,
+          },
+          "[Repository] Pagination 진행 중",
+        );
+      }
+    }
+
+    logger.info(
+      { totalCount: allResults.length, pageCount },
+      "[Repository] Pagination 검색 완료",
+    );
+
+    return allResults;
+  }
+
+  /**
+   * DB 레코드를 도메인 엔티티로 변환
+   */
+  private parseResults(data: unknown[]): ProductSetEntity[] {
+    return data.map((record) => {
+      const validated = ProductSetSchema.parse(record);
+      return ProductSetEntity.fromDbRecord(validated);
+    });
   }
 
   /**

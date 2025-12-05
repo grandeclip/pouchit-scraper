@@ -110,6 +110,20 @@ export const REPOSITORY_CONFIG = {
     "original_price",
     "discounted_price",
   ] as const,
+
+  /**
+   * Pagination 페이지 크기
+   * 환경변수: REPOSITORY_PAGE_SIZE
+   * 기본값: 1000
+   *
+   * 목적:
+   * - Supabase 1000개 제한 우회를 위한 pagination
+   * - limit 없이 전체 조회 시 사용
+   */
+  PAGINATION_PAGE_SIZE: parseInt(
+    process.env.REPOSITORY_PAGE_SIZE || "1000",
+    10,
+  ),
 } as const;
 
 /**
@@ -473,15 +487,9 @@ export const SCHEDULER_CONFIG = {
    */
   ON_SALE_RATIO: parseInt(process.env.SCHEDULER_ON_SALE_RATIO || "4", 10),
 
-  /**
-   * 기본 LIMIT 값
-   * 환경변수: SCHEDULER_DEFAULT_LIMIT
-   * 기본값: 1000
-   *
-   * 목적:
-   * - 각 Job에서 처리할 상품 수 제한
-   */
-  DEFAULT_LIMIT: parseInt(process.env.SCHEDULER_DEFAULT_LIMIT || "1000", 10),
+  // NOTE: DEFAULT_LIMIT 제거됨 (2025-12)
+  // 스케줄러는 limit 없이 실행 → 전체 조회 (자동 pagination)
+  // REPOSITORY_CONFIG.PAGINATION_PAGE_SIZE 사용
 
   /**
    * 기본 BATCH_SIZE 값
