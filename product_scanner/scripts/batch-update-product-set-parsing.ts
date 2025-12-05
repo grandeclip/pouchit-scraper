@@ -1,7 +1,7 @@
 /**
  * Product Set Parsing 배치 업데이트 스크립트
  *
- * sale_status가 'on_sale'인 모든 product_sets에 대해
+ * 모든 product_sets에 대해 (product_name이 있는 경우)
  * LLM 파싱을 수행하여 set_name, sanitized_item_name, structured_item_name 컬럼을 업데이트합니다.
  *
  * 사용법:
@@ -133,8 +133,8 @@ async function fetchTargetProductSets(
     const { data, error } = await supabase
       .from("product_sets")
       .select("product_set_id, product_name, product_id")
-      .eq("sale_status", "on_sale")
       .not("product_name", "is", null)
+      .neq("product_name", "")
       .not("product_id", "is", null)
       .limit(limit);
 
@@ -149,8 +149,8 @@ async function fetchTargetProductSets(
     const { data, error } = await supabase
       .from("product_sets")
       .select("product_set_id, product_name, product_id")
-      .eq("sale_status", "on_sale")
       .not("product_name", "is", null)
+      .neq("product_name", "")
       .not("product_id", "is", null)
       .range(offset, offset + PAGE_SIZE - 1);
 
@@ -296,7 +296,7 @@ async function main(): Promise<void> {
 
   // 1. product_sets 조회
   console.log(
-    `\n📦 product_sets 조회 중... (sale_status='on_sale'${limit ? `, LIMIT ${limit}` : ""})`,
+    `\n📦 product_sets 조회 중... (product_name 있는 데이터${limit ? `, LIMIT ${limit}` : ""})`,
   );
 
   const productSets = await fetchTargetProductSets(supabase, limit);

@@ -11,7 +11,7 @@
  *   job_id: string,
  *   platform: string,
  *   product_set_id: string,
- *   operation: "normalize" | "label" | "full",
+ *   operation: "normalize" | "label" | "full" | "product_set_parsing",
  *   model: string,
  *   input_tokens: number,
  *   output_tokens: number,
@@ -40,7 +40,7 @@ export interface LlmCostRecord {
   /** 상품 세트 ID */
   product_set_id: string;
   /** 작업 유형 */
-  operation: "normalize" | "label" | "full";
+  operation: "normalize" | "label" | "full" | "product_set_parsing";
   /** 사용 모델 */
   model: string;
   /** 입력 토큰 수 */
@@ -58,7 +58,7 @@ export interface LlmCostLogParams {
   job_id: string;
   platform: string;
   product_set_id: string;
-  operation: "normalize" | "label" | "full";
+  operation: "normalize" | "label" | "full" | "product_set_parsing";
   model: string;
   input_tokens: number;
   output_tokens: number;

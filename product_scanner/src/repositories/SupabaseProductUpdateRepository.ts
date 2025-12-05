@@ -147,20 +147,21 @@ export class SupabaseProductUpdateRepository implements IProductUpdateRepository
       }
 
       /**
-       * [임시/테스트] LLM Product Labeling 결과 저장
-       *
-       * ⚠️ 중요: 테스트 목적으로 test_ 접두사 컬럼에 저장됩니다.
-       * - test_normalized_product_name: LLM 정규화 상품명
-       * - test_label: LLM 상품 라벨
-       * - 테스트 완료 후 실제 컬럼(normalized_product_name, label)으로 전환 예정
+       * LLM Product Set Parsing 결과 저장
+       * - set_name: 메인 상품만 (타입 + 용량)
+       * - sanitized_item_name: 모든 항목 (타입 + 용량)
+       * - structured_item_name: 모든 항목 (full_name + 용량)
        */
-      if (data.test_normalized_product_name !== undefined) {
-        updateFields.test_normalized_product_name =
-          data.test_normalized_product_name;
+      if (data.set_name !== undefined) {
+        updateFields.set_name = data.set_name;
       }
 
-      if (data.test_label !== undefined) {
-        updateFields.test_label = data.test_label;
+      if (data.sanitized_item_name !== undefined) {
+        updateFields.sanitized_item_name = data.sanitized_item_name;
+      }
+
+      if (data.structured_item_name !== undefined) {
+        updateFields.structured_item_name = data.structured_item_name;
       }
 
       // UPDATE 실행 전 로깅
@@ -256,15 +257,15 @@ export class SupabaseProductUpdateRepository implements IProductUpdateRepository
       const update = updates[i];
 
       // 업데이트할 필드가 하나도 없으면 스킵
-      // [임시/테스트] test_normalized_product_name, test_label 포함
       const hasUpdates =
         update.product_name !== undefined ||
         update.thumbnail !== undefined ||
         update.original_price !== undefined ||
         update.discounted_price !== undefined ||
         update.sale_status !== undefined ||
-        update.test_normalized_product_name !== undefined ||
-        update.test_label !== undefined;
+        update.set_name !== undefined ||
+        update.sanitized_item_name !== undefined ||
+        update.structured_item_name !== undefined;
 
       if (!hasUpdates) {
         result.skipped_count++;

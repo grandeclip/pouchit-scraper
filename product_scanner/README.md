@@ -285,10 +285,13 @@ product_scanner/
 │   ├── hwahae-validation-node.test.ts
 │   └── supabase.test.ts
 ├── scripts/                       # 독립 실행 스크립트
-│   ├── test-hwahae-workflow.sh    # 화해 워크플로우 테스트
-│   ├── test-oliveyoung-workflow.sh  # 올영 워크플로우 테스트
-│   ├── test-oliveyoung-strategy.ts  # 올영 전략 단위 테스트
-│   └── test-product-labeling.ts   # LLM 라벨링 테스트
+│   ├── batch-update-product-set-parsing.ts  # Product Set LLM 배치 업데이트
+│   ├── calculate-llm-cost.ts      # LLM API 비용 계산기
+│   ├── test-product-set-parsing.ts  # Product Set 파싱 테스트 (CLI/대화형)
+│   ├── test-product-set-parsing-by-id.ts  # Product Set 파싱 테스트 (ID 기반)
+│   ├── scheduler-control.sh       # 스케줄러 제어 (start/stop/status)
+│   ├── worker-control.sh          # 워커 제어 (start/stop/status)
+│   └── test-*-validation.sh       # 플랫폼별 검증 테스트
 ├── workflows/                     # Workflow 정의 (JSON)
 │   ├── hwahae-validation-v1.json    # 화해 검증 워크플로우
 │   ├── oliveyoung-validation-v1.json  # 올영 검증 워크플로우
@@ -727,6 +730,88 @@ console.log(`총 레코드: ${stats.total_records}개`);
 | --------- | ------ |
 | 1,000건   | ~$0.60 |
 | 10,000건  | ~$6.00 |
+
+## 📜 스크립트 (scripts/)
+
+`scripts/` 폴더의 TypeScript 스크립트 사용법입니다.
+
+> **환경변수**: 모든 스크립트는 `.env.local` 파일에서 환경변수를 로드합니다.
+
+### batch-update-product-set-parsing.ts
+
+Product Set의 LLM 파싱 배치 업데이트 스크립트입니다.
+`product_name`이 있는 모든 데이터에 대해 `set_name`, `sanitized_item_name`, `structured_item_name` 컬럼을 업데이트합니다.
+
+```bash
+# 전체 실행
+npx tsx scripts/batch-update-product-set-parsing.ts
+
+# 개수 제한 (100개만)
+npx tsx scripts/batch-update-product-set-parsing.ts 100
+```
+
+**출력 예시**:
+
+```
+[3/100] 3.0% | ✓ 48ac57b7... | ⏱6초 → 4초 | ✓3 -0 ✗0 | $0.0028
+```
+
+### calculate-llm-cost.ts
+
+LLM API 비용 계산기입니다. `results/` 폴더의 `llm_cost__*.jsonl` 파일을 분석합니다.
+
+```bash
+# 오늘 날짜 파일 분석
+npx tsx scripts/calculate-llm-cost.ts
+
+# 특정 날짜
+npx tsx scripts/calculate-llm-cost.ts 2025-12-03
+
+# 직접 파일 경로 지정
+npx tsx scripts/calculate-llm-cost.ts results/2025-12-03/llm_cost__productset.jsonl
+```
+
+**출력 항목**:
+
+- 총 비용 (USD/KRW)
+- 토큰 사용량 (input/output)
+- 작업별, 플랫폼별, 모델별 비용 분류
+
+### test-product-set-parsing.ts
+
+Product Set 파싱 테스트 스크립트입니다. CLI 인자 또는 대화형 모드로 실행 가능합니다.
+
+```bash
+# CLI 모드 (인자 전달)
+npx tsx scripts/test-product-set-parsing.ts \
+  "[직잭픽] 토리든 다이브인 저분자 히알루론산 세럼 50ml+(다이브인 세럼 2ml*3매)" \
+  "다이브인 저분자 히알루론산 세럼"
+
+# 대화형 모드
+npx tsx scripts/test-product-set-parsing.ts
+```
+
+**출력 정보**:
+
+- LLM 파싱 결과 (main_products, gifts)
+- 후처리 결과 (set_name, sanitized_item_name, structured_item_name)
+- 토큰 사용량 및 비용
+
+### test-product-set-parsing-by-id.ts
+
+DB에서 `product_set_id`로 데이터를 조회하여 LLM 파싱을 테스트합니다.
+
+```bash
+npx tsx scripts/test-product-set-parsing-by-id.ts <product_set_id>
+
+# 예시
+npx tsx scripts/test-product-set-parsing-by-id.ts aa5347ff-d0df-4463-94bf-11311bd39088
+```
+
+**조회 테이블**:
+
+- `product_sets`: product_name 조회
+- `products`: main_product_name (name 컬럼) 조회
 
 ## 📊 로깅 시스템
 

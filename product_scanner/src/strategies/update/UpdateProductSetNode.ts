@@ -31,15 +31,18 @@ import {
   BatchUpdateResult,
 } from "@/core/interfaces/IProductUpdateRepository";
 import { IProductHistoryRepository } from "@/core/interfaces/IProductHistoryRepository";
+import { IProductNameRepository } from "@/core/interfaces/IProductNameRepository";
 import { SupabaseProductUpdateRepository } from "@/repositories/SupabaseProductUpdateRepository";
 import { SupabaseProductHistoryRepository } from "@/repositories/SupabaseProductHistoryRepository";
+import { SupabaseProductNameRepository } from "@/repositories/SupabaseProductNameRepository";
 import { ConfigLoader } from "@/config/ConfigLoader";
 import { JsonlParser, ProductValidationResult } from "@/utils/JsonlParser";
 import { getTimestampWithTimezone } from "@/utils/timestamp";
 import { UPDATE_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
 import { createJobLogger, logImportant } from "@/utils/LoggerContext";
-import { processProductLabelingWithUsage, logLlmCost } from "@/llm";
+import { ProductSetParsingService, logLlmCost } from "@/llm";
+import { buildProductSetColumns } from "@/llm/postprocessors/productSetPostprocessor";
 import { createClient } from "@supabase/supabase-js";
 import type { Logger } from "pino";
 import {
@@ -85,17 +88,21 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
 
   private readonly repository: IProductUpdateRepository;
   private readonly historyRepository: IProductHistoryRepository;
+  private readonly productNameRepository: IProductNameRepository;
   private readonly configLoader: ConfigLoader;
   private readonly nodeConfig: UpdateProductSetNodeConfig;
 
   constructor(
     repository?: IProductUpdateRepository,
     historyRepository?: IProductHistoryRepository,
+    productNameRepository?: IProductNameRepository,
     config?: Partial<UpdateProductSetNodeConfig>,
   ) {
     this.repository = repository ?? new SupabaseProductUpdateRepository();
     this.historyRepository =
       historyRepository ?? new SupabaseProductHistoryRepository();
+    this.productNameRepository =
+      productNameRepository ?? new SupabaseProductNameRepository();
     this.configLoader = ConfigLoader.getInstance();
     this.nodeConfig = { ...DEFAULT_CONFIG, ...config };
   }
@@ -189,8 +196,8 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         "JSONL 파싱 완료",
       );
 
-      // 3. [임시/테스트] LLM Product Labeling 처리
-      // product_name 변경 시 LLM 호출하여 test_normalized_product_name, test_label 생성
+      // 3. LLM Product Set Parsing 처리
+      // product_name 변경 시 LLM 호출하여 set_name, sanitized_item_name, structured_item_name 생성
       // 비용 정보는 results/{yyyy-mm-dd}/llm_cost__{yyyy-mm-dd}.jsonl에 기록됨
       const updatesWithLlm = await this.processLlmLabeling(
         allResults,
@@ -343,15 +350,10 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
   }
 
   /**
-   * [임시/테스트] LLM Product Labeling 처리
+   * LLM Product Set Parsing 처리
    *
    * product_name이 변경된 상품에 대해 LLM을 호출하여
-   * normalized_product_name과 label을 생성합니다.
-   *
-   * ⚠️ 중요: 테스트 목적으로 test_ 접두사 컬럼에 저장됩니다.
-   * - test_normalized_product_name: LLM 정규화 상품명
-   * - test_label: LLM 상품 라벨
-   * - 테스트 완료 후 실제 컬럼으로 전환 예정
+   * set_name, sanitized_item_name, structured_item_name을 생성합니다.
    *
    * 비용 정보는 results/{yyyy-mm-dd}/llm_cost__{yyyy-mm-dd}.jsonl에 기록됩니다.
    *
@@ -382,35 +384,66 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
 
     jobLogger.info(
       { count: nameChangedItems.length },
-      "[임시/테스트] LLM Product Labeling 시작",
+      "LLM Product Set Parsing 시작",
     );
+
+    const parsingService = new ProductSetParsingService();
+
+    // product_id → products.name 매핑 조회 (Repository 사용)
+    const productIds = [
+      ...new Set(nameChangedItems.map((item) => item.product_id)),
+    ];
+    const productNameMap =
+      await this.productNameRepository.getNamesByIds(productIds);
 
     // 병렬 LLM 호출 (Promise.allSettled로 실패 허용)
     const llmPromises = nameChangedItems.map(async (item) => {
       try {
         const productName = item.fetch!.product_name!;
-        const result = await processProductLabelingWithUsage(productName);
+        const mainProductName = productNameMap.get(item.product_id) ?? "";
 
-        // 비용 로깅 (각 usage 항목별로 기록)
-        for (const usage of result.usages) {
-          logLlmCost({
-            job_id: jobId,
-            platform,
+        if (!mainProductName) {
+          jobLogger.warn(
+            {
+              product_set_id: item.product_set_id,
+              product_id: item.product_id,
+            },
+            "products.name 없음 - 스킵",
+          );
+          return {
             product_set_id: item.product_set_id,
-            operation: usage.operation,
-            model: usage.model,
-            input_tokens: usage.input_tokens,
-            output_tokens: usage.output_tokens,
-          });
+            columns: null,
+            success: false,
+            inputTokens: 0,
+            outputTokens: 0,
+          };
         }
+
+        const response = await parsingService.parse({
+          productName,
+          mainProductName,
+        });
+
+        // 후처리: 3개 컬럼 생성
+        const columns = buildProductSetColumns(response.result);
+
+        // 비용 로깅
+        logLlmCost({
+          job_id: jobId,
+          platform,
+          product_set_id: item.product_set_id,
+          operation: "product_set_parsing",
+          model: response.model,
+          input_tokens: response.usage.promptTokenCount ?? 0,
+          output_tokens: response.usage.candidatesTokenCount ?? 0,
+        });
 
         return {
           product_set_id: item.product_set_id,
-          normalized_product_name: result.normalizedProductName,
-          label: result.label,
+          columns,
           success: true,
-          totalInputTokens: result.totalInputTokens,
-          totalOutputTokens: result.totalOutputTokens,
+          inputTokens: response.usage.promptTokenCount ?? 0,
+          outputTokens: response.usage.candidatesTokenCount ?? 0,
         };
       } catch (error) {
         jobLogger.warn(
@@ -418,15 +451,14 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
             product_set_id: item.product_set_id,
             error: error instanceof Error ? error.message : String(error),
           },
-          "[임시/테스트] LLM 호출 실패 - 스킵",
+          "LLM 호출 실패 - 스킵",
         );
         return {
           product_set_id: item.product_set_id,
-          normalized_product_name: null,
-          label: null,
+          columns: null,
           success: false,
-          totalInputTokens: 0,
-          totalOutputTokens: 0,
+          inputTokens: 0,
+          outputTokens: 0,
         };
       }
     });
@@ -436,7 +468,11 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
     // LLM 결과를 Map으로 변환
     const llmResultMap = new Map<
       string,
-      { normalized_product_name: string | null; label: string | null }
+      {
+        set_name: string;
+        sanitized_item_name: string;
+        structured_item_name: string;
+      }
     >();
 
     let successCount = 0;
@@ -445,14 +481,15 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
     let totalOutputTokens = 0;
 
     for (const result of llmResults) {
-      if (result.status === "fulfilled" && result.value.success) {
-        llmResultMap.set(result.value.product_set_id, {
-          normalized_product_name: result.value.normalized_product_name,
-          label: result.value.label,
-        });
+      if (
+        result.status === "fulfilled" &&
+        result.value.success &&
+        result.value.columns
+      ) {
+        llmResultMap.set(result.value.product_set_id, result.value.columns);
         successCount++;
-        totalInputTokens += result.value.totalInputTokens;
-        totalOutputTokens += result.value.totalOutputTokens;
+        totalInputTokens += result.value.inputTokens;
+        totalOutputTokens += result.value.outputTokens;
       } else {
         failedCount++;
       }
@@ -465,21 +502,18 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         total_input_tokens: totalInputTokens,
         total_output_tokens: totalOutputTokens,
       },
-      "[임시/테스트] LLM Product Labeling 완료",
+      "LLM Product Set Parsing 완료",
     );
 
-    // updates에 LLM 결과 추가 (test_ 접두사 컬럼)
+    // updates에 LLM 결과 추가
     const updatesWithLlm = updates.map((update) => {
       const llmResult = llmResultMap.get(update.product_set_id);
       if (llmResult) {
         return {
           ...update,
-          /**
-           * [임시/테스트] LLM 결과를 test_ 접두사 컬럼에 저장
-           * 테스트 완료 후 실제 컬럼(normalized_product_name, label)으로 전환 예정
-           */
-          test_normalized_product_name: llmResult.normalized_product_name,
-          test_label: llmResult.label,
+          set_name: llmResult.set_name,
+          sanitized_item_name: llmResult.sanitized_item_name,
+          structured_item_name: llmResult.structured_item_name,
         };
       }
       return update;
@@ -557,27 +591,21 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         }
       }
 
-      /**
-       * [임시/테스트] LLM Product Labeling 결과 보존
-       *
-       * ⚠️ 중요: 테스트 목적으로 test_ 접두사 컬럼에 저장됩니다.
-       * - test_normalized_product_name: LLM 정규화 상품명
-       * - test_label: LLM 상품 라벨
-       * - 테스트 완료 후 실제 컬럼으로 전환 예정
-       */
-      if (update.test_normalized_product_name !== undefined) {
-        filtered.test_normalized_product_name =
-          update.test_normalized_product_name;
+      // LLM Product Set Parsing 결과 보존
+      if (update.set_name !== undefined) {
+        filtered.set_name = update.set_name;
       }
-      if (update.test_label !== undefined) {
-        filtered.test_label = update.test_label;
+      if (update.sanitized_item_name !== undefined) {
+        filtered.sanitized_item_name = update.sanitized_item_name;
+      }
+      if (update.structured_item_name !== undefined) {
+        filtered.structured_item_name = update.structured_item_name;
       }
 
       return filtered;
     });
 
     // 업데이트할 필드가 없는 항목 제거
-    // [임시/테스트] test_normalized_product_name, test_label 포함
     const nonEmptyUpdates = filteredUpdates.filter((update) => {
       return (
         update.product_name !== undefined ||
@@ -585,8 +613,9 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         update.original_price !== undefined ||
         update.discounted_price !== undefined ||
         update.sale_status !== undefined ||
-        update.test_normalized_product_name !== undefined ||
-        update.test_label !== undefined
+        update.set_name !== undefined ||
+        update.sanitized_item_name !== undefined ||
+        update.structured_item_name !== undefined
       );
     });
 

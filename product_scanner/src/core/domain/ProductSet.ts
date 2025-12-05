@@ -23,11 +23,10 @@ const emptyToNull = <T extends z.ZodTypeAny>(schema: T) =>
  * Note: 대부분의 필드가 nullable입니다 (데이터 안정성 보장)
  * Note: 빈 문자열("")은 null로 변환됩니다 (emptyToNull 전처리)
  *
- * Test Columns (LLM Product Labeling):
- * - test_normalized_product_name: normalized_product_name의 테스트용 복사본
- * - test_label: label의 테스트용 복사본
- * - 이 컬럼들은 Gemini API 기반 LLM 라벨링 시스템 테스트에 사용됩니다.
- * - 테스트 완료 후 실제 컬럼(normalized_product_name, label)으로 대체됩니다.
+ * LLM Product Set Parsing Columns:
+ * - set_name: 메인 상품만 (타입 + 용량)
+ * - sanitized_item_name: 모든 항목 (타입 + 용량)
+ * - structured_item_name: 모든 항목 (full_name + 용량)
  */
 export const ProductSetSchema = z.object({
   product_set_id: z.string().uuid(),
@@ -47,9 +46,10 @@ export const ProductSetSchema = z.object({
   original_price: z.coerce.number().optional().nullable(),
   discounted_price: z.coerce.number().optional().nullable(),
   mobile_link_url: emptyToNull(z.string().url().optional().nullable()),
-  // Test columns for LLM Product Labeling (Gemini API)
-  test_normalized_product_name: emptyToNull(z.string().optional().nullable()),
-  test_label: emptyToNull(z.string().optional().nullable()),
+  // LLM Product Set Parsing columns
+  set_name: emptyToNull(z.string().optional().nullable()),
+  sanitized_item_name: emptyToNull(z.string().optional().nullable()),
+  structured_item_name: emptyToNull(z.string().optional().nullable()),
 });
 
 /**

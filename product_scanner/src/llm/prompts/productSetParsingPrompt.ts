@@ -16,16 +16,28 @@ export const productSetParsingPrompt = `
 - main_product_name: 메인 상품의 정식 이름 (브랜드명 제외)
 
 ## 규칙
-1. **main_product_name과 매칭되는 상품만** main_products에 포함 (부분 일치 허용)
-2. **그 외 모든 상품**은 gifts로 분류 (SET 구성품, 증정품, 샘플 모두 포함)
-3. SET 상품: main_product_name 외 다른 본품(50ml 등)도 매칭 안 되면 gifts
-4. 제거 대상: 브랜드명, 쇼핑몰 태그([직잭픽], [올영픽], [SET] 등)
-5. 용량 형식: "50ml", "2ml*3", "10g" 등에서 숫자와 단위 분리
-6. 단위(unit) 규칙:
+
+### 핵심 규칙: main_products 필수
+1. **main_product_name이 제공되면 반드시 하나 이상의 main_products 존재**
+2. product_name에서 main_product_name과 **가장 유사한 항목** 을 main_products에 포함
+3. 정확히 일치하지 않아도 **의미적으로 동일한 제품** 이면 main_products
+
+### 유연한 매칭 (다음 차이는 무시)
+- **띄어쓰기** : "밀키틴트" = "밀키 틴트"
+- **영한 혼용** : "폼 클렌저" = "포밍 클렌저"
+
+### 분류 기준
+4. main_product_name과 매칭되지 않는 **다른 상품**은 gifts로 분류
+5. SET 상품에서 본품급(50ml 등)이라도 main_product_name과 다르면 gifts
+
+### 포맷 규칙
+6. 제거 대상: 브랜드명, 쇼핑몰 태그([직잭픽], [올영픽], [SET] 등)
+7. 용량 형식: "50ml", "2ml*3", "10g" 등에서 숫자와 단위 분리
+8. 단위(unit) 규칙:
    - 부피/무게 단위: ml, g, L, kg 등 → 영어 그대로 사용
    - 개수 단위: "매", "개", "장", "팩" 등 → 한글 그대로 사용
    - ea, EA → "개"로 변환
-7. 개수(count): "*3", "x2" 등에서 추출, 없으면 1
+9. 개수(count): "*3", "x2" 등에서 추출, 없으면 1
 
 ## 출력 JSON 스키마
 {
@@ -176,4 +188,31 @@ main_product_name: "다이브인 저분자 히알루론산 세럼"
   ]
 }
 // 주의: "밸런스풀 시카 컨트롤 세럼"은 본품급(50ml)이지만 main_product_name과 매칭 안 됨 → gifts
+
+### 입력 5 (동의어 매칭 - 클렌저=클렌징폼)
+product_name: "[여드름기능성] 주미소 포어 퓨리파잉 살리실산 클렌징폼 120g 기획 (+20g)"
+main_product_name: "포어 퓨리파잉 살리실산 포밍 클렌저"
+
+### 출력 5
+{
+  "main_products": [
+    {
+      "full_name": "포어 퓨리파잉 살리실산 클렌징폼",
+      "type": "클렌징폼",
+      "volume": 120,
+      "unit": "g",
+      "count": 1
+    }
+  ],
+  "gifts": [
+    {
+      "full_name": "포어 퓨리파잉 살리실산 클렌징폼",
+      "type": "클렌징폼",
+      "volume": 20,
+      "unit": "g",
+      "count": 1
+    }
+  ]
+}
+// 주의: "클렌저"와 "클렌징폼"은 동의어 → main_products에 포함
 `;
