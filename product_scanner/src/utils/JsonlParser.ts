@@ -345,6 +345,8 @@ export class JsonlParser {
   /**
    * JSONL 파일에서 failed 항목 추출 (통합 메서드)
    *
+   * Header의 platform 정보를 사용하여 failed 항목에 적용
+   *
    * @param filePath JSONL 파일 경로
    * @returns failed 항목 정보 배열
    */
@@ -355,7 +357,48 @@ export class JsonlParser {
       platform: string;
     }>
   > {
+    // Header에서 platform 추출
+    const platform = await this.extractPlatformFromHeader(filePath);
     const results = await this.parseValidationResults(filePath);
-    return this.extractFailedItems(results);
+
+    // Header의 platform을 우선 사용
+    return results
+      .filter((r) => r.status === "failed" || r.status === "not_found")
+      .map((r) => ({
+        product_id: r.product_id,
+        product_set_id: r.product_set_id,
+        platform: r.platform ?? platform,
+      }));
+  }
+
+  /**
+   * JSONL Header에서 platform 추출
+   *
+   * @param filePath JSONL 파일 경로
+   * @returns platform 문자열 (없으면 "unknown")
+   */
+  static async extractPlatformFromHeader(filePath: string): Promise<string> {
+    try {
+      const content = await fs.readFile(filePath, "utf-8");
+      const lines = content.split("\n");
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        const record = JSON.parse(line);
+
+        // Header metadata에서 platform 추출
+        if (record._meta && record.type === "header" && record.platform) {
+          return record.platform;
+        }
+
+        // Header가 아닌 첫 번째 레코드를 만나면 중단
+        if (!record._meta) break;
+      }
+
+      return "unknown";
+    } catch {
+      return "unknown";
+    }
   }
 }
