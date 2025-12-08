@@ -12,31 +12,20 @@ Create a well-formatted GitHub PR for the current branch.
 
 ## Pre-PR Checklist
 
-**참고**: docker-compose 사용
-
-### product_search
+**참고**: make 사용
 
 ```bash
-cd product_search
-docker-compose up --build -d
-docker ps | grep product_search  # healthy 확인
-curl http://localhost:3000/health
-curl -X POST http://localhost:3000/search-products/oliveyoung \
-  -H "Content-Type: application/json" \
-  -d '{"brand":"라운드랩","productName":"선크림"}'
-docker-compose down
-```
+# 1. Docker Compose Build & Up
+make dev
 
-### product_scanner
+# 2. Container Status Check
+docker ps | grep product_scanner_dev  # healthy 확인
 
-```bash
-cd product_scanner
-docker-compose up --build -d
-docker ps | grep product_scanner  # healthy 확인
+# 3. Health Check
 curl http://localhost:3989/health
-docker cp test-supabase.ts product_scanner:/app/
-docker exec product_scanner npx tsx test-supabase.ts  # "✅ 연결 성공!" 확인
-docker-compose down
+
+# 4. Cleanup
+make dev-down
 ```
 
 ## Steps
@@ -88,7 +77,7 @@ refactor(config): Migrate YAML schema to v2
 
 **Types**: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`
 
-**Scopes**: `scraper`, `config`, `core`, `services`, `extractors`, `navigators`, `docker`, `docs`
+**Scopes**: `scanner`, `search`, `config`, `core`, `services`, `extractors`, `workflow`, `docker`, `docs`
 
 ## Example
 
