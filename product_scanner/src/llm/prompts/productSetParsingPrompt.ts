@@ -17,18 +17,22 @@ export const productSetParsingPrompt = `
 
 ## 규칙
 
-### 핵심 규칙: main_products 필수
-1. **main_product_name이 제공되면 반드시 하나 이상의 main_products 존재**
-2. product_name에서 main_product_name과 **가장 유사한 항목** 을 main_products에 포함
-3. 정확히 일치하지 않아도 **의미적으로 동일한 제품** 이면 main_products
+### 핵심 규칙: main_products 필수 (가장 중요!)
+1. **main_product_name이 제공되면 반드시 하나 이상의 main_products 출력**
+2. product_name에서 main_product_name과 **가장 유사한 항목**을 main_products에 포함
+3. 정확히 일치하지 않아도 **의미적으로 동일한 제품**이면 main_products
+4. **매칭 실패해도 빈 배열 금지**: product_name의 첫 번째(또는 유일한) 상품을 main_products로
 
 ### 유연한 매칭 (다음 차이는 무시)
-- **띄어쓰기** : "밀키틴트" = "밀키 틴트"
-- **영한 혼용** : "폼 클렌저" = "포밍 클렌저"
+- **띄어쓰기**: "밀키틴트" = "밀키 틴트"
+- **영한 혼용**: "폼 클렌저" = "포밍 클렌저"
+- **약어/별칭**: "비타C" = "비타민C", "스텝" = "스탭"
+- **라인명 생략**: "그린티 엔자임 잡티 토닝 세럼" ≈ "캡슐 세럼" (같은 브랜드 세럼)
+- **색상/호수만 표기**: "265 허쉬핑크" ≈ "섀도우" (색상명 = 제품)
 
 ### 분류 기준
-4. main_product_name과 매칭되지 않는 **다른 상품**은 gifts로 분류
-5. SET 상품에서 본품급(50ml 등)이라도 main_product_name과 다르면 gifts
+5. main_product_name과 매칭되지 않는 **다른 상품**은 gifts로 분류
+6. SET 상품에서 본품급(50ml 등)이라도 main_product_name과 다르면 gifts
 
 ### 포맷 규칙
 6. 제거 대상: 브랜드명, 쇼핑몰 태그([직잭픽], [올영픽], [SET] 등)
@@ -215,4 +219,43 @@ main_product_name: "포어 퓨리파잉 살리실산 포밍 클렌저"
   ]
 }
 // 주의: "클렌저"와 "클렌징폼"은 동의어 → main_products에 포함
+
+### 입력 6 (라인명 다름 - 같은 카테고리 제품)
+product_name: "이니스프리 비타C 그린티 엔자임 잡티 토닝 세럼, 50ml, 1개"
+main_product_name: "비타민C 캡슐 세럼"
+
+### 출력 6
+{
+  "main_products": [
+    {
+      "full_name": "비타C 그린티 엔자임 잡티 토닝 세럼",
+      "type": "세럼",
+      "volume": 50,
+      "unit": "ml",
+      "count": 1
+    }
+  ],
+  "gifts": []
+}
+// 주의: "비타C"="비타민C", 둘 다 세럼 → 같은 제품으로 간주 → main_products
+
+### 입력 7 (색상/호수만 표기 - 단일 상품)
+product_name: "스텝베이직 265 허쉬핑크"
+main_product_name: "스탭베이직 섀도우"
+
+### 출력 7
+{
+  "main_products": [
+    {
+      "full_name": "스텝베이직 265 허쉬핑크",
+      "type": "섀도우",
+      "volume": null,
+      "unit": "",
+      "count": 1
+    }
+  ],
+  "gifts": []
+}
+// 주의: "스텝"="스탭" 오타, "265 허쉬핑크"는 섀도우 색상명 → main_products
+// 용량 정보 없으면 volume: null, unit: ""
 `;
