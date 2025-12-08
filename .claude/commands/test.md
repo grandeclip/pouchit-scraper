@@ -4,41 +4,11 @@ description: 모듈별 Docker Compose 테스트 실행
 
 # Module Testing
 
-각 스크래퍼 모듈을 Docker Compose로 빌드하고 테스트합니다.
+Docker Compose로 빌드하고 테스트합니다.
 
-## product_search 테스트
-
-```bash
-cd product_search
-
-# 1. Build & Run
-docker-compose up --build -d
-
-# 2. Container Status
-docker ps | grep product_search
-
-# 3. Health Check
-curl http://localhost:3000/health
-
-# 4. API Test (선택적)
-curl -X POST http://localhost:3000/search-products/oliveyoung \
-  -H "Content-Type: application/json" \
-  -d '{"brand":"라운드랩","productName":"선크림"}'
-
-# 5. Logs Check
-docker logs product_search --tail 50
-
-# 6. Cleanup
-docker-compose down
-```
-
-## product_scanner 테스트
-
-### 배포 환경 테스트
+## 배포 환경 테스트
 
 ```bash
-cd product_scanner
-
 # 1. Build & Run (배포 환경)
 make prod
 # 또는: docker-compose up --build -d
@@ -62,14 +32,12 @@ make down
 # 또는: docker-compose down
 ```
 
-### 개발 환경 테스트
+## 개발 환경 테스트
 
 ```bash
-cd product_scanner
-
 # 1. Build & Run (개발 환경)
 make dev
-# 또는: docker-compose -f docker-compose.dev.yml up --build
+# 또는: docker-compose -f docker/docker-compose.dev.yml up --build
 
 # 2. Container Status
 docker ps | grep product_scanner_dev
@@ -174,14 +142,7 @@ lsof -i :<PORT>
 
 ## 환경 설정
 
-각 모듈은 다음 환경 변수가 필요할 수 있습니다:
-
-### product_search
-
-- `PORT`: 서버 포트 (기본값: 3000)
-- `NODE_ENV`: 환경 (production/development)
-
-### product_scanner
+다음 환경 변수가 필요합니다:
 
 - `PORT`: 서버 포트 (기본값: 3000, docker-compose: 3989)
 - `SUPABASE_URL`: Supabase 프로젝트 URL

@@ -9,12 +9,11 @@ Docker Volume Mount + Hot Reload 방식으로 개발 환경을 관리합니다.
 ## 🚀 개발 환경 시작
 
 ```bash
-# product_scanner 개발 환경 시작
-cd product_scanner
+# 개발 환경 시작
 make dev
 
 # 또는 수동 실행
-docker-compose -f docker-compose.dev.yml up --build
+docker-compose -f docker/docker-compose.dev.yml up --build
 ```
 
 **특징:**
@@ -30,7 +29,7 @@ docker-compose -f docker-compose.dev.yml up --build
 make type-check
 
 # 또는
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev npm run type-check
+docker-compose -f docker/docker-compose.dev.yml exec product_scanner_dev npm run type-check
 ```
 
 ## 🧪 테스트 실행
@@ -39,7 +38,7 @@ docker-compose -f docker-compose.dev.yml exec product_scanner_dev npm run type-c
 make test
 
 # 또는
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev npm test
+docker-compose -f docker/docker-compose.dev.yml exec product_scanner_dev npm test
 ```
 
 ## 📊 로그 확인
@@ -58,7 +57,7 @@ make logs-f
 make dev-down
 
 # 또는
-docker-compose -f docker-compose.dev.yml down
+docker-compose -f docker/docker-compose.dev.yml down
 ```
 
 ## 🔄 재시작
@@ -88,10 +87,8 @@ make dev-down
 
 ## ⚠️ 주의사항
 
-- **node_modules 격리**: `docker-compose.dev.yml`에서 `/app/node_modules` 볼륨으로 격리됨
-- **환경 변수**: `../.env.local` 파일 필요 (Supabase 설정)
-- **포트**: 3989번 포트 사용 (http://localhost:3989)
-- **Hot Reload**: TypeScript 파일 수정 시 자동 재시작 (1-2초 소요)
+- **환경 변수**: `.env.local` 파일 필요 (Supabase 설정)
+- **포트**: 3989번 포트 사용 (<http://localhost:3989>)
 
 ## 🐛 문제 해결
 
@@ -102,15 +99,15 @@ make dev-down
 lsof -i :3989
 
 # 기존 컨테이너 종료
-docker-compose -f docker-compose.dev.yml down
+docker-compose -f docker/docker-compose.dev.yml down
 ```
 
 ### 캐시 문제
 
 ```bash
 # 캐시 무시하고 재빌드
-docker-compose -f docker-compose.dev.yml build --no-cache
-docker-compose -f docker-compose.dev.yml up
+docker-compose -f docker/docker-compose.dev.yml build --no-cache
+docker-compose -f docker/docker-compose.dev.yml up
 ```
 
 ### node_modules 문제

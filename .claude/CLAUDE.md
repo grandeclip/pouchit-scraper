@@ -18,9 +18,8 @@ Docker-based web scraper module development project - An extensible system that 
 ## 🎯 Project Overview
 
 - **Type**: TypeScript + Docker + Playwright-based web scraping server
-- **Architecture**: Multi-module monorepo (each scraper is an independent Docker service)
-- **Reference**: `product_scanner/` - Product scanner module (completed)
-- **Goal**: Add new scraper modules
+- **Architecture**: 6개 플랫폼 상품 스캔 + 통합 검색 서비스
+- **Features**: Workflow 기반 대량 처리, Redis Job Queue, Supabase 연동
 
 ## 📚 Technology Stack
 
@@ -65,9 +64,9 @@ All code must strictly adhere to the following design patterns:
 - **ISP**: Client-specific interface segregation
 - **DIP**: Depend on abstractions, not concrete classes
 
-## 🔄 Workflow System (product_scanner)
+## 🔄 Workflow System
 
-The product_scanner module includes a **DAG-based workflow system** for automating bulk product validation.
+**DAG-based workflow system** for automating bulk product validation.
 
 ### Key Features
 
@@ -95,13 +94,11 @@ The product_scanner module includes a **DAG-based workflow system** for automati
 
 - **`next_nodes`** is an **array** (not single string) - supports multiple branches
 - Empty array `[]` means workflow termination
-- See `product_scanner/docs/WORKFLOW_DAG.md` for detailed DAG patterns
+- See `docs/WORKFLOW_DAG.md` for detailed DAG patterns
 
-## 📁 Directory Structure (Standard)
+## 📁 Directory Structure
 
-Each scraper module must follow the standard structure.
-
-**Reference**: See [product_scanner/README.md](../product_scanner/README.md#📁-디렉토리-구조) for complete directory structure and organization patterns.
+**Reference**: See [README.md](../README.md#📁-디렉토리-구조) for complete directory structure and organization patterns.
 
 ## 💻 Code Style Guidelines
 
@@ -182,7 +179,6 @@ import { HwahaeProduct } from "../../core/domain/HwahaeProduct";
 
 ```bash
 # Start development environment
-cd product_scanner
 make dev
 
 # Type check (inside container)
@@ -407,11 +403,10 @@ Each module must have:
 
 ### When Writing Code
 
-1. **Always check `product_scanner/` for reference patterns**
-2. **Type safety is non-negotiable** - no `any`, explicit types everywhere
-3. **Follow existing architecture** - don't reinvent patterns
-4. **YAML-first approach** - maximize configurability
-5. **Run `npx tsc --noEmit`** before marking any task complete
+1. **Type safety is non-negotiable** - no `any`, explicit types everywhere
+2. **Follow existing architecture** - don't reinvent patterns
+3. **YAML-first approach** - maximize configurability
+4. **Run `npx tsc --noEmit`** before marking any task complete
 
 ### When Reviewing Code
 
@@ -425,17 +420,15 @@ Each module must have:
 
 ### Internal Reference
 
-- `product_scanner/README.md` - Architecture documentation
-- `product_scanner/config/platforms/*.yaml` - YAML examples
-- `product_scanner/core/` - Domain model reference
-- `product_scanner/scrapers/base/` - Base class patterns
+- `README.md` - Architecture documentation
+- `src/config/platforms/*.yaml` - YAML examples
+- `src/core/` - Domain model reference
+- `src/scanners/base/` - Base class patterns
 
 ### Pattern Examples
 
-- Strategy Pattern → `ConfigDrivenScraper.ts`
-- Factory Pattern → `ScraperFactory.ts`
-- Registry Pattern → `ScraperRegistry.ts`
-- Repository Pattern → `SupabaseProductRepository.ts`
-- Command Pattern → `ActionExecutor.ts`
-- Template Method → `BaseScraper.ts`
-- Facade Pattern → `ProductSearchService.ts`
+- Factory Pattern → `src/scanners/base/ScannerFactory.ts`
+- Registry Pattern → `src/services/ScannerRegistry.ts`
+- Repository Pattern → `src/repositories/SupabaseProductRepository.ts`
+- Template Method → `src/scanners/base/BaseScanner.ts`
+- Facade Pattern → `src/services/ProductSearchService.ts`

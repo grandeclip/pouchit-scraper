@@ -11,8 +11,6 @@ description: "Docker 관리 명령어 (개발/배포 환경 관리)"
 ### 시작/종료
 
 ```bash
-cd product_scanner
-
 # 시작
 make dev
 
@@ -29,7 +27,7 @@ make dev-restart
 # 컨테이너 상태
 make status
 # 또는
-docker-compose -f docker-compose.dev.yml ps
+docker-compose -f docker/docker-compose.dev.yml ps
 
 # 로그 확인
 make logs        # 전체 로그
@@ -41,8 +39,6 @@ make logs-f      # 실시간 로그 (tail -f)
 ### 시작/종료
 
 ```bash
-cd product_scanner
-
 # 시작 (백그라운드)
 make prod
 
@@ -94,7 +90,7 @@ curl http://localhost:3989/health
 make clean
 
 # 또는 수동
-docker-compose -f docker-compose.dev.yml down -v --rmi all
+docker-compose -f docker/docker-compose.dev.yml down -v --rmi all
 docker-compose down -v --rmi all
 ```
 
@@ -114,7 +110,7 @@ docker system prune -af --volumes
 
 ```bash
 # 개발 환경
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev sh
+docker-compose -f docker/docker-compose.dev.yml exec product_scanner_dev sh
 
 # 배포 환경
 docker-compose exec product_scanner sh
@@ -124,7 +120,7 @@ docker-compose exec product_scanner sh
 
 ```bash
 # 개발 환경에서 타입 체크
-docker-compose -f docker-compose.dev.yml exec product_scanner_dev npm run type-check
+docker-compose -f docker/docker-compose.dev.yml exec product_scanner_dev npm run type-check
 
 # 배포 환경에서 테스트
 docker-compose exec product_scanner npm test
@@ -132,18 +128,18 @@ docker-compose exec product_scanner npm test
 
 ## 📊 환경 비교
 
-| 항목             | 개발 환경                    | 배포 환경                   |
-| ---------------- | ---------------------------- | --------------------------- |
-| **Dockerfile**   | `Dockerfile.dev`             | `Dockerfile` (Multi-stage)  |
-| **Compose 파일** | `docker-compose.dev.yml`     | `docker-compose.yml`        |
-| **Volume Mount** | ✅ Yes (`./:/app`)           | ❌ No                       |
-| **Hot Reload**   | ✅ tsx watch                 | ❌ tsx (일반)               |
-| **node_modules** | 컨테이너 격리                | 이미지 내장                 |
-| **포트**         | 3989 (외부) / 3000 (내부)    | 3989 (외부) / 3000 (내부)   |
-| **Image Size**   | ~800MB                       | ~600MB (최적화)             |
-| **시작 명령어**  | `make dev`                   | `make prod`                 |
-| **빌드 시간**    | 최초 1회 (이후 volume mount) | 매번 빌드 (production only) |
-| **용도**         | 로컬 개발, 디버깅            | 배포, 운영 환경             |
+| 항목             | 개발 환경                       | 배포 환경                   |
+| ---------------- | ------------------------------- | --------------------------- |
+| **Dockerfile**   | `docker/Dockerfile.dev`         | `Dockerfile` (Multi-stage)  |
+| **Compose 파일** | `docker/docker-compose.dev.yml` | `docker-compose.yml`        |
+| **Volume Mount** | ✅ Yes (`./:/app`)              | ❌ No                       |
+| **Hot Reload**   | ✅ tsx watch                    | ❌ tsx (일반)               |
+| **node_modules** | 컨테이너 격리                   | 이미지 내장                 |
+| **포트**         | 3989 (외부) / 3000 (내부)       | 3989 (외부) / 3000 (내부)   |
+| **Image Size**   | ~800MB                          | ~600MB (최적화)             |
+| **시작 명령어**  | `make dev`                      | `make prod`                 |
+| **빌드 시간**    | 최초 1회 (이후 volume mount)    | 매번 빌드 (production only) |
+| **용도**         | 로컬 개발, 디버깅               | 배포, 운영 환경             |
 
 ## 🐛 일반적인 문제 해결
 
@@ -162,7 +158,7 @@ make down
 
 ```bash
 # 캐시 없이 재빌드
-docker-compose -f docker-compose.dev.yml build --no-cache
+docker-compose -f docker/docker-compose.dev.yml build --no-cache
 docker-compose build --no-cache
 ```
 
@@ -186,7 +182,7 @@ docker-compose ps
 
 ## 📖 추가 참고 자료
 
-- 상세 가이드: `product_scanner/docker/README.md`
+- 상세 가이드: `docker/README.md`
 - 개발 환경: `/dev` 명령어
 - 테스트: `/test` 명령어
 - 프로젝트 가이드: `.claude/CLAUDE.md`

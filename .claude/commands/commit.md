@@ -18,24 +18,19 @@ Complete pre-commit checks and create a commit.
 
 **참고**: docker build 대신 make를 사용합니다.
 
-### product_scanner 모듈
-
 ```bash
-cd product_scanner
-
 # 1. Docker Compose Build & Up
 make dev
 
 # 2. Container Status Check
 docker ps | grep product_scanner_dev
-docker ps | grep workflow_worker_dev
 # STATUS가 "healthy"인지 확인
 
 # 3. Health Check
 curl http://localhost:3989/health
 
-# 5. Cleanup
-make down
+# 4. Cleanup
+make dev-down
 ```
 
 ## Steps
@@ -76,12 +71,13 @@ git commit -m "type(scope): 한글로 작성된 설명
 
 프로젝트 구조에 맞는 스코프:
 
-- `scraper`: 스크래퍼 모듈 (product_search 등)
+- `scanner`: 스캐너/스크래퍼 모듈
+- `search`: 상품 검색 기능
 - `config`: YAML 설정 파일
 - `core`: 도메인 모델, 인터페이스
 - `services`: 비즈니스 로직 서비스
 - `extractors`: 데이터 추출 로직
-- `navigators`: 페이지 네비게이션
+- `workflow`: 워크플로우 관련
 - `docker`: Docker/배포 설정
 - `docs`: 문서화
 
