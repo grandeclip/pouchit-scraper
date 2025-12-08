@@ -21,21 +21,30 @@ strategies:
     api:
       interceptPattern: "/api/v2/screens/SEARCH_RESULT"
       navigation:
+        # 1. 홈 먼저 방문 (세션/쿠키 초기화)
+        - action: goto
+          url: "https://m.a-bly.com"
+          waitUntil: domcontentloaded
+          timeout: 15000
+        - action: wait
+          timeout: 1500
+        # 2. 검색 페이지 이동
         - action: goto
           url: "https://m.a-bly.com/search"
           waitUntil: domcontentloaded
-          timeout: 30000
+          timeout: 15000
         - action: wait
-          timeout: 1000
+          timeout: 1500
+        # 3. 검색어 입력
         - action: fill
-          selector: 'input[placeholder*="무료배송"], input[type="search"]'
+          selector: 'input[placeholder*="무료배송"]'
           value: "${keyword}"
         - action: press
           key: Enter
         - action: wait
-          timeout: 5000
-      timeout: 60000
-      responseTimeout: 30000
+          timeout: 3000
+      timeout: 30000
+      responseTimeout: 20000
 
 # 필드 매핑 (API 응답 → SearchProduct)
 # 응답 경로: components[].entity.item_list[].item

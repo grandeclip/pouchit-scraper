@@ -20,6 +20,7 @@ strategies:
       deviceScaleFactor: 3
     api:
       interceptPattern: "/api2/dp/v1/plp/goods"
+      excludePattern: "/label"
       navigation:
         - action: goto
           url: "https://www.musinsa.com/search/goods?keyword=${keyword}"

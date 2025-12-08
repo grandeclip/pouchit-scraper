@@ -12,7 +12,7 @@ import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { RedisSearchRepository } from "@/repositories/RedisSearchRepository";
 import { SearchJobRequestSchema } from "@/core/domain/search/SearchJob";
-import { UnifiedSearchService } from "@/services/UnifiedSearchService";
+import { SearchQueueService } from "@/services/SearchQueueService";
 import { getSupportedSearchPlatforms } from "@/searchers";
 import { logger } from "@/config/logger";
 
@@ -21,19 +21,9 @@ import { logger } from "@/config/logger";
  */
 const UnifiedSearchRequestSchema = z.object({
   brand: z.string().min(1, "brand is required"),
-  productName: z.string().min(1, "productName is required"),
+  productName: z.string().default(""),
   maxPerPlatform: z.number().int().min(1).max(20).default(5),
 });
-
-// UnifiedSearchService 싱글톤 인스턴스
-let unifiedSearchService: UnifiedSearchService | null = null;
-
-function getUnifiedSearchService(): UnifiedSearchService {
-  if (!unifiedSearchService) {
-    unifiedSearchService = new UnifiedSearchService();
-  }
-  return unifiedSearchService;
-}
 
 const router = Router();
 
@@ -306,9 +296,9 @@ router.post("/unified", async (req: Request, res: Response) => {
       "[SearchRouter] 통합 검색 요청",
     );
 
-    // 통합 검색 실행
-    const service = getUnifiedSearchService();
-    const result = await service.search({
+    // 통합 검색 실행 (Queue를 통해 동시 1개만 처리)
+    const queueService = SearchQueueService.getInstance();
+    const result = await queueService.search({
       brand: request.brand,
       productName: request.productName,
       maxPerPlatform: request.maxPerPlatform,
@@ -340,6 +330,24 @@ router.post("/unified", async (req: Request, res: Response) => {
       message: error instanceof Error ? error.message : String(error),
     });
   }
+});
+
+/**
+ * GET /api/v2/search/unified/status
+ *
+ * 통합 검색 큐 상태 조회
+ */
+router.get("/unified/status", (_req: Request, res: Response) => {
+  const queueService = SearchQueueService.getInstance();
+  const status = queueService.getStatus();
+
+  res.json({
+    success: true,
+    data: {
+      is_processing: status.isProcessing,
+      waiting_count: status.waitingCount,
+    },
+  });
 });
 
 export default router;

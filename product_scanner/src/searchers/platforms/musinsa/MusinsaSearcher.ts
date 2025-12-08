@@ -72,9 +72,10 @@ export class MusinsaSearcher extends PlaywrightApiSearcher<MusinsaApiResponse> {
 
   /**
    * 총 결과 수 추출
+   * pagination.total이 없으면 products 길이로 fallback
    */
   protected extractTotalCountFromApi(response: MusinsaApiResponse): number {
-    return response.data?.pagination?.total ?? 0;
+    return response.data?.pagination?.total ?? response.data?.list?.length ?? 0;
   }
 
   /**

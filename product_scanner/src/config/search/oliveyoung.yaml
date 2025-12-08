@@ -20,15 +20,24 @@ strategies:
       deviceScaleFactor: 3
     api:
       interceptPattern: "/search/api/v3/common/unified-search/goods"
+      excludePattern: "filters"
       navigation:
+        # 1. 홈 먼저 방문 (세션/쿠키 초기화)
+        - action: goto
+          url: "https://m.oliveyoung.co.kr"
+          waitUntil: domcontentloaded
+          timeout: 15000
+        - action: wait
+          timeout: 1000
+        # 2. 검색 결과 페이지 이동
         - action: goto
           url: "https://m.oliveyoung.co.kr/m/mtn/search/result?query=${encodedKeyword}"
-          waitUntil: domcontentloaded
+          waitUntil: networkidle
           timeout: 30000
         - action: wait
-          timeout: 3000
-      timeout: 60000
-      responseTimeout: 30000
+          timeout: 2000
+      timeout: 45000
+      responseTimeout: 20000
 
 # 필드 매핑 (API 응답 → SearchProduct)
 # 응답 경로: data.oliveGoods.data[]

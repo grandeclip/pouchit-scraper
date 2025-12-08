@@ -19,16 +19,24 @@ strategies:
       hasTouch: true
       deviceScaleFactor: 3
     api:
-      interceptPattern: "/search/v4/sites/market/normal-search"
+      interceptPattern: "normal-search"
       navigation:
+        # 1. 홈 먼저 방문 (세션/쿠키 초기화)
+        - action: goto
+          url: "https://www.kurly.com"
+          waitUntil: domcontentloaded
+          timeout: 15000
+        - action: wait
+          timeout: 2000
+        # 2. 검색 결과 페이지 이동
         - action: goto
           url: "https://www.kurly.com/search?sword=${keyword}"
           waitUntil: domcontentloaded
           timeout: 30000
         - action: wait
           timeout: 3000
-      timeout: 60000
-      responseTimeout: 30000
+      timeout: 45000
+      responseTimeout: 20000
 
 # 필드 매핑 (API 응답 → SearchProduct)
 # 응답 경로: data.listSections[0].data.items[]

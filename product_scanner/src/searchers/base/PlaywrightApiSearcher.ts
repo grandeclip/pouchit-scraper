@@ -5,7 +5,7 @@
  * 역할:
  * - Playwright 브라우저로 페이지 접속
  * - API 응답 인터셉트하여 상품 데이터 추출
- * - BrowserPool 활용 (리소스 효율화)
+ * - 독립 브라우저 생성/정리 (플랫폼별 격리)
  *
  * 사용 플랫폼:
  * - OliveYoung, Musinsa, Ably, Kurly (Cloudflare 보호)
@@ -14,12 +14,13 @@
  * - SRP: Playwright API 인터셉트 검색만 담당
  * - OCP: 플랫폼별 확장 가능 (parseApiResponse 오버라이드)
  * - LSP: BaseSearcher 대체 가능
- * - DIP: BrowserPool, SearchConfig에 의존
+ * - DIP: SearchConfig에 의존
  */
 
 import type { Browser, BrowserContext, Page, Response } from "playwright";
+import { chromium } from "playwright-extra";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { BaseSearcher } from "@/searchers/base/BaseSearcher";
-import { BrowserPool } from "@/scanners/base/BrowserPool";
 import type {
   SearchRequest,
   SearchProduct,
@@ -31,6 +32,11 @@ import type {
   ApiInterceptConfig,
 } from "@/core/domain/search/SearchConfig";
 import { logger } from "@/config/logger";
+import { BROWSER_ARGS } from "@/config/BrowserArgs";
+
+// Stealth 플러그인 적용
+const stealth = StealthPlugin();
+chromium.use(stealth);
 
 /**
  * API 인터셉트 결과
@@ -75,20 +81,15 @@ export abstract class PlaywrightApiSearcher<
   }
 
   /**
-   * 초기화 (BrowserPool에서 Browser 획득)
+   * 초기화 (독립 브라우저 생성)
+   * 각 플랫폼이 독립적으로 브라우저를 생성하여 격리된 환경에서 실행
    */
   protected async doInitialize(): Promise<void> {
-    const poolOptions = {
-      poolSize: 1, // Search는 단일 브라우저로 충분
-      browserOptions: {
-        headless: this.playwrightStrategy.headless,
-      },
-    };
-
-    const pool = BrowserPool.getInstance(poolOptions);
-    await pool.initialize();
-
-    this.browser = await pool.acquireBrowser();
+    // 브라우저 직접 생성 (Pool 사용 안함)
+    this.browser = await chromium.launch({
+      headless: this.playwrightStrategy.headless,
+      args: BROWSER_ARGS.DEFAULT,
+    });
 
     // Context 생성 (모바일 설정)
     this.context = await this.browser.newContext({
@@ -103,7 +104,7 @@ export abstract class PlaywrightApiSearcher<
 
     logger.debug(
       { platform: this.config.platform },
-      "PlaywrightApiSearcher initialized",
+      "PlaywrightApiSearcher initialized (independent browser)",
     );
   }
 
@@ -288,8 +289,7 @@ export abstract class PlaywrightApiSearcher<
 
   /**
    * 리소스 정리
-   *
-   * 중요: initialized 플래그도 리셋하여 다음 검색 시 재초기화 가능하게 함
+   * 브라우저를 직접 종료하여 리소스 완전 해제
    */
   async cleanup(): Promise<void> {
     try {
@@ -304,17 +304,16 @@ export abstract class PlaywrightApiSearcher<
       }
 
       if (this.browser) {
-        const pool = BrowserPool.getInstance({ poolSize: 1 });
-        await pool.releaseBrowser(this.browser);
+        await this.browser.close();
         this.browser = null;
       }
 
-      // initialized 플래그 리셋 (다음 검색 시 재초기화 가능하도록)
+      // initialized 플래그 리셋
       this.initialized = false;
 
       logger.debug(
         { platform: this.config.platform },
-        "PlaywrightApiSearcher cleanup completed",
+        "PlaywrightApiSearcher cleanup completed (browser closed)",
       );
     } catch (error) {
       logger.warn({ error }, "PlaywrightApiSearcher cleanup failed");
