@@ -69,11 +69,22 @@ export class AblySearcher extends PlaywrightApiSearcher<AblyApiResponse> {
 
   /**
    * API 응답 파싱 (Ably 전용)
+   *
+   * 주의: Ably는 검색 결과가 없을 때도 "추천 상품"을 THREE_COL_GOODS_LIST로 반환
+   * totalCount(SEARCH_RESULTS_GOODS)가 0이면 실제 검색 결과가 없는 것이므로 빈 배열 반환
    */
   protected parseApiResponse(
     response: AblyApiResponse,
     limit: number,
   ): SearchProduct[] {
+    // 실제 검색 결과 수 확인 - 0이면 추천 상품만 있는 것이므로 무시
+    const totalCount =
+      response.view_event_logging?.analytics?.SEARCH_RESULTS_GOODS ?? 0;
+    if (totalCount === 0) {
+      logger.debug({}, "Ably 검색 결과 없음 (totalCount: 0) - 추천 상품 무시");
+      return [];
+    }
+
     if (!response.components) {
       logger.warn({}, "Ably API 응답에 components 없음");
       return [];

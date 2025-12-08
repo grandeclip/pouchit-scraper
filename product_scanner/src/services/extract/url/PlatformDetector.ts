@@ -39,6 +39,8 @@ interface PlatformPattern {
   domainPattern: string;
   /** 상품 ID 추출 함수 */
   extractId: (url: string) => string | null;
+  /** 정규화된 상품 URL 생성 함수 */
+  buildUrl: (productId: string) => string;
 }
 
 /**
@@ -59,6 +61,8 @@ const PLATFORM_PATTERNS: Record<SupportedPlatform, PlatformPattern> = {
         return null;
       }
     },
+    buildUrl: (productId: string): string =>
+      `https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=${productId}`,
   },
 
   /**
@@ -74,7 +78,7 @@ const PLATFORM_PATTERNS: Record<SupportedPlatform, PlatformPattern> = {
 
       // /goods/ 또는 /products/ 이후 경로 추출
       const pathMatch = urlWithoutQuery.match(
-        /\/(?:goods|products)\/(.+?)(?:\/)?$/
+        /\/(?:goods|products)\/(.+?)(?:\/)?$/,
       );
       if (!pathMatch) return null;
 
@@ -87,6 +91,8 @@ const PLATFORM_PATTERNS: Record<SupportedPlatform, PlatformPattern> = {
       const numericMatch = lastSegment.match(/^(\d+)$/);
       return numericMatch ? numericMatch[1] : null;
     },
+    buildUrl: (productId: string): string =>
+      `https://www.hwahae.co.kr/goods/${productId}`,
   },
 
   /**
@@ -103,6 +109,8 @@ const PLATFORM_PATTERNS: Record<SupportedPlatform, PlatformPattern> = {
         return null;
       }
     },
+    buildUrl: (productId: string): string =>
+      `https://www.musinsa.com/products/${productId}`,
   },
 
   /**
@@ -120,6 +128,8 @@ const PLATFORM_PATTERNS: Record<SupportedPlatform, PlatformPattern> = {
         return null;
       }
     },
+    buildUrl: (productId: string): string =>
+      `https://m.a-bly.com/goods/${productId}`,
   },
 
   /**
@@ -137,6 +147,8 @@ const PLATFORM_PATTERNS: Record<SupportedPlatform, PlatformPattern> = {
         return null;
       }
     },
+    buildUrl: (productId: string): string =>
+      `https://www.kurly.com/goods/${productId}`,
   },
 
   /**
@@ -153,6 +165,8 @@ const PLATFORM_PATTERNS: Record<SupportedPlatform, PlatformPattern> = {
         return null;
       }
     },
+    buildUrl: (productId: string): string =>
+      `https://zigzag.kr/catalog/products/${productId}`,
   },
 };
 
@@ -183,7 +197,7 @@ export class PlatformDetector {
    */
   static extractProductId(
     url: string,
-    platform?: SupportedPlatform
+    platform?: SupportedPlatform,
   ): string | null {
     const detectedPlatform = platform ?? this.detectPlatform(url);
     if (!detectedPlatform) {
@@ -224,5 +238,31 @@ export class PlatformDetector {
   static isSupported(platform: string): platform is SupportedPlatform {
     return SUPPORTED_PLATFORMS.includes(platform as SupportedPlatform);
   }
-}
 
+  /**
+   * 플랫폼과 상품 ID로 정규화된 URL 생성
+   * @param platform 플랫폼
+   * @param productId 상품 ID
+   * @returns 정규화된 상품 URL
+   */
+  static buildProductUrl(
+    platform: SupportedPlatform,
+    productId: string,
+  ): string {
+    const pattern = PLATFORM_PATTERNS[platform];
+    return pattern.buildUrl(productId);
+  }
+
+  /**
+   * URL을 정규화된 형태로 변환
+   * @param url 원본 URL
+   * @returns 정규화된 URL (변환 실패 시 원본 반환)
+   */
+  static normalizeUrl(url: string): string {
+    const { platform, productId } = this.detect(url);
+    if (!platform || !productId) {
+      return url;
+    }
+    return this.buildProductUrl(platform, productId);
+  }
+}

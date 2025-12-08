@@ -427,10 +427,10 @@ npx tsc --project tsconfig.scripts.json --noEmit
 | Version | 용도                        | 엔드포인트                                   |
 | ------- | --------------------------- | -------------------------------------------- |
 | **v1**  | 플랫폼 스캔 + Workflow 실행 | `/api/v1/platforms/*`, `/api/v1/workflows/*` |
-| **v2**  | 상품 추출 전용 (Phase 2)    | `/api/v2/products/extract-*`                 |
+| **v2**  | 상품 추출 + 검색            | `/api/v2/products/*`, `/api/v2/search/*`     |
 
 - **v1**: 플랫폼별 스캔, 상품 검색, Phase 4 Workflow 실행
-- **v2**: URL/ProductSet 기반 상품 추출 (Phase 2)
+- **v2**: URL/ProductSet 기반 상품 추출, 6개 플랫폼 통합 검색
 - **Health Check**: `/health` (루트 레벨)
 
 ### API 엔드포인트 (v2.1.0)
@@ -568,6 +568,84 @@ GET /api/v1/products/:productSetId
 
 ```bash
 GET /api/v1/products/health
+```
+
+#### 5. 통합 검색 API (v2)
+
+6개 플랫폼을 **병렬로** 검색하여 결과를 즉시 반환합니다.
+
+| 플랫폼     | 검색 방식        | 특징                         |
+| ---------- | ---------------- | ---------------------------- |
+| oliveyoung | Playwright + API | Cloudflare 보호, 정확도 높음 |
+| hwahae     | Playwright + DOM | SSR 기반, DOM 파싱           |
+| musinsa    | Playwright + API | Cloudflare 보호              |
+| ably       | Playwright + API | 인증 필요, 추천 상품 필터링  |
+| kurly      | Playwright + API | 세션/쿠키 필요               |
+| zigzag     | GraphQL          | curl 직접 호출 가능          |
+
+**통합 검색 (동기 API - 7~15초 소요)**
+
+```bash
+POST /api/v2/search/unified
+Content-Type: application/json
+
+{
+  "brand": "라네즈",
+  "productName": "워터뱅크 크림",
+  "maxPerPlatform": 5
+}
+
+# Response
+{
+  "success": true,
+  "data": {
+    "jobId": "019afc73-69e8-704c-bf8b-66050d3d1838",
+    "keyword": "라네즈 워터뱅크 크림",
+    "platforms": [
+      {
+        "platform": "zigzag",
+        "success": true,
+        "products": [...],
+        "totalCount": 15,
+        "durationMs": 832
+      }
+    ],
+    "summary": {
+      "totalPlatforms": 6,
+      "successPlatforms": 6,
+      "totalProducts": 12,
+      "durationMs": 8461
+    }
+  }
+}
+```
+
+**통합 검색 큐 상태**
+
+```bash
+GET /api/v2/search/unified/status
+
+# Response
+{
+  "success": true,
+  "data": {
+    "is_processing": false,
+    "waiting_count": 0
+  }
+}
+```
+
+**Shell 스크립트**
+
+```bash
+# 통합 검색
+./scripts/search-unified.sh "브랜드명" "상품명" [limit]
+./scripts/search-unified.sh "라네즈" "워터뱅크 크림" 5
+
+# 단일 플랫폼 검색 (디버깅용)
+./scripts/search-zigzag.sh "수분크림" 10
+./scripts/search-oliveyoung.sh "토리든" 10
+./scripts/search-musinsa.sh "토리든" 10
 ```
 
 ### 환경 변수

@@ -23,6 +23,7 @@ import type {
   SearchStrategyConfig,
   GraphQLStrategy,
 } from "@/core/domain/search/SearchConfig";
+import { PlatformDetector } from "@/services/extract/url/PlatformDetector";
 import { logger } from "@/config/logger";
 
 /**
@@ -160,6 +161,7 @@ export class ZigzagGraphQLSearcher extends BaseSearcher<
 
   /**
    * Zigzag 상품 → SearchProduct 변환
+   * API의 product_url은 store.zigzag.kr 형식이므로 정규화 필요
    */
   private mapZigzagProduct(item: ZigzagUiItem): SearchProduct {
     const productId = item.catalog_product_id || "";
@@ -169,8 +171,7 @@ export class ZigzagGraphQLSearcher extends BaseSearcher<
       productName: item.title || "",
       brand: item.shop_name,
       thumbnail: item.webp_image_url || item.image_url,
-      productUrl:
-        item.product_url || `https://zigzag.kr/catalog/products/${productId}`,
+      productUrl: PlatformDetector.buildProductUrl("zigzag", productId),
       price: item.final_price,
       discountRate: item.discount_rate,
       platform: this.config.platform,

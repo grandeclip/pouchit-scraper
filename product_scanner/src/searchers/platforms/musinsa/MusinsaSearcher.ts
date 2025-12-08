@@ -18,6 +18,7 @@ import type {
   SearchConfig,
   SearchStrategyConfig,
 } from "@/core/domain/search/SearchConfig";
+import { PlatformDetector } from "@/services/extract/url/PlatformDetector";
 import { logger } from "@/config/logger";
 
 /**
@@ -80,13 +81,16 @@ export class MusinsaSearcher extends PlaywrightApiSearcher<MusinsaApiResponse> {
 
   /**
    * Musinsa 상품 → SearchProduct 변환
+   * API의 goodsLinkUrl은 query params 포함될 수 있으므로 정규화
    */
   private mapProduct(item: MusinsaProduct): SearchProduct {
+    const productId = String(item.goodsNo);
+
     return {
-      productId: String(item.goodsNo),
+      productId,
       productName: item.goodsName,
       thumbnail: item.thumbnail,
-      productUrl: item.goodsLinkUrl,
+      productUrl: PlatformDetector.buildProductUrl("musinsa", productId),
       price: item.salePrice,
       originalPrice: item.price,
       discountRate: item.discountRate,

@@ -18,6 +18,7 @@ import type {
   SearchConfig,
   SearchStrategyConfig,
 } from "@/core/domain/search/SearchConfig";
+import { PlatformDetector } from "@/services/extract/url/PlatformDetector";
 import { logger } from "@/config/logger";
 
 /**
@@ -107,7 +108,10 @@ export class OliveYoungSearcher extends PlaywrightApiSearcher<OliveYoungApiRespo
       productName: item.goodsName,
       brand: item.onlineBrandName,
       thumbnail,
-      productUrl: `https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=${item.goodsNumber}`,
+      productUrl: PlatformDetector.buildProductUrl(
+        "oliveyoung",
+        item.goodsNumber,
+      ),
       price: item.priceToPay,
       originalPrice: item.originalPrice,
       discountRate: item.discountRate,

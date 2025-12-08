@@ -69,6 +69,9 @@ export class KurlySearcher extends PlaywrightApiSearcher<KurlyApiResponse> {
 
   /**
    * API 응답 파싱 (Kurly 전용)
+   *
+   * 주의: listSections에 추천 상품이 포함될 수 있음
+   * pagination.total이 0이면 실제 검색 결과가 없는 것이므로 빈 배열 반환
    */
   protected parseApiResponse(
     response: KurlyApiResponse,
@@ -76,6 +79,13 @@ export class KurlySearcher extends PlaywrightApiSearcher<KurlyApiResponse> {
   ): SearchProduct[] {
     if (!response.success || !response.data?.listSections?.[0]?.data?.items) {
       logger.warn({ success: response.success }, "Kurly API 응답 실패");
+      return [];
+    }
+
+    // 실제 검색 결과 수 확인 - 0이면 추천 상품만 있을 수 있으므로 무시
+    const totalCount = response.data?.meta?.pagination?.total ?? 0;
+    if (totalCount === 0) {
+      logger.debug({}, "Kurly 검색 결과 없음 (totalCount: 0) - 추천 상품 무시");
       return [];
     }
 
