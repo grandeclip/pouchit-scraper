@@ -1,0 +1,76 @@
+# Ably Search Configuration
+# Strategy: Playwright + API Intercept (401 - 인증 토큰 필요)
+
+platform: ably
+name: "에이블리"
+baseUrl: "https://m.a-bly.com"
+
+strategies:
+  - id: playwright_api
+    type: playwright_api
+    priority: 1
+    description: "Playwright API 인터셉트"
+    playwright:
+      headless: true
+      viewport:
+        width: 390
+        height: 844
+      isMobile: true
+      hasTouch: true
+      deviceScaleFactor: 3
+    api:
+      interceptPattern: "/api/v2/screens/SEARCH_RESULT"
+      navigation:
+        - action: goto
+          url: "https://m.a-bly.com/search"
+          waitUntil: domcontentloaded
+          timeout: 30000
+        - action: wait
+          timeout: 1000
+        - action: fill
+          selector: 'input[placeholder*="무료배송"], input[type="search"]'
+          value: "${keyword}"
+        - action: press
+          key: Enter
+        - action: wait
+          timeout: 5000
+      timeout: 60000
+      responseTimeout: 30000
+
+# 필드 매핑 (API 응답 → SearchProduct)
+# 응답 경로: components[].entity.item_list[].item
+# totalCount: view_event_logging.analytics.SEARCH_RESULTS_GOODS
+fieldMapping:
+  productId:
+    source: sno
+    type: string
+    required: true
+  productName:
+    source: name
+    type: string
+    required: true
+  brand:
+    source: market_name
+    type: string
+  thumbnail:
+    source: image
+    type: string
+  productUrl:
+    source: sno
+    type: string
+    transform: "https://m.a-bly.com/goods/${value}"
+  price:
+    source: price
+    type: number
+  discountRate:
+    source: discount_rate
+    type: number
+
+# 에러 처리
+errorHandling:
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+  notFound: "검색 결과가 없습니다"
+
+# 응답 필터링 (참고용)
+# components[].type.item_list === "THREE_COL_GOODS_LIST" 로 필터링 필요

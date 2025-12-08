@@ -1,0 +1,98 @@
+# Zigzag Search Configuration
+# Strategy: GraphQL Direct (curl 가능, Playwright 불필요)
+
+platform: zigzag
+name: "지그재그"
+baseUrl: "https://zigzag.kr"
+
+strategies:
+  - id: graphql
+    type: graphql
+    priority: 1
+    description: "GraphQL API 직접 호출"
+    graphql:
+      endpoint: "https://api.zigzag.kr/api/2/graphql/GetSearchResult"
+      method: POST
+      headers:
+        Content-Type: "application/json"
+      query: |
+        query GetSearchResult($input: SearchResultInput!) {
+          search_result(input: $input) {
+            total_count
+            has_next
+            end_cursor
+            searched_keyword
+            ui_item_list {
+              ... on UxGoodsCardItem {
+                __typename
+                catalog_product_id
+                title
+                shop_name
+                shop_id
+                final_price
+                discount_rate
+                review_score
+                display_review_count
+                image_url
+                webp_image_url
+                product_url
+                free_shipping
+                fomo { text }
+                sellable_status
+              }
+            }
+          }
+        }
+      variables:
+        operationName: "GetSearchResult"
+        input:
+          q: "${keyword}"
+          page_id: "srp_item"
+          filter_id_list:
+            - "205"  # 직잭추천순
+          initial: true
+          after: null
+          enable_guided_keyword_search: true
+      timeout: 10000
+      retryCount: 3
+      retryDelay: 1000
+
+# 필드 매핑 (API 응답 → SearchProduct)
+fieldMapping:
+  productId:
+    source: catalog_product_id
+    type: string
+    required: true
+  productName:
+    source: title
+    type: string
+    required: true
+  brand:
+    source: shop_name
+    type: string
+  thumbnail:
+    source: webp_image_url
+    type: string
+  productUrl:
+    source: product_url
+    type: string
+    transform: "https://zigzag.kr/catalog/products/${value}"
+  price:
+    source: final_price
+    type: number
+  discountRate:
+    source: discount_rate
+    type: number
+
+# 에러 처리
+errorHandling:
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+  notFound: "검색 결과가 없습니다"
+
+# 정렬 옵션 (filter_id_list)
+# 205: 직잭추천순
+# 206: 인기순
+# 207: 최신순
+# 208: 낮은가격순
+# 209: 높은가격순

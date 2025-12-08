@@ -1,0 +1,73 @@
+# Musinsa Search Configuration
+# Strategy: Playwright + API Intercept (403 Forbidden - Cloudflare)
+
+platform: musinsa
+name: "무신사"
+baseUrl: "https://www.musinsa.com"
+
+strategies:
+  - id: playwright_api
+    type: playwright_api
+    priority: 1
+    description: "Playwright API 인터셉트"
+    playwright:
+      headless: true
+      viewport:
+        width: 390
+        height: 844
+      isMobile: true
+      hasTouch: true
+      deviceScaleFactor: 3
+    api:
+      interceptPattern: "/api2/dp/v1/plp/goods"
+      navigation:
+        - action: goto
+          url: "https://www.musinsa.com/search/goods?keyword=${keyword}"
+          waitUntil: domcontentloaded
+          timeout: 30000
+        - action: wait
+          timeout: 3000
+      timeout: 60000
+      responseTimeout: 30000
+
+# 필드 매핑 (API 응답 → SearchProduct)
+# 응답 경로: data.list[]
+fieldMapping:
+  productId:
+    source: goodsNo
+    type: string
+    required: true
+  productName:
+    source: goodsName
+    type: string
+    required: true
+  thumbnail:
+    source: thumbnail
+    type: string
+  productUrl:
+    source: goodsLinkUrl
+    type: string
+  price:
+    source: salePrice
+    type: number
+  originalPrice:
+    source: price
+    type: number
+  discountRate:
+    source: discountRate
+    type: number
+
+# 에러 처리
+errorHandling:
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+  notFound: "검색 결과가 없습니다"
+
+# Query Parameters (참고용)
+# gf=A: 상품 필터
+# keyword: 검색어
+# sortCode: POPULAR (인기순)
+# isUsed: false
+# page: 1
+# size: 20
+# caller: SEARCH

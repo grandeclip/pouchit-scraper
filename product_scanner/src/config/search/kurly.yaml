@@ -1,0 +1,73 @@
+# Kurly Search Configuration
+# Strategy: Playwright + API Intercept (세션/쿠키 필요)
+
+platform: kurly
+name: "마켓컬리"
+baseUrl: "https://www.kurly.com"
+
+strategies:
+  - id: playwright_api
+    type: playwright_api
+    priority: 1
+    description: "Playwright API 인터셉트"
+    playwright:
+      headless: true
+      viewport:
+        width: 390
+        height: 844
+      isMobile: true
+      hasTouch: true
+      deviceScaleFactor: 3
+    api:
+      interceptPattern: "/search/v4/sites/market/normal-search"
+      navigation:
+        - action: goto
+          url: "https://www.kurly.com/search?sword=${keyword}"
+          waitUntil: domcontentloaded
+          timeout: 30000
+        - action: wait
+          timeout: 3000
+      timeout: 60000
+      responseTimeout: 30000
+
+# 필드 매핑 (API 응답 → SearchProduct)
+# 응답 경로: data.listSections[0].data.items[]
+fieldMapping:
+  productId:
+    source: "no"
+    type: string
+    required: true
+  productName:
+    source: name
+    type: string
+    required: true
+  thumbnail:
+    source: productVerticalMediumUrl
+    type: string
+  productUrl:
+    source: "no"
+    type: string
+    transform: "https://www.kurly.com/goods/${value}"
+  price:
+    source: discountedPrice
+    type: number
+  originalPrice:
+    source: salesPrice
+    type: number
+  discountRate:
+    source: discountRate
+    type: number
+
+# 에러 처리
+errorHandling:
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+  notFound: "검색 결과가 없습니다"
+
+# sortType 옵션 (참고용)
+# 4: 추천순
+# 0: 신상품순
+# 1: 판매량순
+# 5: 혜택순
+# 2: 낮은 가격순
+# 3: 높은 가격순

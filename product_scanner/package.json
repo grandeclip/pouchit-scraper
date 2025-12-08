@@ -38,6 +38,8 @@
     "dev": "tsx watch src/server.ts",
     "scheduler": "tsx src/scheduler.ts",
     "alert-watcher": "tsx src/alert-watcher.ts",
+    "search-worker": "tsx src/search-worker.ts",
+    "search-worker:dev": "tsx watch src/search-worker.ts",
     "script:hwahae": "tsx scripts/hwahae-validator.ts",
     "script:process-job": "tsx scripts/process-job.ts",
     "start": "tsx src/server.ts",

@@ -1,0 +1,73 @@
+# Hwahae Search Configuration
+# Strategy: Playwright + DOM Parsing (API 없음 - SSR 기반 Next.js)
+
+platform: hwahae
+name: "화해"
+baseUrl: "https://www.hwahae.co.kr"
+
+strategies:
+  - id: dom
+    type: dom
+    priority: 1
+    description: "DOM 파싱 (SSR 기반)"
+    dom:
+      headless: true
+      viewport:
+        width: 390
+        height: 844
+      isMobile: true
+      navigation:
+        - action: goto
+          url: "https://www.hwahae.co.kr/search?q=${keyword}"
+          waitUntil: domcontentloaded
+          timeout: 30000
+        - action: wait
+          timeout: 3000
+        - action: scroll
+          timeout: 1000
+      selectors:
+        container: "section"
+        item: "li a[href^='/goods/']"
+        productId: "a[href^='/goods/']"
+        productName: "span"
+        thumbnail: "img"
+        productUrl: "a[href^='/goods/']"
+      timeout: 30000
+
+# 필드 매핑 (DOM 요소 → SearchProduct)
+fieldMapping:
+  productId:
+    source: href
+    type: string
+    required: true
+    # href="/goods/54413" → "54413"
+  productName:
+    source: textContent
+    type: string
+    required: true
+  thumbnail:
+    source: src
+    type: string
+  productUrl:
+    source: href
+    type: string
+    transform: "https://www.hwahae.co.kr${value}"
+
+# 에러 처리
+errorHandling:
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+  notFound: "검색 결과가 없습니다"
+
+# DOM 구조 (참고용)
+# <section>
+#   <h2>쇼핑상품 66</h2>
+#   <ul>
+#     <li>
+#       <a href="/goods/54413">
+#         <img src="https://img.hwahae.co.kr/commerce/goods/..." />
+#         <span>토리든 다이브인 저분자 히알루론산 세럼...</span>
+#       </a>
+#     </li>
+#   </ul>
+# </section>

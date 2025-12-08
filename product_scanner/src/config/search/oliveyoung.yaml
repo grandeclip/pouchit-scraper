@@ -1,0 +1,74 @@
+# OliveYoung Search Configuration
+# Strategy: Playwright + API Intercept (Cloudflare 보호로 curl 불가)
+
+platform: oliveyoung
+name: "올리브영"
+baseUrl: "https://m.oliveyoung.co.kr"
+
+strategies:
+  - id: playwright_api
+    type: playwright_api
+    priority: 1
+    description: "Playwright API 인터셉트"
+    playwright:
+      headless: true
+      viewport:
+        width: 390
+        height: 844
+      isMobile: true
+      hasTouch: true
+      deviceScaleFactor: 3
+    api:
+      interceptPattern: "/search/api/v3/common/unified-search/goods"
+      navigation:
+        - action: goto
+          url: "https://m.oliveyoung.co.kr/m/mtn/search/result?query=${encodedKeyword}"
+          waitUntil: domcontentloaded
+          timeout: 30000
+        - action: wait
+          timeout: 3000
+      timeout: 60000
+      responseTimeout: 30000
+
+# 필드 매핑 (API 응답 → SearchProduct)
+# 응답 경로: data.oliveGoods.data[]
+fieldMapping:
+  productId:
+    source: goodsNumber
+    type: string
+    required: true
+  productName:
+    source: goodsName
+    type: string
+    required: true
+  brand:
+    source: onlineBrandName
+    type: string
+  thumbnail:
+    source: imagePath
+    type: string
+    transform: "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/${value}"
+  productUrl:
+    source: goodsNumber
+    type: string
+    transform: "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=${value}"
+  price:
+    source: priceToPay
+    type: number
+  originalPrice:
+    source: originalPrice
+    type: number
+  discountRate:
+    source: discountRate
+    type: number
+
+# 에러 처리
+errorHandling:
+  rateLimitDelay: 2000
+  serverErrorRetry: true
+  notFound: "검색 결과가 없습니다"
+
+# 추가 API 정보 (참고용)
+# /search/api/v3/common/unified-search/goods/filters - 필터 옵션
+# /search/api/v2/common/auto-complete-keywords - 자동완성
+# /search/api/v1/common/popular-keywords - 인기 검색어

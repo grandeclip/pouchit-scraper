@@ -161,6 +161,20 @@ services:
       WORKER_PLATFORMS: alert
 
   # ============================================
+  # Search Worker (상품 검색 전용 - Queue Consumer)
+  # ============================================
+  worker_search:
+    <<: *browser-worker
+    container_name: worker_search
+    environment:
+      <<: *worker-env-common
+      SERVICE_NAME: worker-search
+      # Search Worker 설정
+      SEARCH_POLL_INTERVAL: "2000"
+      SEARCH_CONCURRENCY: "3"
+    command: npm run search-worker
+
+  # ============================================
   # Scheduler (자동 Job 스케줄링)
   # ============================================
   scheduler:
