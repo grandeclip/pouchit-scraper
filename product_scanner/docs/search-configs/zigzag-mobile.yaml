@@ -1,0 +1,188 @@
+# Zigzag Mobile Search Configuration
+# Viewport: 430 x 932 (iPhone Pro Max)
+# User-Agent: Safari iOS 17
+# Strategy: DOM 직접 추출 (반응형 - 동일 URL)
+
+mall: zigzag
+name: "지그재그"
+baseUrl: "https://zigzag.kr"
+searchUrl: "${baseUrl}/search?keyword=${encodedQuery}"
+
+# 최대 결과 수 제한
+maxResults: 5
+
+# 브라우저 설정 (Mobile-First)
+browser:
+  headless: true
+  args:
+    - "--no-sandbox"
+    - "--disable-setuid-sandbox"
+    - "--disable-dev-shm-usage"
+    - "--disable-accelerated-2d-canvas"
+    - "--no-first-run"
+    - "--no-zygote"
+    - "--disable-gpu"
+  viewport:
+    width: 430
+    height: 932
+  # userAgent: Safari iOS 17 (config/userAgents.yaml에서 선택)
+
+# 네비게이션 순서
+navigation:
+  steps:
+    # 1. 검색 URL로 이동
+    - action: goto
+      url: "${searchUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+
+    # 2. 페이지 로딩 대기
+    - action: wait
+      duration: 2000
+
+    # 3. 검색 결과 있음/없음 확인
+    - action: waitForEither
+      success:
+        - ".product-card-root"
+        - 'a[href^="/catalog/products/"]'
+      failure:
+        - "text=/검색.*결과.*없/"
+        - "text=/상품.*없/"
+        - ".no-result"
+        - ".empty"
+      timeout: 5000
+      onFailure: returnEmpty
+
+    # 4. 추가 로딩 대기 (이미지)
+    - action: wait
+      duration: 2000
+
+# 데이터 추출 규칙 - DOM 직접 추출
+extraction:
+  type: evaluate
+  script: |
+    (function(searchBrand) {
+      const results = [];
+      const MAX_RESULTS = 5;
+      const seenIds = new Set();
+
+      // 상품 카드 컨테이너 선택
+      const productCards = document.querySelectorAll('.product-card-root');
+
+      productCards.forEach((card) => {
+        if (results.length >= MAX_RESULTS) return;
+
+        try {
+          // 1. Product Link & ID
+          const link = card.querySelector('a[href^="/catalog/products/"]');
+          if (!link) return;
+
+          const href = link.getAttribute('href');
+          const productId = href.replace('/catalog/products/', '');
+
+          // 중복 체크
+          if (seenIds.has(productId)) return;
+          seenIds.add(productId);
+
+          // 2. Thumbnail
+          const img = card.querySelector('.product-card-thumbnail img');
+          let thumbnail = img?.getAttribute('src') || null;
+          if (thumbnail) {
+            thumbnail = thumbnail.split('?')[0];  // 쿼리 파라미터 제거
+          }
+
+          // 3. Brand (첫 번째 span - zds4_1kdomr8 클래스)
+          const brandSpan = card.querySelector('span[class*="zds4_1kdomr8"]');
+          const brand = brandSpan?.textContent?.trim() || searchBrand || '';
+
+          // 4. Product Name (p 태그 중 가장 긴 텍스트)
+          const paragraphs = card.querySelectorAll('p');
+          let productName = '';
+          paragraphs.forEach(p => {
+            const text = p.textContent?.trim() || '';
+            if (text.length > productName.length && !text.match(/^[\d.]+$/) && !text.match(/^\([\d,]+\)$/)) {
+              productName = text;
+            }
+          });
+          if (!productName) return;
+
+          // 5. Price (span에서 숫자 패턴)
+          const allText = card.textContent || '';
+          let salePrice = 0;
+          let discountRate = null;
+
+          // 할인율 추출
+          const discountMatch = allText.match(/(\d+)%/);
+          if (discountMatch) {
+            discountRate = parseInt(discountMatch[1], 10);
+          }
+
+          // 가격 추출 (콤마 포함 숫자)
+          const spans = card.querySelectorAll('span');
+          spans.forEach(span => {
+            const text = span.textContent?.trim();
+            if (text && /^[\d,]+$/.test(text) && text.length >= 4) {
+              const price = parseInt(text.replace(/,/g, ''), 10);
+              if (price > salePrice) {
+                salePrice = price;
+              }
+            }
+          });
+
+          // 6. Rating & Review
+          let rating = null;
+          let reviewCount = null;
+          paragraphs.forEach(p => {
+            const text = p.textContent?.trim();
+            if (text && /^\d\.\d$/.test(text)) {
+              rating = parseFloat(text);
+            }
+            if (text && /^\([\d,]+\)$/.test(text)) {
+              reviewCount = parseInt(text.replace(/[(),]/g, ''), 10);
+            }
+          });
+
+          // 7. Product URL 생성
+          const productUrl = 'https://zigzag.kr' + href;
+
+          results.push({
+            productId: productId,
+            brand: brand,
+            productName: productName,
+            thumbnail: thumbnail,
+            productUrl: productUrl,
+            salePrice: salePrice,
+            originalPrice: null,
+            discountRate: discountRate,
+            rating: rating,
+            reviewCount: reviewCount,
+          });
+        } catch (error) {
+          console.error('Zigzag 파싱 오류:', error);
+        }
+      });
+
+      return results;
+    })
+
+  # evaluate 스크립트에 전달할 인자
+  scriptArgs:
+    - "${brand}"
+
+  # 필드 매핑 (더미 - evaluate에서 직접 반환)
+  fields:
+    productId:
+      selector: "dummy"
+
+# ============================================
+# 셀렉터 정보 (2024-01 기준)
+# ============================================
+# Container: .product-card-root
+# Product Link: a[href^="/catalog/products/"]
+# Thumbnail: .product-card-thumbnail img
+# Brand: span[class*="zds4_1kdomr8"]
+# Product Name: p (longest text)
+# Price: span with numeric pattern (e.g., "154,800")
+# Discount: span with "28%" pattern
+# Rating: p with "4.9" pattern
+# Review Count: p with "(764)" pattern

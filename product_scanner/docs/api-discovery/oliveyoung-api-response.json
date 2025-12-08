@@ -1,0 +1,128 @@
+{
+  "endpoint": "POST https://m.oliveyoung.co.kr/search/api/v3/common/unified-search/goods",
+  "request": {
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "body": {
+      "query": "수분크림 토리든",
+      "page": 1,
+      "size": 10
+    }
+  },
+  "response": {
+    "status": "SUCCESS",
+    "code": 200,
+    "message": "요청에 성공하였습니다.",
+    "data": {
+      "oliveGoods": {
+        "count": 3,
+        "totalCount": 3,
+        "data": [
+          {
+            "goodsNumber": "A000000165598",
+            "displayCategoryNumber": "1000001000100150001",
+            "displayCategoryName": "크림",
+            "upperCategoryNumber": "1000001",
+            "upperCategoryName": "뷰티",
+            "middleCategoryNumber": "10000010001",
+            "middleCategoryName": "스킨케어",
+            "lowerCategoryNumber": "100000100010015",
+            "lowerCategoryName": "크림",
+            "leafCategoryNumber": "1000001000100150001",
+            "leafCategoryName": "크림",
+            "onlineBrandName": "토리든",
+            "onlineBrandCode": "A002820",
+            "goodsName": "[더블기획/1+1] 토리든 다이브인 히알루론산 수딩 크림 더블기획 (100ml+100ml)",
+            "priceToPay": 27930,
+            "basisPrice": 31500,
+            "imagePath": "10/0000/0016/A00000016559831ko.jpg?l=ko",
+            "itemCount": 1,
+            "minimumPriceToPay": 27930,
+            "maximumPriceToPay": 27930,
+            "bestGoodsFlag": true,
+            "newGoodsFlag": false,
+            "giftPromotion": "",
+            "discountFlag": true,
+            "couponFlag": true,
+            "downloadCouponFlag": false,
+            "presentFlag": false,
+            "freeDeliveryFlag": false,
+            "masterGoodsNumber": "8809784600398",
+            "masterItemNumber": "001",
+            "goodsEvaluationScoreValue": 4.8,
+            "soldOutFlag": false,
+            "goodsAssessmentTotalCount": 11777,
+            "originalPrice": 42000,
+            "onlineAdultCertificateFlag": false,
+            "onlineBrandEnglishName": "Torriden",
+            "quickDeliveryFlag": true,
+            "todaySpecialFlag": false,
+            "oliveTodaySpecialFlag": false,
+            "standardUpperCategoryNumber": "01",
+            "standardUpperCategoryName": "기초화장품",
+            "standardMiddleCategoryNumber": "01",
+            "standardMiddleCategoryName": "스킨케어",
+            "standardLowerCategoryNumber": "04",
+            "standardLowerCategoryName": "크림",
+            "discountRate": 33,
+            "optionItemsFlag": false
+          },
+          {
+            "goodsNumber": "A000000169313",
+            "displayCategoryNumber": "1000001000100150001",
+            "displayCategoryName": "크림",
+            "onlineBrandName": "토리든",
+            "onlineBrandCode": "A002820",
+            "goodsName": "토리든 다이브인 저분자 히알루론산 수딩 크림 100ml",
+            "priceToPay": 17100,
+            "basisPrice": 18000,
+            "imagePath": "10/0000/0016/A00000016931305ko.jpg?l=ko",
+            "goodsEvaluationScoreValue": 4.8,
+            "soldOutFlag": false,
+            "goodsAssessmentTotalCount": 13102,
+            "originalPrice": 24000,
+            "onlineBrandEnglishName": "Torriden",
+            "quickDeliveryFlag": true,
+            "discountRate": 28
+          },
+          {
+            "goodsNumber": "A000000190677",
+            "displayCategoryNumber": "1000001000100150001",
+            "displayCategoryName": "크림",
+            "onlineBrandName": "토리든",
+            "onlineBrandCode": "A002820",
+            "goodsName": "[단독기획] 토리든 다이브인 수딩크림 100ml 기획(+수딩크림 20ml)",
+            "priceToPay": 17100,
+            "basisPrice": 18000,
+            "imagePath": "10/0000/0019/A00000019067724ko.jpg?l=ko",
+            "goodsEvaluationScoreValue": 4.8,
+            "soldOutFlag": false,
+            "goodsAssessmentTotalCount": 7353,
+            "originalPrice": 24000,
+            "onlineBrandEnglishName": "Torriden",
+            "quickDeliveryFlag": true,
+            "discountRate": 28
+          }
+        ]
+      }
+    }
+  },
+  "fieldMapping": {
+    "productId": "goodsNumber",
+    "productName": "goodsName",
+    "brand": "onlineBrandName",
+    "brandEn": "onlineBrandEnglishName",
+    "salePrice": "priceToPay",
+    "originalPrice": "originalPrice",
+    "discountRate": "discountRate",
+    "thumbnail": "https://image.oliveyoung.co.kr/cfimages/cf-goods/uploads/images/thumbnails/{imagePath}",
+    "productUrl": "https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo={goodsNumber}",
+    "rating": "goodsEvaluationScoreValue",
+    "reviewCount": "goodsAssessmentTotalCount",
+    "isBest": "bestGoodsFlag",
+    "isSoldOut": "soldOutFlag",
+    "hasQuickDelivery": "quickDeliveryFlag",
+    "category": "displayCategoryName"
+  }
+}

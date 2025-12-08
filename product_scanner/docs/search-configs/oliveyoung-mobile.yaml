@@ -1,0 +1,175 @@
+# OliveYoung Mobile Search Configuration
+# Viewport: 430 x 932 (iPhone Pro Max)
+# User-Agent: Safari iOS 17
+# Strategy: DOM 직접 추출 (clickAndExtractUrl 불필요)
+
+mall: oliveyoung
+name: "올리브영"
+baseUrl: "https://m.oliveyoung.co.kr"
+searchPageUrl: "${baseUrl}/m/mtn/search"
+
+# 최대 결과 수 제한
+maxResults: 5
+
+# 브라우저 설정 (Mobile-First)
+browser:
+  headless: true
+  args:
+    - "--no-sandbox"
+    - "--disable-setuid-sandbox"
+    - "--disable-dev-shm-usage"
+    - "--disable-accelerated-2d-canvas"
+    - "--disable-gpu"
+  viewport:
+    width: 430
+    height: 932
+  # userAgent: Safari iOS 17 (config/userAgents.yaml에서 선택)
+
+# 네비게이션 순서
+navigation:
+  steps:
+    # 1. 검색 페이지 이동
+    - action: goto
+      url: "${searchPageUrl}"
+      waitUntil: domcontentloaded
+      timeout: 30000
+
+    # 2. 검색어 입력
+    - action: fill
+      selector: 'input[type="text"], [role="textbox"]'
+      value: "${brand} ${productName}"
+      timeout: 10000
+
+    # 3. Enter 키로 검색 실행
+    - action: press
+      selector: 'input[type="text"], [role="textbox"]'
+      key: "Enter"
+      timeout: 10000
+
+    # 4. 검색 결과 로딩 대기
+    - action: waitForLoadState
+      state: domcontentloaded
+      timeout: 30000
+      optional: true
+
+    # 5. 검색 결과 있음/없음 확인
+    - action: waitForEither
+      success:
+        - ".ProductItem_product-item__gsPw8"  # 상품 카드 컨테이너
+        - ".ProductItem_thumb__WuF2H"
+      failure:
+        - "text=/검색.*결과.*없/"
+        - "text=/상품.*없/"
+        - ".no-result"
+        - ".SearchNoResult"
+      timeout: 5000
+      onFailure: returnEmpty
+
+    # 6. 추가 로딩 대기 (이미지 로딩)
+    - action: wait
+      duration: 2000
+
+# 데이터 추출 규칙 - DOM 직접 추출
+extraction:
+  type: evaluate
+  script: |
+    (function(searchBrand) {
+      const results = [];
+      const MAX_RESULTS = 5;
+      const seenIds = new Set();
+
+      // 상품 카드 컨테이너 선택
+      const productCards = document.querySelectorAll('.ProductItem_product-item__gsPw8');
+
+      productCards.forEach((card) => {
+        if (results.length >= MAX_RESULTS) return;
+
+        try {
+          // 1. Thumbnail 추출 및 goodsNo 파싱
+          const thumbContainer = card.querySelector('.ProductItem_thumb__WuF2H');
+          const img = thumbContainer?.querySelector('img');
+          const thumbnail = img?.getAttribute('src') || null;
+
+          if (!thumbnail) return;
+
+          // goodsNo 추출: A00000020462312ko.jpg → A000000204623
+          // 패턴: /([A-Z]\d{12})\d{2}[a-z]{2}\.(jpg|png|webp)/
+          const goodsNoMatch = thumbnail.match(/\/([A-Z]\d{12})\d{2}[a-z]{2}\./);
+          if (!goodsNoMatch) return;
+
+          const goodsNo = goodsNoMatch[1];
+
+          // 중복 체크
+          if (seenIds.has(goodsNo)) return;
+          seenIds.add(goodsNo);
+
+          // 2. 상품명 추출
+          const nameElement = card.querySelector('.ProductItem_name____xdd');
+          let productName = nameElement?.textContent?.trim() || '';
+
+          // data-attr에서도 추출 시도 (더 정확할 수 있음)
+          const dataAttr = nameElement?.getAttribute('data-attr');
+          if (dataAttr) {
+            // 패턴: "통합검색결과페이지_검색결과상품_인기순^상품명^순번"
+            const parts = dataAttr.split('^');
+            if (parts.length >= 2) {
+              productName = parts[1] || productName;
+            }
+          }
+
+          if (!productName) return;
+
+          // 3. 브랜드 추출 (있으면)
+          const brandElement = card.querySelector('.ProductItem_brand__n3XMK');
+          const brand = brandElement?.textContent?.trim() || searchBrand || '';
+
+          // 4. 가격 추출 (있으면)
+          const priceElement = card.querySelector('.ProductItem_price__YkcJH');
+          let salePrice = 0;
+          if (priceElement) {
+            const priceText = priceElement.textContent?.replace(/[^0-9]/g, '');
+            salePrice = parseInt(priceText, 10) || 0;
+          }
+
+          // 5. Product URL 생성
+          const productUrl = 'https://m.oliveyoung.co.kr/m/goods/getGoodsDetail.do?goodsNo=' + goodsNo;
+
+          results.push({
+            productId: goodsNo,
+            goodsNo: goodsNo,
+            brand: brand,
+            productName: productName,
+            thumbnail: thumbnail.split('?')[0],  // 쿼리 파라미터 제거
+            productUrl: productUrl,
+            salePrice: salePrice,
+            originalPrice: null,
+            discountRate: null,
+            rating: null,
+            reviewCount: null,
+          });
+        } catch (error) {
+          console.error('OliveYoung 파싱 오류:', error);
+        }
+      });
+
+      return results;
+    })
+
+  # evaluate 스크립트에 전달할 인자
+  scriptArgs:
+    - "${brand}"
+
+  # 필드 매핑 (더미 - evaluate에서 직접 반환)
+  fields:
+    productId:
+      selector: "dummy"
+
+# ============================================
+# 셀렉터 정보 (2024-01 기준)
+# ============================================
+# Container: .ProductItem_product-item__gsPw8
+# Thumbnail: .ProductItem_thumb__WuF2H img
+# Name: .ProductItem_name____xdd (data-attr에서도 추출 가능)
+# Brand: .ProductItem_brand__n3XMK
+# Price: .ProductItem_price__YkcJH
+# goodsNo: thumbnail URL에서 추출 (A00000020462312ko.jpg → A000000204623)
