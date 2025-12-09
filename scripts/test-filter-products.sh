@@ -6,20 +6,86 @@
 # - LLM 비용 로깅 확인
 #
 # 사용법:
-#   ./test-filter-products.sh           # 기본 테스트 데이터 사용
+#   ./test-filter-products.sh           # 모든 테스트 케이스 실행
 #   ./test-filter-products.sh --check   # 테스트 + LLM 비용 로그 확인
 
 set -e
 
 API_BASE_URL="${API_URL:-http://localhost:3989}/api/v2"
 CHECK_COST="${1:-}"
+TOTAL_TESTS=0
+PASSED_TESTS=0
 
 echo "🧪 LLM 상품 필터링 테스트"
 echo "📊 API: POST ${API_BASE_URL}/search/filter-products"
 echo ""
 
-# 테스트 데이터
-JSON_PAYLOAD=$(cat <<'EOF'
+# 테스트 실행 함수
+run_test() {
+  local TEST_NAME="$1"
+  local JSON_PAYLOAD="$2"
+  local EXPECTED_HINT="$3"  # 예상 결과 힌트 (선택)
+
+  TOTAL_TESTS=$((TOTAL_TESTS + 1))
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo "📋 테스트 ${TOTAL_TESTS}: ${TEST_NAME}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+
+  echo "📥 요청 데이터:"
+  echo "${JSON_PAYLOAD}" | jq '.'
+  echo ""
+
+  echo "⏳ API 호출 중..."
+  START_TIME=$(python3 -c 'import time; print(int(time.time() * 1000))' 2>/dev/null || date +%s)
+
+  RESPONSE=$(curl -s -X POST "${API_BASE_URL}/search/filter-products" \
+    -H "Content-Type: application/json" \
+    -d "${JSON_PAYLOAD}")
+
+  END_TIME=$(python3 -c 'import time; print(int(time.time() * 1000))' 2>/dev/null || date +%s)
+  DURATION=$((END_TIME - START_TIME))
+
+  echo ""
+  echo "📤 응답 (${DURATION}ms):"
+  echo "${RESPONSE}" | jq '.'
+  echo ""
+
+  # 성공 여부 확인
+  SUCCESS=$(echo "${RESPONSE}" | jq -r '.success')
+  if [ "$SUCCESS" == "true" ]; then
+    PASSED_TESTS=$((PASSED_TESTS + 1))
+    echo "✅ 테스트 성공"
+
+    # 결과 요약
+    echo ""
+    echo "📊 결과 요약:"
+    echo "${RESPONSE}" | jq -r '.data.platforms[] | "   - \(.platform): valid_indices=\(.valid_indices)"'
+
+    # 토큰 사용량
+    echo ""
+    echo "💰 토큰 사용량:"
+    echo "${RESPONSE}" | jq -r '.data.usage | "   - 입력: \(.input_tokens) tokens"'
+    echo "${RESPONSE}" | jq -r '.data.usage | "   - 출력: \(.output_tokens) tokens"'
+    echo "${RESPONSE}" | jq -r '.data.usage | "   - 비용: $\(.cost_usd) (약 ₩\(.cost_usd * 1400 | floor))"'
+
+    # 예상 결과 힌트 표시
+    if [ -n "$EXPECTED_HINT" ]; then
+      echo ""
+      echo "💡 예상: ${EXPECTED_HINT}"
+    fi
+  else
+    echo "❌ 테스트 실패"
+    echo "${RESPONSE}" | jq -r '.error'
+  fi
+
+  echo ""
+}
+
+# ============================================
+# 테스트 케이스 1: 토리든 다이브인 세럼
+# ============================================
+TEST1_PAYLOAD=$(cat <<'EOF'
 {
   "brand": "토리든",
   "product_name": "다이브인 저분자 히알루론산 세럼",
@@ -44,46 +110,47 @@ JSON_PAYLOAD=$(cat <<'EOF'
 EOF
 )
 
-echo "📥 요청 데이터:"
-echo "${JSON_PAYLOAD}" | jq '.'
-echo ""
+run_test "토리든 다이브인 세럼 (기본)" "$TEST1_PAYLOAD" "oliveyoung=[0,1], zigzag=[0,1], ably=[0]"
 
-echo "⏳ API 호출 중..."
-START_TIME=$(date +%s%3N)
+# ============================================
+# 테스트 케이스 2: 롬앤 글래스팅 컬러 글로스 (증정품 구분)
+# ============================================
+TEST2_PAYLOAD=$(cat <<'EOF'
+{
+  "brand": "롬앤",
+  "product_name": "글래스팅 컬러 글로스",
+  "product_names": {
+    "zigzag": [
+      "[NEW컬러] 글래스팅 컬러 글로스",
+      "[NEW컬러] 베러 댄 팔레트 (+미니 글래스팅 워터 글로스 #페어리샤베트 증정)",
+      "[NEW컬러] 글래스팅 컬러 글로스X2"
+    ],
+    "oliveyoung": [
+      "[2025 어워즈] 롬앤 글래스팅 컬러 글로스 단품/기획"
+    ],
+    "musinsa": [
+      "[NEW WARM] 글래스팅 컬러 글로스",
+      "글래스팅 워터 글로스",
+      "[NEW WARM][2PACK] 글래스팅 컬러 글로스"
+    ],
+    "ably": [
+      "[롬앤X조앤프렌즈/틴뚜링기획] 글래스팅 컬러 글로스",
+      "[본품증정] 더 쥬시 래스팅 틴트 X2 (글래스팅 컬러 글로스 08 체리 업 증정)",
+      "[본품증정] 글래스팅 멜팅 밤 X2 (글래스팅 컬러 글로스 07 스프링 피버 증정)"
+    ]
+  }
+}
+EOF
+)
 
-RESPONSE=$(curl -s -X POST "${API_BASE_URL}/search/filter-products" \
-  -H "Content-Type: application/json" \
-  -d "${JSON_PAYLOAD}")
+run_test "롬앤 글래스팅 컬러 글로스 (증정품 구분)" "$TEST2_PAYLOAD" "zigzag=[0,2], oliveyoung=[0], musinsa=[0,2], ably=[0] (틴트/밤 본품, 글로스는 증정품이므로 제외)"
 
-END_TIME=$(date +%s%3N)
-DURATION=$((END_TIME - START_TIME))
-
-echo ""
-echo "📤 응답 (${DURATION}ms):"
-echo "${RESPONSE}" | jq '.'
-echo ""
-
-# 성공 여부 확인
-SUCCESS=$(echo "${RESPONSE}" | jq -r '.success')
-if [ "$SUCCESS" == "true" ]; then
-  echo "✅ 테스트 성공"
-
-  # 결과 요약
-  echo ""
-  echo "📊 결과 요약:"
-  echo "${RESPONSE}" | jq -r '.data.platforms[] | "   - \(.platform): valid_indices=\(.valid_indices)"'
-
-  # 토큰 사용량
-  echo ""
-  echo "💰 토큰 사용량:"
-  echo "${RESPONSE}" | jq -r '.data.usage | "   - 입력: \(.input_tokens) tokens"'
-  echo "${RESPONSE}" | jq -r '.data.usage | "   - 출력: \(.output_tokens) tokens"'
-  echo "${RESPONSE}" | jq -r '.data.usage | "   - 비용: $\(.cost_usd) (약 ₩\(.cost_usd * 1400 | floor))"'
-else
-  echo "❌ 테스트 실패"
-  echo "${RESPONSE}" | jq -r '.error'
-  exit 1
-fi
+# ============================================
+# 결과 요약
+# ============================================
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📊 전체 결과: ${PASSED_TESTS}/${TOTAL_TESTS} 테스트 통과"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # LLM 비용 로그 확인 (--check 옵션)
 if [ "$CHECK_COST" == "--check" ]; then
