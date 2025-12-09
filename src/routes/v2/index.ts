@@ -14,6 +14,7 @@ import schedulerRouter from "./scheduler.router";
 import alertWatcherRouter from "./alert-watcher.router";
 import workersRouter from "./workers.router";
 import searchRouter from "./search.router";
+import llmRouter from "./llm.router";
 import { logger } from "@/config/logger";
 
 const router = Router();
@@ -39,6 +40,9 @@ router.use("/workers", workersRouter);
 // Search API (상품 검색)
 router.use("/search", searchRouter);
 
+// LLM API (LLM 기반 서비스)
+router.use("/llm", llmRouter);
+
 logger.info(
   {
     endpoints: [
@@ -63,6 +67,8 @@ logger.info(
       "GET /api/v2/search/jobs/:jobId",
       "GET /api/v2/search/platforms",
       "GET /api/v2/search/queue",
+      "POST /api/v2/llm/generate-description",
+      "GET /api/v2/llm/cost-stats",
     ],
   },
   "[v2Router] API v2 라우터 등록",

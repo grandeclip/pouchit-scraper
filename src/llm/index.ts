@@ -110,3 +110,32 @@ export type {
   ProductFilteringParams,
   ProductFilteringResponse,
 } from "./ProductFilteringService";
+
+// Product Description Service (URL Context 기반)
+export {
+  ProductDescriptionService,
+  getProductDescriptionService,
+  generateProductDescription,
+} from "./ProductDescriptionService";
+export type {
+  ProductDescriptionResponse,
+  StageUsage,
+} from "./ProductDescriptionService";
+
+// Product Description Schema & Prompts
+export {
+  ProductDescriptionSchema,
+  CategoryClassificationSchema,
+} from "./schemas/ProductDescriptionSchema";
+export type {
+  ProductDescriptionResult,
+  CategoryClassification,
+  ProductDescriptionInput,
+} from "./schemas/ProductDescriptionSchema";
+export {
+  buildExtractionPrompt,
+  buildProductDescriptionSystemPrompt,
+  buildStructuredOutputPrompt,
+  buildProductDescriptionUserPrompt, // @deprecated
+  productDescriptionSystemPrompt,
+} from "./prompts/productDescriptionPrompt";

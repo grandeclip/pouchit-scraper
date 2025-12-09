@@ -47,6 +47,8 @@ tags:
     description: 자동 스케줄러 제어
   - name: Alert Watcher
     description: 테이블 모니터링 및 Slack 알림 서비스
+  - name: LLM
+    description: LLM 기반 상품 설명 생성 및 비용 통계
 
 paths:
   /health:
@@ -372,6 +374,173 @@ paths:
                       message: "Gemini API internal error"
                     data:
                       platforms: []
+
+  # ============================================================================
+  # LLM API - 상품 설명 생성
+  # ============================================================================
+
+  /api/v2/llm/generate-description:
+    post:
+      tags: [LLM]
+      summary: 상품 설명 및 카테고리 생성
+      description: |
+        URL Context를 활용하여 상품 페이지를 분석하고
+        **마케팅용 상품 설명**과 **카테고리**를 생성합니다.
+
+        **동기 API** - 결과를 즉시 반환합니다 (10~30초 소요).
+
+        ## 2단계 LLM 호출 구조
+        Gemini 2.5 Flash에서 URL Context와 Structured Output을 동시 사용할 수 없어
+        2단계로 분리하여 호출합니다.
+
+        | 단계 | 목적 | 입력 | 출력 |
+        |------|------|------|------|
+        | 1단계 | URL Context로 정보 추출 | URL 목록 | 마케팅 문구, 효능, 카테고리 정보 (텍스트) |
+        | 2단계 | Structured Output 생성 | 추출된 정보 | 상품 설명, 카테고리 (JSON) |
+
+        ## 상품 설명 스타일
+        - 짧고 임팩트 있는 마케팅 카피 스타일
+        - "~입니다" 같은 문장 종결 금지
+        - 핵심 효능/특징을 압축하여 전달
+
+        **예시**:
+        - "내 피부인듯 맑고 투명하게 미백 톤업크림"
+        - "도톰한 당근 한 장으로 덮는 열감 진정"
+        - "저분자 히알루론산이 피부 깊숙이 수분 채우는 고보습 세럼"
+
+        ## LLM 비용
+        - 모델: `gemini-2.5-flash`
+        - 평균 비용: ~$0.002/요청 (약 ₩3)
+        - 비용 로그: `results/{date}/llm_cost__{date}.jsonl`
+          - platform: `description` (URL Context 추출)
+          - platform: `description` (Structured Output)
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateDescriptionRequest'
+            examples:
+              basic:
+                summary: 기본 사용
+                value:
+                  brand: "토리든"
+                  product_name: "다이브인 저분자 히알루론산 세럼"
+                  urls:
+                    - "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000238213"
+                    - "https://zigzag.kr/catalog/products/131281148"
+              single_url:
+                summary: 단일 URL
+                value:
+                  brand: "라네즈"
+                  product_name: "워터뱅크 블루 히알루로닉 크림"
+                  urls:
+                    - "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000231822"
+      responses:
+        '200':
+          description: 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateDescriptionResponse'
+              examples:
+                success:
+                  summary: 성공 응답
+                  value:
+                    success: true
+                    data:
+                      description: "저분자 히알루론산이 피부 깊숙이 수분 채우는 고보습 세럼"
+                      category:
+                        id: 5
+                        path: "스킨케어 > 에센스/세럼/앰플"
+                      usage:
+                        stage1:
+                          input: 180
+                          output: 463
+                          url_context: 12587
+                        stage2:
+                          input: 2148
+                          output: 77
+                        total:
+                          input: 2328
+                          output: 540
+                          url_context: 12587
+                          total: 15455
+                          cost_usd: 0.002561
+                      model: "gemini-2.5-flash"
+                      duration_ms: 6788
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              example:
+                success: false
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "brand is required"
+        '500':
+          description: LLM API 오류
+          content:
+            application/json:
+              examples:
+                rate_limit:
+                  summary: Rate Limit 초과
+                  value:
+                    success: false
+                    error:
+                      code: "RATE_LIMIT_EXCEEDED"
+                      message: "Gemini API rate limit exceeded"
+                internal:
+                  summary: 내부 오류
+                  value:
+                    success: false
+                    error:
+                      code: "INTERNAL_ERROR"
+                      message: "서버 내부 오류가 발생했습니다"
+
+  /api/v2/llm/cost-stats:
+    get:
+      tags: [LLM]
+      summary: 오늘 LLM 비용 통계
+      description: |
+        오늘 사용된 LLM 비용 통계를 조회합니다.
+
+        **포함 정보**:
+        - 총 비용 (USD)
+        - 총 레코드 수
+        - 입력/출력 토큰 수
+        - 작업별/플랫폼별 비용 분류
+      responses:
+        '200':
+          description: 통계 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LlmCostStatsResponse'
+              example:
+                success: true
+                data:
+                  total_cost_usd: 0.123
+                  total_records: 45
+                  total_input_tokens: 12345
+                  total_output_tokens: 6789
+                  by_operation:
+                    product_description_extract: 0.05
+                    product_description_structured: 0.03
+                    product_filtering: 0.04
+                  by_platform:
+                    "description": 0.05
+                    "filtering": 0.05
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              example:
+                success: false
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "비용 통계 조회에 실패했습니다"
 
   /api/v2/workflows/execute:
     post:
@@ -1383,6 +1552,144 @@ components:
             type: integer
             minimum: 0
           description: 유효한 상품의 인덱스 배열
+
+    # ==========================================================================
+    # LLM API Schemas
+    # ==========================================================================
+
+    GenerateDescriptionRequest:
+      type: object
+      required: [brand, product_name, urls]
+      properties:
+        brand:
+          type: string
+          minLength: 1
+          description: 브랜드명
+        product_name:
+          type: string
+          minLength: 1
+          description: 상품명
+        urls:
+          type: array
+          items:
+            type: string
+            format: uri
+          minItems: 1
+          maxItems: 20
+          description: |
+            상품 페이지 URL 목록 (1~20개)
+
+            URL Context로 분석할 상품 페이지들
+
+    GenerateDescriptionResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            description:
+              type: string
+              description: 생성된 마케팅용 상품 설명
+            category:
+              type: object
+              properties:
+                id:
+                  type: integer
+                  description: 카테고리 ID
+                path:
+                  type: string
+                  description: 카테고리 경로 (예- "스킨케어 > 에센스/세럼/앰플")
+            usage:
+              type: object
+              properties:
+                stage1:
+                  type: object
+                  description: 1단계 (URL Context 추출) 토큰 사용량
+                  properties:
+                    input:
+                      type: integer
+                    output:
+                      type: integer
+                    url_context:
+                      type: integer
+                      description: URL Context에서 추출된 토큰 수
+                stage2:
+                  type: object
+                  description: 2단계 (Structured Output) 토큰 사용량
+                  properties:
+                    input:
+                      type: integer
+                    output:
+                      type: integer
+                total:
+                  type: object
+                  description: 총 토큰 사용량
+                  properties:
+                    input:
+                      type: integer
+                    output:
+                      type: integer
+                    url_context:
+                      type: integer
+                    total:
+                      type: integer
+                    cost_usd:
+                      type: number
+                      format: float
+                      description: 총 비용 (USD)
+            model:
+              type: string
+              description: 사용된 모델명
+            duration_ms:
+              type: integer
+              description: 처리 시간 (ms)
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - RATE_LIMIT_EXCEEDED
+                - INTERNAL_ERROR
+              description: 에러 코드
+            message:
+              type: string
+              description: 에러 메시지
+
+    LlmCostStatsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            total_cost_usd:
+              type: number
+              format: float
+              description: 오늘 총 LLM 비용 (USD)
+            total_records:
+              type: integer
+              description: 오늘 총 LLM 호출 수
+            total_input_tokens:
+              type: integer
+              description: 오늘 총 입력 토큰 수
+            total_output_tokens:
+              type: integer
+              description: 오늘 총 출력 토큰 수
+            by_operation:
+              type: object
+              additionalProperties:
+                type: number
+              description: 작업별 비용 분류
+            by_platform:
+              type: object
+              additionalProperties:
+                type: number
+              description: 플랫폼별 비용 분류
 
 # ============================================================================
 # Shell 스크립트 사용법

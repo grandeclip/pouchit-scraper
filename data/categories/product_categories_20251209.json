@@ -1,0 +1,437 @@
+[
+  {
+    "id": 8,
+    "name": "클렌징",
+    "parent_id": 1
+  },
+  {
+    "id": 5,
+    "name": "에센스/세럼/앰플",
+    "parent_id": 1
+  },
+  {
+    "id": 7,
+    "name": "크림",
+    "parent_id": 1
+  },
+  {
+    "id": 89,
+    "name": "헤어미스트",
+    "parent_id": 21
+  },
+  {
+    "id": 2,
+    "name": "선케어",
+    "parent_id": null
+  },
+  {
+    "id": 80,
+    "name": "네일컬러",
+    "parent_id": 19
+  },
+  {
+    "id": 81,
+    "name": "워시오프팩",
+    "parent_id": 9
+  },
+  {
+    "id": 6,
+    "name": "미스트/오일",
+    "parent_id": 1
+  },
+  {
+    "id": 10,
+    "name": "선 크림",
+    "parent_id": 2
+  },
+  {
+    "id": 11,
+    "name": "선 스틱",
+    "parent_id": 2
+  },
+  {
+    "id": 12,
+    "name": "선 쿠션",
+    "parent_id": 2
+  },
+  {
+    "id": 13,
+    "name": "선 스프레이/패치",
+    "parent_id": 2
+  },
+  {
+    "id": 14,
+    "name": "태닝/애프터 선",
+    "parent_id": 2
+  },
+  {
+    "id": 23,
+    "name": "페이스크림",
+    "parent_id": 7
+  },
+  {
+    "id": 24,
+    "name": "나이트크림",
+    "parent_id": 7
+  },
+  {
+    "id": 25,
+    "name": "아이크림",
+    "parent_id": 7
+  },
+  {
+    "id": 26,
+    "name": "클렌징폼/젤",
+    "parent_id": 8
+  },
+  {
+    "id": 27,
+    "name": "필링/스크럽",
+    "parent_id": 8
+  },
+  {
+    "id": 28,
+    "name": "립/아이리무버",
+    "parent_id": 8
+  },
+  {
+    "id": 29,
+    "name": "티슈/패드",
+    "parent_id": 8
+  },
+  {
+    "id": 30,
+    "name": "워터/밀크",
+    "parent_id": 8
+  },
+  {
+    "id": 31,
+    "name": "시트 마스크",
+    "parent_id": 9
+  },
+  {
+    "id": 32,
+    "name": "패치",
+    "parent_id": 9
+  },
+  {
+    "id": 33,
+    "name": "쿠션",
+    "parent_id": 15
+  },
+  {
+    "id": 34,
+    "name": "파운데이션",
+    "parent_id": 15
+  },
+  {
+    "id": 35,
+    "name": "파우더/팩트",
+    "parent_id": 15
+  },
+  {
+    "id": 37,
+    "name": "컨실러",
+    "parent_id": 15
+  },
+  {
+    "id": 38,
+    "name": "프라이머/코렉터",
+    "parent_id": 15
+  },
+  {
+    "id": 39,
+    "name": "세팅 스프레이/파우더",
+    "parent_id": 15
+  },
+  {
+    "id": 40,
+    "name": "하이라이터",
+    "parent_id": 15
+  },
+  {
+    "id": 41,
+    "name": "블러셔",
+    "parent_id": 15
+  },
+  {
+    "id": 42,
+    "name": "컨투어",
+    "parent_id": 15
+  },
+  {
+    "id": 43,
+    "name": "아이라이너",
+    "parent_id": 16
+  },
+  {
+    "id": 44,
+    "name": "마스카라",
+    "parent_id": 16
+  },
+  {
+    "id": 45,
+    "name": "아이브로우",
+    "parent_id": 16
+  },
+  {
+    "id": 46,
+    "name": "아이섀도우",
+    "parent_id": 16
+  },
+  {
+    "id": 47,
+    "name": "아이래쉬케어",
+    "parent_id": 16
+  },
+  {
+    "id": 48,
+    "name": "아이픽서",
+    "parent_id": 16
+  },
+  {
+    "id": 49,
+    "name": "아이프라이머",
+    "parent_id": 16
+  },
+  {
+    "id": 50,
+    "name": "립틴트",
+    "parent_id": 17
+  },
+  {
+    "id": 51,
+    "name": "립스틱",
+    "parent_id": 17
+  },
+  {
+    "id": 52,
+    "name": "립글로스",
+    "parent_id": 17
+  },
+  {
+    "id": 53,
+    "name": "립플럼퍼",
+    "parent_id": 17
+  },
+  {
+    "id": 56,
+    "name": "브러쉬",
+    "parent_id": 18
+  },
+  {
+    "id": 57,
+    "name": "속눈썹",
+    "parent_id": 18
+  },
+  {
+    "id": 59,
+    "name": "바디로션/크림",
+    "parent_id": 20
+  },
+  {
+    "id": 60,
+    "name": "핸드케어",
+    "parent_id": 20
+  },
+  {
+    "id": 61,
+    "name": "풋케어",
+    "parent_id": 20
+  },
+  {
+    "id": 62,
+    "name": "샴푸/린스",
+    "parent_id": 21
+  },
+  {
+    "id": 63,
+    "name": "헤어 트리트먼트",
+    "parent_id": 21
+  },
+  {
+    "id": 64,
+    "name": "두피앰플/토닉",
+    "parent_id": 21
+  },
+  {
+    "id": 65,
+    "name": "헤어에센스",
+    "parent_id": 21
+  },
+  {
+    "id": 66,
+    "name": "헤어 스타일링",
+    "parent_id": 21
+  },
+  {
+    "id": 82,
+    "name": "커버크림",
+    "parent_id": 15
+  },
+  {
+    "id": 83,
+    "name": "헤어 오일",
+    "parent_id": 21
+  },
+  {
+    "id": 84,
+    "name": "트러블패치",
+    "parent_id": 18
+  },
+  {
+    "id": 3,
+    "name": "메이크업",
+    "parent_id": null
+  },
+  {
+    "id": 22,
+    "name": "토너 패드",
+    "parent_id": 4
+  },
+  {
+    "id": 85,
+    "name": "수면팩",
+    "parent_id": 9
+  },
+  {
+    "id": 87,
+    "name": "클렌징파우더",
+    "parent_id": 8
+  },
+  {
+    "id": 71,
+    "name": "클렌징오일",
+    "parent_id": 8
+  },
+  {
+    "id": 54,
+    "name": "립펜슬/라이너",
+    "parent_id": 17
+  },
+  {
+    "id": 76,
+    "name": "마스크팩",
+    "parent_id": 9
+  },
+  {
+    "id": 69,
+    "name": "립밤",
+    "parent_id": 17
+  },
+  {
+    "id": 70,
+    "name": "립오일",
+    "parent_id": 17
+  },
+  {
+    "id": 68,
+    "name": "섀도우팔레트",
+    "parent_id": 16
+  },
+  {
+    "id": 78,
+    "name": "바디미스트",
+    "parent_id": 20
+  },
+  {
+    "id": 79,
+    "name": "클렌징밤",
+    "parent_id": 8
+  },
+  {
+    "id": 75,
+    "name": "스틱섀도우",
+    "parent_id": 16
+  },
+  {
+    "id": 67,
+    "name": "싱글섀도우",
+    "parent_id": 16
+  },
+  {
+    "id": 88,
+    "name": "바디오일",
+    "parent_id": 20
+  },
+  {
+    "id": 36,
+    "name": "BB/CC/커버크림",
+    "parent_id": 15
+  },
+  {
+    "id": 55,
+    "name": "립마스크",
+    "parent_id": 17
+  },
+  {
+    "id": 58,
+    "name": "바디워시/입욕",
+    "parent_id": 20
+  },
+  {
+    "id": 9,
+    "name": "마스크",
+    "parent_id": 1
+  },
+  {
+    "id": 4,
+    "name": "스킨/토너",
+    "parent_id": 1
+  },
+  {
+    "id": 74,
+    "name": "로션",
+    "parent_id": 1
+  },
+  {
+    "id": 1,
+    "name": "스킨케어",
+    "parent_id": null
+  },
+  {
+    "id": 17,
+    "name": "립 메이크업",
+    "parent_id": null
+  },
+  {
+    "id": 15,
+    "name": "페이스 메이크업",
+    "parent_id": null
+  },
+  {
+    "id": 16,
+    "name": "아이 메이크업",
+    "parent_id": null
+  },
+  {
+    "id": 18,
+    "name": "메이크업 툴",
+    "parent_id": null
+  },
+  {
+    "id": 20,
+    "name": "바디케어",
+    "parent_id": null
+  },
+  {
+    "id": 21,
+    "name": "헤어케어",
+    "parent_id": null
+  },
+  {
+    "id": 19,
+    "name": "네일",
+    "parent_id": null
+  },
+  {
+    "id": 90,
+    "name": "툴 클렌저",
+    "parent_id": 18
+  },
+  {
+    "id": 77,
+    "name": "퍼프/스펀지",
+    "parent_id": 18
+  }
+]

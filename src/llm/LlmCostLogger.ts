@@ -35,7 +35,9 @@ export type LlmOperation =
   | "label"
   | "full"
   | "product_set_parsing"
-  | "product_filtering";
+  | "product_filtering"
+  | "product_description_extract"
+  | "product_description_structured";
 
 /** LLM 비용 레코드 */
 export interface LlmCostRecord {

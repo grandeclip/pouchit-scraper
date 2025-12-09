@@ -713,6 +713,117 @@ Content-Type: application/json
 ./scripts/test-filter-products.sh --check
 ```
 
+#### 7. 상품 설명 생성 API (v2) - LLM 기반
+
+URL Context를 활용하여 상품 페이지를 분석하고 **마케팅용 상품 설명**과 **카테고리**를 생성합니다.
+
+**2단계 LLM 호출 구조**
+
+Gemini 2.5 Flash에서 URL Context와 Structured Output을 동시 사용할 수 없어 2단계로 분리합니다.
+
+| 단계  | 목적                    | 입력        | 출력                                      |
+| ----- | ----------------------- | ----------- | ----------------------------------------- |
+| 1단계 | URL Context로 정보 추출 | URL 목록    | 마케팅 문구, 효능, 카테고리 정보 (텍스트) |
+| 2단계 | Structured Output 생성  | 추출된 정보 | 상품 설명, 카테고리 (JSON)                |
+
+**상품 설명 스타일**
+
+- 짧고 임팩트 있는 마케팅 카피 스타일
+- "~입니다" 같은 문장 종결 금지
+- 핵심 효능/특징을 압축하여 전달
+
+**예시**:
+
+- "내 피부인듯 맑고 투명하게 미백 톤업크림"
+- "도톰한 당근 한 장으로 덮는 열감 진정"
+- "저분자 히알루론산이 피부 깊숙이 수분 채우는 고보습 세럼"
+
+**상품 설명 생성 (동기 API - 10~30초 소요)**
+
+```bash
+POST /api/v2/llm/generate-description
+Content-Type: application/json
+
+{
+  "brand": "토리든",
+  "product_name": "다이브인 저분자 히알루론산 세럼",
+  "urls": [
+    "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000238213",
+    "https://zigzag.kr/catalog/products/131281148"
+  ]
+}
+
+# Response
+{
+  "success": true,
+  "data": {
+    "description": "저분자 히알루론산이 피부 깊숙이 수분 채우는 고보습 세럼",
+    "category": {
+      "id": 5,
+      "path": "스킨케어 > 에센스/세럼/앰플"
+    },
+    "usage": {
+      "stage1": { "input": 180, "output": 463, "url_context": 12587 },
+      "stage2": { "input": 2148, "output": 77 },
+      "total": {
+        "input": 2328,
+        "output": 540,
+        "url_context": 12587,
+        "total": 15455,
+        "cost_usd": 0.002561
+      }
+    },
+    "model": "gemini-2.5-flash",
+    "duration_ms": 6788
+  }
+}
+```
+
+**LLM 비용**
+
+- 모델: `gemini-2.5-flash`
+- 평균 비용: ~$0.002/요청 (약 ₩3)
+- 비용 로그: `results/{date}/llm_cost__{date}.jsonl`
+  - `description` (URL Context 추출)
+  - `description` (Structured Output)
+
+**LLM 비용 통계 조회**
+
+```bash
+GET /api/v2/llm/cost-stats
+
+# Response
+{
+  "success": true,
+  "data": {
+    "total_cost_usd": 0.123,
+    "total_records": 45,
+    "total_input_tokens": 12345,
+    "total_output_tokens": 6789,
+    "by_operation": {
+      "product_description_extract": 0.05,
+      "product_description_structured": 0.03
+    },
+    "by_platform": {
+      "description": 0.05
+    }
+  }
+}
+```
+
+**Shell 스크립트**
+
+```bash
+# 기본 테스트
+./scripts/test-generate-description.sh
+
+# 테스트 + LLM 비용 로그 확인
+./scripts/test-generate-description.sh --check
+
+# 오늘 비용 통계만 조회
+./scripts/test-generate-description.sh --stats
+```
+
 ### 환경 변수
 
 ```bash
