@@ -29,6 +29,14 @@ import { logger } from "@/config/logger";
 // 인터페이스 정의
 // ============================================
 
+/** LLM 작업 유형 */
+export type LlmOperation =
+  | "normalize"
+  | "label"
+  | "full"
+  | "product_set_parsing"
+  | "product_filtering";
+
 /** LLM 비용 레코드 */
 export interface LlmCostRecord {
   /** 타임스탬프 (ISO 8601 with timezone) */
@@ -40,7 +48,7 @@ export interface LlmCostRecord {
   /** 상품 세트 ID */
   product_set_id: string;
   /** 작업 유형 */
-  operation: "normalize" | "label" | "full" | "product_set_parsing";
+  operation: LlmOperation;
   /** 사용 모델 */
   model: string;
   /** 입력 토큰 수 */
@@ -58,7 +66,7 @@ export interface LlmCostLogParams {
   job_id: string;
   platform: string;
   product_set_id: string;
-  operation: "normalize" | "label" | "full" | "product_set_parsing";
+  operation: LlmOperation;
   model: string;
   input_tokens: number;
   output_tokens: number;

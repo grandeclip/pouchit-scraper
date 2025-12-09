@@ -6,15 +6,28 @@
  * - GET /jobs/:jobId - Job 상태 조회
  * - GET /platforms - 지원 플랫폼 목록
  * - GET /queue - 큐 현황 조회
+ * - POST /filter-products - LLM 기반 상품 유효성 필터링
  */
 
 import { Router, Request, Response } from "express";
 import { z } from "zod";
+import { v7 as uuidv7 } from "uuid";
 import { RedisSearchRepository } from "@/repositories/RedisSearchRepository";
 import { SearchJobRequestSchema } from "@/core/domain/search/SearchJob";
 import { SearchQueueService } from "@/services/SearchQueueService";
 import { getSupportedSearchPlatforms } from "@/searchers";
 import { logger } from "@/config/logger";
+import {
+  ProductFilteringService,
+  ProductFilteringSchema,
+  logLlmCost,
+} from "@/llm";
+import type { ProductFilteringResult } from "@/llm";
+import {
+  parseGeminiError,
+  toClientError,
+  sanitizeMessage,
+} from "@/utils/GeminiErrorParser";
 
 /**
  * 통합 검색 요청 스키마
@@ -349,5 +362,223 @@ router.get("/unified/status", (_req: Request, res: Response) => {
     },
   });
 });
+
+// ============================================
+// Filter Products API (LLM 기반 상품 필터링)
+// ============================================
+
+/**
+ * 상품 필터링 요청 스키마
+ */
+const FilterProductsRequestSchema = z.object({
+  brand: z.string().min(1, "brand is required"),
+  product_name: z.string().min(1, "product_name is required"),
+  product_names: z
+    .record(z.string(), z.array(z.string()))
+    .refine((obj) => Object.keys(obj).length > 0, {
+      message: "product_names must have at least one platform",
+    }),
+});
+
+/**
+ * POST /api/v2/search/filter-products
+ *
+ * LLM 기반 상품 유효성 필터링
+ *
+ * 검색 결과에서 본품에 해당하는 상품만 필터링합니다.
+ * 구성품, 증정품, 다른 상품이 주가 되는 세트는 제외됩니다.
+ *
+ * Body:
+ * {
+ *   "brand": "토리든",
+ *   "product_name": "다이브인 저분자 히알루론산 세럼",
+ *   "product_names": {
+ *     "oliveyoung": ["상품1", "상품2"],
+ *     "zigzag": ["상품A", "상품B"]
+ *   }
+ * }
+ *
+ * Response (성공):
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "brand": "토리든",
+ *     "product_name": "다이브인 저분자 히알루론산 세럼",
+ *     "platforms": [
+ *       { "platform": "oliveyoung", "valid_indices": [0, 1] }
+ *     ],
+ *     "usage": { "input_tokens": 1926, "output_tokens": 41, "cost_usd": 0.000313 },
+ *     "durationMs": 1314
+ *   }
+ * }
+ *
+ * Response (에러):
+ * {
+ *   "success": false,
+ *   "error": { "code": "RATE_LIMIT_EXCEEDED", "message": "..." },
+ *   "data": { "platforms": [] }
+ * }
+ */
+router.post("/filter-products", async (req: Request, res: Response) => {
+  const startTime = Date.now();
+  const jobId = uuidv7();
+
+  try {
+    // 입력 검증
+    const parseResult = FilterProductsRequestSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: parseResult.error.errors.map((e) => e.message).join(", "),
+        },
+        data: { platforms: [] },
+      });
+      return;
+    }
+
+    const { brand, product_name, product_names } = parseResult.data;
+
+    logger.info(
+      {
+        job_id: jobId,
+        brand,
+        product_name,
+        platform_count: Object.keys(product_names).length,
+      },
+      "[SearchRouter] 상품 필터링 요청",
+    );
+
+    // LLM 호출 (재시도 로직 포함)
+    const service = new ProductFilteringService();
+    let response: Awaited<ReturnType<typeof service.filter>>;
+    let retryCount = 0;
+    const maxRetries = 1;
+
+    while (true) {
+      try {
+        response = await service.filter({
+          brand,
+          product_name,
+          product_names,
+        });
+        break;
+      } catch (error) {
+        const errorInfo = parseGeminiError(error);
+
+        if (errorInfo.retryable && retryCount < maxRetries) {
+          retryCount++;
+          logger.warn(
+            {
+              job_id: jobId,
+              error_code: errorInfo.code,
+              retry_count: retryCount,
+            },
+            "[SearchRouter] Gemini API 재시도",
+          );
+          // 1초 대기 후 재시도
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+
+        // 재시도 불가 또는 재시도 초과
+        logger.error(
+          {
+            job_id: jobId,
+            error_code: errorInfo.code,
+            error_detail: errorInfo.originalMessage,
+          },
+          "[SearchRouter] 상품 필터링 실패",
+        );
+
+        res.status(500).json({
+          success: false,
+          error: toClientError(errorInfo),
+          data: { platforms: [] },
+        });
+        return;
+      }
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    // 비용 로깅
+    logLlmCost({
+      job_id: jobId,
+      platform: "search",
+      product_set_id: "",
+      operation: "product_filtering",
+      model: response.model,
+      input_tokens: response.usage.promptTokenCount,
+      output_tokens: response.usage.candidatesTokenCount,
+    });
+
+    logger.info(
+      {
+        job_id: jobId,
+        platforms: response.result.platforms.map((p) => ({
+          platform: p.platform,
+          valid_count: p.valid_indices.length,
+        })),
+        tokens: response.usage.totalTokenCount,
+        duration_ms: durationMs,
+      },
+      "[SearchRouter] 상품 필터링 완료",
+    );
+
+    res.json({
+      success: true,
+      data: {
+        brand,
+        product_name,
+        platforms: response.result.platforms,
+        usage: {
+          input_tokens: response.usage.promptTokenCount,
+          output_tokens: response.usage.candidatesTokenCount,
+          total_tokens: response.usage.totalTokenCount,
+          cost_usd: calculateCostUsd(
+            response.usage.promptTokenCount,
+            response.usage.candidatesTokenCount,
+          ),
+        },
+        durationMs,
+      },
+    });
+  } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    const safeMessage = sanitizeMessage(rawMessage);
+
+    logger.error(
+      {
+        job_id: jobId,
+        error_detail: safeMessage,
+      },
+      "[SearchRouter] 상품 필터링 예외 발생",
+    );
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "서버 내부 오류가 발생했습니다",
+      },
+      data: { platforms: [] },
+    });
+  }
+});
+
+/**
+ * 비용 계산 (USD)
+ */
+function calculateCostUsd(inputTokens: number, outputTokens: number): number {
+  // Gemini 2.5 Flash 가격 (2024-12 기준)
+  const inputPer1M = 0.15;
+  const outputPer1M = 0.6;
+  return (
+    (inputTokens / 1_000_000) * inputPer1M +
+    (outputTokens / 1_000_000) * outputPer1M
+  );
+}
 
 export default router;

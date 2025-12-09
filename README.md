@@ -648,6 +648,71 @@ GET /api/v2/search/unified/status
 ./scripts/search-musinsa.sh "토리든" 10
 ```
 
+#### 6. 상품 필터링 API (v2) - LLM 기반
+
+검색 결과에서 **본품에 해당하는 상품만** LLM을 사용하여 필터링합니다.
+
+**컨셉**
+
+통합 검색 API로 얻은 결과에서 구성품, 증정품, 다른 상품이 주가 되는 세트를 제외하고 **타겟 상품이 본품(메인)인 경우만** 추출합니다.
+
+| 판정    | 기준             | 예시                               |
+| ------- | ---------------- | ---------------------------------- |
+| ✅ 유효 | 타겟 상품이 본품 | "토리든 다이브인 세럼 50ml 기획"   |
+| ❌ 제외 | 다른 상품이 주력 | "토리든 **밸런스풀 시카** 세럼"    |
+| ❌ 제외 | 샘플/증정품만    | "다이브인 세럼 미니 5ml 샘플 10개" |
+
+**상품 필터링 (동기 API - 1~3초 소요)**
+
+```bash
+POST /api/v2/search/filter-products
+Content-Type: application/json
+
+{
+  "brand": "토리든",
+  "product_name": "다이브인 저분자 히알루론산 세럼",
+  "product_names": {
+    "oliveyoung": ["[1등세럼] 토리든 다이브인 세럼 50ml", "토리든 밸런스풀 시카 세럼"],
+    "zigzag": ["토리든 다이브인 세럼 50ml", "토리든 다이브인 멀티패드 80매"]
+  }
+}
+
+# Response
+{
+  "success": true,
+  "data": {
+    "brand": "토리든",
+    "product_name": "다이브인 저분자 히알루론산 세럼",
+    "platforms": [
+      { "platform": "oliveyoung", "valid_indices": [0] },
+      { "platform": "zigzag", "valid_indices": [0] }
+    ],
+    "usage": {
+      "input_tokens": 1926,
+      "output_tokens": 41,
+      "cost_usd": 0.000313
+    },
+    "durationMs": 1314
+  }
+}
+```
+
+**LLM 비용**
+
+- 모델: `gemini-2.5-flash`
+- 평균 비용: ~$0.0003/요청 (약 ₩0.4)
+- 비용 로그: `results/{date}/llm_cost__{date}.jsonl`
+
+**Shell 스크립트**
+
+```bash
+# 기본 테스트
+./scripts/test-filter-products.sh
+
+# 테스트 + LLM 비용 로그 확인
+./scripts/test-filter-products.sh --check
+```
+
 ### 환경 변수
 
 ```bash

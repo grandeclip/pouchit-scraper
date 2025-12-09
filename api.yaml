@@ -265,6 +265,114 @@ paths:
                   is_processing: false
                   waiting_count: 0
 
+  /api/v2/search/filter-products:
+    post:
+      tags: [Search]
+      summary: LLM 기반 상품 유효성 필터링
+      description: |
+        검색 결과에서 **본품에 해당하는 상품만** 필터링합니다.
+
+        **동기 API** - 결과를 즉시 반환합니다 (1~3초 소요).
+
+        ## 필터링 기준
+        - ✅ **유효**: 타겟 상품이 본품(메인)인 경우
+        - ❌ **제외**: 구성품, 증정품, 다른 상품이 주가 되는 세트
+
+        ## 예시
+        타겟: "토리든 다이브인 저분자 히알루론산 세럼"
+
+        | 상품명 | 판정 | 이유 |
+        |--------|------|------|
+        | 토리든 다이브인 저분자 히알루론산 세럼 50ml | ✅ | 본품 |
+        | 토리든 다이브인 저분자 히알루론산 세럼 100ml 기획 | ✅ | 본품 (용량/기획 다름) |
+        | 토리든 다이브인 저분자 히알루론산 **멀티패드** 80매 | ❌ | 다른 상품 |
+        | 토리든 **밸런스풀 시카** 컨트롤 세럼 50ml | ❌ | 다른 라인 상품 |
+
+        ## LLM 비용
+        - 모델: gemini-2.5-flash
+        - 평균 비용: ~$0.0003/요청 (약 ₩0.4)
+        - 비용 로그: `results/{date}/llm_cost__{date}.jsonl`
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FilterProductsRequest'
+            examples:
+              basic:
+                summary: 기본 사용
+                value:
+                  brand: "토리든"
+                  product_name: "다이브인 저분자 히알루론산 세럼"
+                  product_names:
+                    oliveyoung:
+                      - "[1등세럼] 토리든 다이브인 저분자 히알루론산 세럼 50ml"
+                      - "[NEW] 토리든 밸런스풀 시카 컨트롤 세럼 50ml"
+                    zigzag:
+                      - "토리든 다이브인 저분자 히알루론산 세럼 50ml"
+                      - "토리든 다이브인 저분자 히알루론산 멀티패드 80매"
+      responses:
+        '200':
+          description: 필터링 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterProductsResponse'
+              examples:
+                success:
+                  summary: 성공 응답
+                  value:
+                    success: true
+                    data:
+                      brand: "토리든"
+                      product_name: "다이브인 저분자 히알루론산 세럼"
+                      platforms:
+                        - platform: "oliveyoung"
+                          valid_indices: [0]
+                        - platform: "zigzag"
+                          valid_indices: [0]
+                      usage:
+                        input_tokens: 1926
+                        output_tokens: 41
+                        total_tokens: 1967
+                        cost_usd: 0.000313
+                      durationMs: 1314
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              example:
+                success: false
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "brand is required"
+                data:
+                  platforms: []
+        '500':
+          description: LLM API 오류
+          content:
+            application/json:
+              examples:
+                rate_limit:
+                  summary: Rate Limit 초과
+                  value:
+                    success: false
+                    error:
+                      code: "RATE_LIMIT_EXCEEDED"
+                      message: "Gemini API rate limit exceeded"
+                    data:
+                      platforms: []
+                internal:
+                  summary: 내부 오류
+                  value:
+                    success: false
+                    error:
+                      code: "INTERNAL_ERROR"
+                      message: "Gemini API internal error"
+                    data:
+                      platforms: []
+
   /api/v2/workflows/execute:
     post:
       tags: [Workflows]
@@ -1175,6 +1283,106 @@ components:
         platform:
           type: string
           description: 플랫폼명
+
+    # ==========================================================================
+    # Filter Products API Schemas
+    # ==========================================================================
+
+    FilterProductsRequest:
+      type: object
+      required: [brand, product_name, product_names]
+      properties:
+        brand:
+          type: string
+          minLength: 1
+          description: 브랜드명
+        product_name:
+          type: string
+          minLength: 1
+          description: 상품명 (타겟)
+        product_names:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+          description: |
+            플랫폼별 상품명 목록
+
+            ```json
+            {
+              "oliveyoung": ["상품1", "상품2"],
+              "zigzag": ["상품A", "상품B"]
+            }
+            ```
+
+    FilterProductsResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            brand:
+              type: string
+              description: 브랜드명
+            product_name:
+              type: string
+              description: 타겟 상품명
+            platforms:
+              type: array
+              items:
+                $ref: '#/components/schemas/PlatformValidationResult'
+            usage:
+              type: object
+              properties:
+                input_tokens:
+                  type: integer
+                  description: 입력 토큰 수
+                output_tokens:
+                  type: integer
+                  description: 출력 토큰 수
+                total_tokens:
+                  type: integer
+                  description: 총 토큰 수
+                cost_usd:
+                  type: number
+                  format: float
+                  description: 비용 (USD)
+            durationMs:
+              type: integer
+              description: 처리 시간 (ms)
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum:
+                - VALIDATION_ERROR
+                - INVALID_ARGUMENT
+                - PERMISSION_DENIED
+                - RATE_LIMIT_EXCEEDED
+                - INTERNAL_ERROR
+                - SERVICE_UNAVAILABLE
+                - UNKNOWN_ERROR
+              description: 에러 코드
+            message:
+              type: string
+              description: 에러 메시지
+
+    PlatformValidationResult:
+      type: object
+      properties:
+        platform:
+          type: string
+          description: 플랫폼명
+        valid_indices:
+          type: array
+          items:
+            type: integer
+            minimum: 0
+          description: 유효한 상품의 인덱스 배열
 
 # ============================================================================
 # Shell 스크립트 사용법

@@ -59,6 +59,7 @@ logger.info(
       "POST /api/v2/workers/:platform/restart",
       "POST /api/v2/search",
       "POST /api/v2/search/unified",
+      "POST /api/v2/search/filter-products",
       "GET /api/v2/search/jobs/:jobId",
       "GET /api/v2/search/platforms",
       "GET /api/v2/search/queue",

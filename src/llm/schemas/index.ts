@@ -10,3 +10,11 @@ export {
   type ProductItem,
   type ProductSetParsingResult,
 } from "./ProductSetParsingSchema";
+
+export {
+  ProductFilteringSchema,
+  PlatformFilteringResultSchema,
+  type ProductFilteringResult,
+  type PlatformFilteringResult,
+  type ProductFilteringInput,
+} from "./ProductFilteringSchema";

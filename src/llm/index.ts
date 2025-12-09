@@ -34,7 +34,11 @@ export {
   getTodayTotalCost,
   getTodayCostStats,
 } from "./LlmCostLogger";
-export type { LlmCostRecord, LlmCostLogParams } from "./LlmCostLogger";
+export type {
+  LlmCostRecord,
+  LlmCostLogParams,
+  LlmOperation,
+} from "./LlmCostLogger";
 
 // Postprocessors
 export {
@@ -57,6 +61,7 @@ export type { LabelPreprocessResult } from "./postprocessors/labelPostprocessor"
 export { normalizeProductPrompt } from "./prompts/normalizeProductPrompt";
 export { classificationPrompt } from "./prompts/classificationPrompt";
 export { productSetParsingPrompt } from "./prompts/productSetParsingPrompt";
+export { productFilteringPrompt } from "./prompts/productFilteringPrompt";
 
 // Google GenAI Client (공식 SDK)
 export {
@@ -73,6 +78,8 @@ export type {
 // Schemas
 export { ProductItemSchema, ProductSetParsingSchema } from "./schemas";
 export type { ProductItem, ProductSetParsingResult } from "./schemas";
+export { ProductFilteringSchema } from "./schemas";
+export type { ProductFilteringResult, ProductFilteringInput } from "./schemas";
 
 // Product Set Parsing Service
 export {
@@ -91,3 +98,15 @@ export {
   createEmptyColumns,
 } from "./postprocessors/productSetPostprocessor";
 export type { ProductSetColumns } from "./postprocessors/productSetPostprocessor";
+
+// Product Filtering Service
+export {
+  ProductFilteringService,
+  getProductFilteringService,
+  filterProducts,
+  getValidProductNames,
+} from "./ProductFilteringService";
+export type {
+  ProductFilteringParams,
+  ProductFilteringResponse,
+} from "./ProductFilteringService";
