@@ -5,6 +5,11 @@
  * - set_name: 메인 상품만 (타입 + 용량)
  * - sanitized_item_name: 모든 항목 (타입 + 용량)
  * - structured_item_name: 모든 항목 (풀네임 + 용량)
+ *
+ * 포맷 규칙:
+ * - count > 1: "x N" 형식 (예: "세럼 50ml x 2")
+ * - 단위: 소문자 (L은 대문자 유지)
+ * - 기획 상품: gifts 비어있으면 "+ 증정품" 추가
  */
 
 import type { ProductItem, ProductSetParsingResult } from "../schemas";
@@ -30,27 +35,61 @@ export interface ProductSetColumns {
 // ============================================
 
 /**
+ * 단위 정규화: 소문자 (L은 대문자 유지)
+ *
+ * @example
+ * "ML" → "ml"
+ * "G" → "g"
+ * "l" → "L" (리터는 대문자)
+ * "매" → "매" (한글은 그대로)
+ */
+function normalizeUnit(unit: string): string {
+  if (!unit) return unit;
+
+  // 리터(L)는 대문자 유지
+  if (unit.toLowerCase() === "l") {
+    return "L";
+  }
+
+  // 영문 단위는 소문자로
+  if (/^[a-zA-Z]+$/.test(unit)) {
+    return unit.toLowerCase();
+  }
+
+  // 한글 단위는 그대로
+  return unit;
+}
+
+/**
  * 단일 항목을 텍스트로 변환 (타입 기반)
  *
  * @example
  * { type: "세럼", volume: 50, unit: "ml", count: 1 } → "세럼 50ml"
- * { type: "세럼", volume: 2, unit: "ml", count: 3 } → "세럼 2ml*3"
+ * { type: "세럼", volume: 2, unit: "ml", count: 3 } → "세럼 2ml x 3"
  * { type: "마스크팩", volume: 10, unit: "매", count: 1 } → "마스크팩 10매"
+ * { type: "립틴트", volume: null, count: 2 } → "립틴트 x 2"
  */
 function formatItemByType(item: ProductItem): string {
   const { type, volume, unit, count } = item;
 
   // volume이 없는 경우
   if (volume === null || volume === undefined) {
+    // count가 있으면 표시
+    if (count > 1) {
+      return `${type} x ${count}`;
+    }
     return type;
   }
 
-  // 기본: 타입 + 용량 + 단위
-  let result = `${type} ${volume}${unit}`;
+  // 단위 정규화
+  const normalizedUnit = normalizeUnit(unit);
 
-  // count > 1인 경우 *count 추가
+  // 기본: 타입 + 용량 + 단위
+  let result = `${type} ${volume}${normalizedUnit}`;
+
+  // count > 1인 경우 x count 추가
   if (count > 1) {
-    result += `*${count}`;
+    result += ` x ${count}`;
   }
 
   return result;
@@ -61,22 +100,30 @@ function formatItemByType(item: ProductItem): string {
  *
  * @example
  * { full_name: "다이브인 세럼", volume: 50, unit: "ml", count: 1 } → "다이브인 세럼 50ml"
- * { full_name: "다이브인 세럼", volume: 2, unit: "ml", count: 3 } → "다이브인 세럼 2ml*3"
+ * { full_name: "다이브인 세럼", volume: 2, unit: "ml", count: 3 } → "다이브인 세럼 2ml x 3"
+ * { full_name: "립틴트", volume: null, count: 2 } → "립틴트 x 2"
  */
 function formatItemByFullName(item: ProductItem): string {
   const { full_name, volume, unit, count } = item;
 
   // volume이 없는 경우
   if (volume === null || volume === undefined) {
+    // count가 있으면 표시
+    if (count > 1) {
+      return `${full_name} x ${count}`;
+    }
     return full_name;
   }
 
-  // 기본: 풀네임 + 용량 + 단위
-  let result = `${full_name} ${volume}${unit}`;
+  // 단위 정규화
+  const normalizedUnit = normalizeUnit(unit);
 
-  // count > 1인 경우 *count 추가
+  // 기본: 풀네임 + 용량 + 단위
+  let result = `${full_name} ${volume}${normalizedUnit}`;
+
+  // count > 1인 경우 x count 추가
   if (count > 1) {
-    result += `*${count}`;
+    result += ` x ${count}`;
   }
 
   return result;

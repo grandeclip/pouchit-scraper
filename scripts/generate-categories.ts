@@ -15,6 +15,7 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import { execSync } from "child_process";
 
 // ============================================
 // 설정
@@ -280,6 +281,43 @@ export function getAllCategoriesFlat(): Array<{
   traverse(COSMETIC_CATEGORIES, 0, []);
   return result;
 }
+
+/**
+ * 제품 type 목록 반환 (프롬프트용)
+ *
+ * leaf 노드의 카테고리명을 "/" 기준으로 분해하여
+ * 개별 type 목록 생성
+ *
+ * @example
+ * "에센스/세럼/앰플" → ["에센스", "세럼", "앰플"]
+ * "클렌징폼/젤" → ["클렌징폼", "젤"]
+ * "립틴트" → ["립틴트"]
+ *
+ * @returns 중복 제거된 type 목록 (정렬됨)
+ */
+export function getExpandedTypeList(): string[] {
+  const types = new Set<string>();
+
+  const traverse = (nodes: CategoryNode[]) => {
+    for (const node of nodes) {
+      if (node.children && node.children.length > 0) {
+        // 자식이 있으면 재귀 탐색
+        traverse(node.children);
+      } else {
+        // leaf 노드: "/" 기준으로 분해
+        const parts = node.name.split("/");
+        for (const part of parts) {
+          types.add(part.trim());
+        }
+      }
+    }
+  };
+
+  traverse(COSMETIC_CATEGORIES);
+
+  // 정렬하여 반환
+  return Array.from(types).sort((a, b) => a.localeCompare(b, "ko"));
+}
 `;
 }
 
@@ -368,6 +406,38 @@ async function main(): Promise<void> {
   // 4. 파일 저장
   fs.writeFileSync(OUTPUT_FILE, tsCode, "utf-8");
   console.log(`\n📤 출력: ${OUTPUT_FILE}`);
+
+  // 5. Lint & Format 실행
+  console.log("\n🔧 Lint & Format 실행 중...");
+  try {
+    execSync(`npx prettier --write "${OUTPUT_FILE}"`, {
+      stdio: "inherit",
+      cwd: process.cwd(),
+    });
+    console.log("   ✓ Prettier 포맷팅 완료");
+  } catch {
+    console.warn("   ⚠️  Prettier 실행 실패 (설치 필요: npm i -D prettier)");
+  }
+
+  // ESLint 설정 파일 존재 시에만 실행
+  const eslintConfigExists =
+    fs.existsSync(path.join(process.cwd(), "eslint.config.js")) ||
+    fs.existsSync(path.join(process.cwd(), "eslint.config.mjs")) ||
+    fs.existsSync(path.join(process.cwd(), "eslint.config.cjs")) ||
+    fs.existsSync(path.join(process.cwd(), ".eslintrc.js")) ||
+    fs.existsSync(path.join(process.cwd(), ".eslintrc.json"));
+
+  if (eslintConfigExists) {
+    try {
+      execSync(`npx eslint --fix "${OUTPUT_FILE}"`, {
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+      console.log("   ✓ ESLint 수정 완료");
+    } catch {
+      // ESLint 에러 무시
+    }
+  }
 
   console.log("\n✅ 변환 완료!");
 }

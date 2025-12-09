@@ -32,7 +32,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 80,
         name: "네일컬러",
-      }
+      },
     ],
   },
   {
@@ -70,7 +70,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 53,
         name: "립플럼퍼",
-      }
+      },
     ],
   },
   {
@@ -100,7 +100,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 77,
         name: "퍼프/스펀지",
-      }
+      },
     ],
   },
   {
@@ -130,7 +130,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 60,
         name: "핸드케어",
-      }
+      },
     ],
   },
   {
@@ -156,7 +156,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 14,
         name: "태닝/애프터 선",
-      }
+      },
     ],
   },
   {
@@ -190,7 +190,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
           {
             id: 32,
             name: "패치",
-          }
+          },
         ],
       },
       {
@@ -204,7 +204,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
           {
             id: 22,
             name: "토너 패드",
-          }
+          },
         ],
       },
       {
@@ -226,7 +226,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
           {
             id: 23,
             name: "페이스크림",
-          }
+          },
         ],
       },
       {
@@ -264,9 +264,9 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
           {
             id: 27,
             name: "필링/스크럽",
-          }
+          },
         ],
-      }
+      },
     ],
   },
   {
@@ -312,7 +312,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 48,
         name: "아이픽서",
-      }
+      },
     ],
   },
   {
@@ -362,7 +362,7 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 36,
         name: "BB/CC/커버크림",
-      }
+      },
     ],
   },
   {
@@ -396,9 +396,9 @@ export const COSMETIC_CATEGORIES: CategoryNode[] = [
       {
         id: 65,
         name: "헤어에센스",
-      }
+      },
     ],
-  }
+  },
 ];
 
 /**
@@ -439,7 +439,10 @@ export function findCategoryByName(name: string): CategoryNode | undefined {
  * 카테고리 경로 조회 (ID → ["대분류", "중분류", "소분류"])
  */
 export function getCategoryPath(id: number): string[] | undefined {
-  const search = (nodes: CategoryNode[], path: string[]): string[] | undefined => {
+  const search = (
+    nodes: CategoryNode[],
+    path: string[],
+  ): string[] | undefined => {
     for (const node of nodes) {
       const currentPath = [...path, node.name];
       if (node.id === id) return currentPath;
@@ -509,9 +512,18 @@ export function getAllCategoriesFlat(): Array<{
   depth: number;
   path: string;
 }> {
-  const result: Array<{ id: number; name: string; depth: number; path: string }> = [];
+  const result: Array<{
+    id: number;
+    name: string;
+    depth: number;
+    path: string;
+  }> = [];
 
-  const traverse = (nodes: CategoryNode[], depth: number, pathParts: string[]) => {
+  const traverse = (
+    nodes: CategoryNode[],
+    depth: number,
+    pathParts: string[],
+  ) => {
     for (const node of nodes) {
       const currentPath = [...pathParts, node.name];
       result.push({
@@ -528,4 +540,41 @@ export function getAllCategoriesFlat(): Array<{
 
   traverse(COSMETIC_CATEGORIES, 0, []);
   return result;
+}
+
+/**
+ * 제품 type 목록 반환 (프롬프트용)
+ *
+ * leaf 노드의 카테고리명을 "/" 기준으로 분해하여
+ * 개별 type 목록 생성
+ *
+ * @example
+ * "에센스/세럼/앰플" → ["에센스", "세럼", "앰플"]
+ * "클렌징폼/젤" → ["클렌징폼", "젤"]
+ * "립틴트" → ["립틴트"]
+ *
+ * @returns 중복 제거된 type 목록 (정렬됨)
+ */
+export function getExpandedTypeList(): string[] {
+  const types = new Set<string>();
+
+  const traverse = (nodes: CategoryNode[]) => {
+    for (const node of nodes) {
+      if (node.children && node.children.length > 0) {
+        // 자식이 있으면 재귀 탐색
+        traverse(node.children);
+      } else {
+        // leaf 노드: "/" 기준으로 분해
+        const parts = node.name.split("/");
+        for (const part of parts) {
+          types.add(part.trim());
+        }
+      }
+    }
+  };
+
+  traverse(COSMETIC_CATEGORIES);
+
+  // 정렬하여 반환
+  return Array.from(types).sort((a, b) => a.localeCompare(b, "ko"));
 }
