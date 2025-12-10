@@ -172,14 +172,14 @@ import { HwahaeProduct } from "../../core/domain/HwahaeProduct";
 
 **Approach**: Volume Mount + Hot Reload (Hybrid Method)
 
-- **Tools**: docker-compose.dev.yml + tsx watch
+- **Tools**: docker-compose.yml + tsx watch
 - **Benefits**: Development speed + environment consistency + type safety
 
 ### Quick Start
 
 ```bash
 # Start development environment
-make dev
+make up
 
 # Type check (inside container)
 make type-check
@@ -191,7 +191,7 @@ make test
 make logs
 
 # Stop
-make dev-down
+make down
 ```
 
 ### Development vs Production
@@ -199,7 +199,7 @@ make dev-down
 | Item           | Development Environment | Production Environment   |
 | -------------- | ----------------------- | ------------------------ |
 | **Dockerfile** | Dockerfile.dev          | Dockerfile (Multi-stage) |
-| **Compose**    | docker-compose.dev.yml  | docker-compose.yml       |
+| **Compose**    | docker-compose.yml      | docker-compose.yml       |
 | **Volume**     | ✅ Yes (./:/app)        | ❌ No                    |
 | **Hot Reload** | ✅ tsx watch            | ❌ tsx                   |
 | **Purpose**    | Local development       | Deployment, production   |

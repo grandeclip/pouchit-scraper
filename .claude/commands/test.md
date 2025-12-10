@@ -6,41 +6,15 @@ description: 모듈별 Docker Compose 테스트 실행
 
 Docker Compose로 빌드하고 테스트합니다.
 
-## 배포 환경 테스트
-
-```bash
-# 1. Build & Run (배포 환경)
-make prod
-# 또는: docker-compose up --build -d
-
-# 2. Container Status
-docker ps | grep product_scanner
-
-# 3. Health Check
-curl http://localhost:3989/health
-
-# 4. Custom Test Script (있는 경우)
-# 예: Supabase 연결 테스트
-docker cp test-supabase.ts product_scanner:/app/
-docker exec product_scanner npx tsx test-supabase.ts
-
-# 5. Logs Check
-docker logs product_scanner --tail 50
-
-# 6. Cleanup
-make down
-# 또는: docker-compose down
-```
-
 ## 개발 환경 테스트
 
 ```bash
 # 1. Build & Run (개발 환경)
-make dev
-# 또는: docker-compose -f docker/docker-compose.dev.yml up --build
+make up
+# 또는: docker-compose -f docker/docker-compose.yml up --build
 
 # 2. Container Status
-docker ps | grep product_scanner_dev
+docker ps | grep product_scanner
 
 # 3. Health Check
 curl http://localhost:3989/health
@@ -59,7 +33,7 @@ make logs
 make logs-f
 
 # 8. Cleanup
-make dev-down
+make down
 ```
 
 ## 공통 테스트 절차
@@ -67,7 +41,7 @@ make dev-down
 ### 1. Build & Run
 
 ```bash
-docker-compose up --build -d
+make up
 ```
 
 ### 2. Status Verification
@@ -80,23 +54,23 @@ docker ps
 ### 3. Health Check
 
 ```bash
-curl http://localhost:<PORT>/health
+curl http://localhost:3989/health
 # 응답: {"status":"ok"}
 ```
 
 ### 4. Logs Inspection
 
 ```bash
-docker logs <container-name> --tail 50
+make logs
 # 에러 메시지 없는지 확인
 ```
 
 ### 5. Cleanup
 
 ```bash
-docker-compose down
+make down
 # 또는 전체 정리
-docker-compose down -v  # volumes도 함께 삭제
+make clean  # volumes도 함께 삭제
 ```
 
 ## 문제 해결
@@ -104,28 +78,28 @@ docker-compose down -v  # volumes도 함께 삭제
 ### Container가 재시작을 반복하는 경우
 
 ```bash
-docker logs <container-name>
+make logs
 # 로그를 확인하여 오류 원인 파악
 ```
 
 ### Health Check 실패
 
 ```bash
-docker inspect <container-name> | grep -A 10 Health
+docker inspect product_scanner | grep -A 10 Health
 # Health check 설정 및 상태 확인
 ```
 
 ### 환경 변수 문제
 
 ```bash
-docker exec <container-name> env
+docker exec product_scanner env
 # 컨테이너 내부 환경 변수 확인
 ```
 
 ### Port 충돌
 
 ```bash
-lsof -i :<PORT>
+lsof -i :3989
 # 포트 사용 중인 프로세스 확인
 ```
 

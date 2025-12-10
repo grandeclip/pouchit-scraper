@@ -47,11 +47,11 @@ services:
   # ============================================
   # API Server
   # ============================================
-  product_scanner_dev:
+  product_scanner:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
-    container_name: product_scanner_dev
+    container_name: product_scanner
     ports:
       - "3989:3000"
     environment:
@@ -188,7 +188,7 @@ services:
       - ../logs:/app/logs
     depends_on:
       - redis
-      - product_scanner_dev
+      - product_scanner
     command: npm run scheduler
     restart: unless-stopped
     environment:
@@ -226,7 +226,7 @@ services:
       - ../logs:/app/logs
     depends_on:
       - redis
-      - product_scanner_dev
+      - product_scanner
     command: npm run alert-watcher
     restart: unless-stopped
     environment:
@@ -250,7 +250,7 @@ services:
   # ============================================
   redis:
     image: redis:8.2-alpine
-    container_name: product_scanner_redis_dev
+    container_name: product_scanner_redis
     command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru --save ""
     restart: unless-stopped
     tmpfs:

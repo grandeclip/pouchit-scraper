@@ -31,7 +31,7 @@ if [ -z "$response" ]; then
     echo "API_URL: ${API_URL}"
     echo ""
     echo "서버 상태 확인:"
-    echo "  docker ps | grep product_scanner"
+    echo "  make status"
     exit 1
 fi
 

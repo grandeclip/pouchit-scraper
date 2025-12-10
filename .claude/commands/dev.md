@@ -10,10 +10,10 @@ Docker Volume Mount + Hot Reload 방식으로 개발 환경을 관리합니다.
 
 ```bash
 # 개발 환경 시작
-make dev
+make up
 
 # 또는 수동 실행
-docker-compose -f docker/docker-compose.dev.yml up --build
+docker-compose -f docker/docker-compose.yml up --build
 ```
 
 **특징:**
@@ -29,7 +29,7 @@ docker-compose -f docker/docker-compose.dev.yml up --build
 make type-check
 
 # 또는
-docker-compose -f docker/docker-compose.dev.yml exec product_scanner_dev npm run type-check
+docker-compose -f docker/docker-compose.yml exec product_scanner npm run type-check
 ```
 
 ## 🧪 테스트 실행
@@ -38,7 +38,7 @@ docker-compose -f docker/docker-compose.dev.yml exec product_scanner_dev npm run
 make test
 
 # 또는
-docker-compose -f docker/docker-compose.dev.yml exec product_scanner_dev npm test
+docker-compose -f docker/docker-compose.yml exec product_scanner npm test
 ```
 
 ## 📊 로그 확인
@@ -54,23 +54,23 @@ make logs-f
 ## 🛑 개발 환경 종료
 
 ```bash
-make dev-down
+make down
 
 # 또는
-docker-compose -f docker/docker-compose.dev.yml down
+docker-compose -f docker/docker-compose.yml down
 ```
 
 ## 🔄 재시작
 
 ```bash
-make dev-restart
+make restart
 ```
 
 ## 📋 개발 워크플로우
 
 ```bash
 # 1. 개발 환경 시작 (최초 1회 빌드)
-make dev
+make up
 
 # 2. 로컬에서 코드 수정
 #    → 자동으로 tsx watch가 감지하여 재시작
@@ -82,7 +82,7 @@ make type-check
 make test
 
 # 5. 작업 완료 후 종료
-make dev-down
+make down
 ```
 
 ## ⚠️ 주의사항
@@ -99,15 +99,15 @@ make dev-down
 lsof -i :3989
 
 # 기존 컨테이너 종료
-docker-compose -f docker/docker-compose.dev.yml down
+docker-compose -f docker/docker-compose.yml down
 ```
 
 ### 캐시 문제
 
 ```bash
 # 캐시 무시하고 재빌드
-docker-compose -f docker/docker-compose.dev.yml build --no-cache
-docker-compose -f docker/docker-compose.dev.yml up
+docker-compose -f docker/docker-compose.yml build --no-cache
+docker-compose -f docker/docker-compose.yml up
 ```
 
 ### node_modules 문제
@@ -115,5 +115,5 @@ docker-compose -f docker/docker-compose.dev.yml up
 ```bash
 # 컨테이너 및 볼륨 삭제 후 재시작
 make clean
-make dev
+make up
 ```
