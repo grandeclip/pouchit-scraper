@@ -17,6 +17,19 @@ import { HttpStrategyConfig } from "@/core/domain/StrategyConfig";
 import { MusinsaProduct } from "@/core/domain/MusinsaProduct";
 import { IProductExtractor } from "@/extractors/base";
 import { ExtractorRegistry } from "@/extractors/ExtractorRegistry";
+import { logger } from "@/config/logger";
+
+/**
+ * 영구적 상태 에러 코드 (off_sale 처리 대상)
+ *
+ * 이 에러 코드들은 상품이 삭제/비공개 등 영구적 상태 변경을 의미하며,
+ * 재시도 없이 off_sale로 처리합니다.
+ */
+const PERMANENT_ERROR_CODES = [
+  "DISPLAY_000_0002", // 존재하지 않는 데이터
+  "DISPLAY_000_0006", // 유효하지 않은 상품 (삭제/비공개)
+  "NOT_FOUND", // 상품 없음
+];
 
 /**
  * 무신사 API 응답 타입
@@ -50,6 +63,8 @@ export class MusinsaHttpScanner extends BaseScanner<
   PlatformConfig
 > {
   private readonly extractor: IProductExtractor<MusinsaApiResponse>;
+  /** 현재 스캔 중인 상품 번호 (parseData에서 사용) */
+  private currentGoodsNo: string = "";
 
   constructor(config: PlatformConfig, strategy: HttpStrategyConfig) {
     super(config, strategy);
@@ -76,6 +91,9 @@ export class MusinsaHttpScanner extends BaseScanner<
    * 데이터 추출 (HTTP API 호출)
    */
   protected async extractData(goodsNo: string): Promise<MusinsaApiResponse> {
+    // 현재 스캔 중인 상품 번호 저장 (parseData에서 사용)
+    this.currentGoodsNo = goodsNo;
+
     // Rate limiting 방지: requestDelay 설정이 있으면 대기
     if (this.httpStrategy.http.requestDelay) {
       await this.sleep(this.httpStrategy.http.requestDelay);
@@ -89,14 +107,38 @@ export class MusinsaHttpScanner extends BaseScanner<
    * 데이터 파싱 (API 응답 → 도메인 모델)
    *
    * 전략:
-   * 1. MusinsaExtractor로 ProductData 추출
-   * 2. ProductData → MusinsaProduct 변환
+   * 1. 영구적 에러(삭제/비공개) → off_sale 상태로 반환
+   * 2. 정상 응답 → MusinsaExtractor로 ProductData 추출
+   * 3. ProductData → MusinsaProduct 변환
    */
   protected async parseData(
     rawData: MusinsaApiResponse,
   ): Promise<MusinsaProduct> {
-    // 에러 확인
-    if (rawData.meta?.errorCode || !rawData.data) {
+    const errorCode = rawData.meta?.errorCode;
+
+    // 영구적 에러 (삭제/비공개 상품) → off_sale 반환
+    if (errorCode && PERMANENT_ERROR_CODES.includes(errorCode)) {
+      logger.info(
+        {
+          goodsNo: this.currentGoodsNo,
+          errorCode,
+          message: rawData.meta?.message,
+        },
+        "[MusinsaHttpScanner] 삭제/비공개 상품 → off_sale 처리",
+      );
+
+      return new MusinsaProduct(
+        this.currentGoodsNo || "unknown",
+        "삭제된 상품", // 영구적 에러 → 고정 이름
+        "https://via.placeholder.com/1x1", // off_sale placeholder
+        0,
+        0,
+        "off_sale",
+      );
+    }
+
+    // 기타 에러 (일시적 장애 등) → throw
+    if (errorCode || !rawData.data) {
       throw new Error(
         `Musinsa API error: ${rawData.meta?.message || "Unknown error"}`,
       );
@@ -149,8 +191,13 @@ export class MusinsaHttpScanner extends BaseScanner<
         return (await response.json()) as MusinsaApiResponse;
       }
 
-      // 404 Not Found
+      // 404 Not Found → JSON 응답 파싱하여 off_sale 처리 경로로
       if (response.status === 404) {
+        const body = (await response.json()) as MusinsaApiResponse;
+        // 에러코드가 있으면 parseData에서 처리하도록 반환
+        if (body.meta?.errorCode) {
+          return body;
+        }
         throw new Error("Product not found (deleted or unavailable)");
       }
 
