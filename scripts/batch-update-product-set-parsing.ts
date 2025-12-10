@@ -133,9 +133,9 @@ async function fetchTargetProductSets(
     const { data, error } = await supabase
       .from("product_sets")
       .select("product_set_id, product_name, product_id")
-      .not("product_name", "is", null)
-      .neq("product_name", "")
-      .not("product_id", "is", null)
+      // .not("product_name", "is", null)
+      // .neq("product_name", "")
+      // .not("product_id", "is", null)
       .limit(limit);
 
     if (error) {
