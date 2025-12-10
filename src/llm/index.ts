@@ -139,3 +139,13 @@ export {
   buildProductDescriptionUserPrompt, // @deprecated
   productDescriptionSystemPrompt,
 } from "./prompts/productDescriptionPrompt";
+
+// URL Selection (상품 설명 생성용)
+export { selectUrls } from "./utils/UrlSelector";
+export type { UrlSelectionResult } from "./utils/UrlSelector";
+export {
+  PLATFORM_DOMAINS,
+  PLATFORM_PRIORITY,
+  URL_SELECTION_LIMITS,
+} from "./config/urlSelectionConfig";
+export type { UrlSelectionLimits } from "./config/urlSelectionConfig";

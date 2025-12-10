@@ -408,9 +408,18 @@ paths:
         - "도톰한 당근 한 장으로 덮는 열감 진정"
         - "저분자 히알루론산이 피부 깊숙이 수분 채우는 고보습 세럼"
 
+        ## URL 선택 규칙
+        토큰 사용량 최적화를 위해 입력된 URL 중 최대 3개만 선택합니다.
+
+        - **총 선택**: 1~3개
+        - **플랫폼당**: 최대 2개
+        - **우선순위**: oliveyoung → musinsa → ably → zigzag → hwahae → kurly
+
+        예: 7개 URL 입력 시 → oliveyoung 1개 + musinsa 1개 + ably 1개 = 3개 선택
+
         ## LLM 비용
         - 모델: `gemini-2.5-flash`
-        - 평균 비용: ~$0.002/요청 (약 ₩3)
+        - 평균 비용: ~$0.001/요청 (약 ₩1.5)
         - 비용 로그: `results/{date}/llm_cost__{date}.jsonl`
           - platform: `description` (URL Context 추출)
           - platform: `description` (Structured Output)
@@ -456,20 +465,27 @@ paths:
                         path: "스킨케어 > 에센스/세럼/앰플"
                       usage:
                         stage1:
-                          input: 180
-                          output: 463
-                          url_context: 12587
+                          input: 373
+                          output: 479
+                          url_context: 2294
                         stage2:
-                          input: 2148
-                          output: 77
+                          input: 2245
+                          output: 56
                         total:
-                          input: 2328
-                          output: 540
-                          url_context: 12587
-                          total: 15455
-                          cost_usd: 0.002561
+                          input: 2618
+                          output: 535
+                          url_context: 2294
+                          total: 5447
+                          cost_usd: 0.00106
+                      url_selection:
+                        original_count: 7
+                        selected_count: 3
+                        by_platform:
+                          oliveyoung: 1
+                          musinsa: 1
+                          ably: 1
                       model: "gemini-2.5-flash"
-                      duration_ms: 6788
+                      duration_ms: 6218
         '400':
           description: 잘못된 요청
           content:
@@ -1639,6 +1655,25 @@ components:
                       type: number
                       format: float
                       description: 총 비용 (USD)
+            url_selection:
+              type: object
+              description: URL 선택 정보 (우선순위 기반, 최대 3개)
+              properties:
+                original_count:
+                  type: integer
+                  description: 입력된 원본 URL 개수
+                selected_count:
+                  type: integer
+                  description: 선택된 URL 개수 (1~3개)
+                by_platform:
+                  type: object
+                  description: 플랫폼별 선택된 URL 개수
+                  additionalProperties:
+                    type: integer
+                  example:
+                    oliveyoung: 1
+                    musinsa: 1
+                    ably: 1
             model:
               type: string
               description: 사용된 모델명

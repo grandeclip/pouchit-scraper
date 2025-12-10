@@ -25,6 +25,7 @@ import {
   buildProductDescriptionSystemPrompt,
   buildStructuredOutputPrompt,
 } from "@/llm/prompts/productDescriptionPrompt";
+import { selectUrls, type UrlSelectionResult } from "@/llm/utils/UrlSelector";
 
 // ============================================
 // 설정
@@ -67,6 +68,8 @@ export interface ProductDescriptionResponse {
     totalTokens: number;
     costUsd: number;
   };
+  /** URL 선택 정보 */
+  urlSelection: UrlSelectionResult;
   /** 사용 모델 */
   model: string;
   /** 소요 시간 (ms) */
@@ -128,17 +131,26 @@ export class ProductDescriptionService {
   ): Promise<ProductDescriptionResponse> {
     const startTime = Date.now();
 
+    // URL 선택 (우선순위 기반, 최대 3개)
+    const urlSelection = selectUrls(input.urls);
+    const selectedInput: ProductDescriptionInput = {
+      ...input,
+      urls: urlSelection.selectedUrls,
+    };
+
     logger.info(
       {
         brand: input.brand,
         product_name: input.product_name,
-        url_count: input.urls.length,
+        original_url_count: urlSelection.originalCount,
+        selected_url_count: urlSelection.selectedCount,
+        selection_by_platform: urlSelection.selectionByPlatform,
       },
       "[ProductDescriptionService] 상품 설명 생성 시작",
     );
 
     // 1단계: URL Context로 정보 추출
-    const stage1Result = await this.extractInfoWithUrlContext(input);
+    const stage1Result = await this.extractInfoWithUrlContext(selectedInput);
 
     // 2단계: Structured Output 생성
     const stage2Result = await this.generateStructuredOutput(
@@ -168,6 +180,7 @@ export class ProductDescriptionService {
         totalTokens: effectiveInput + outputTokens,
         costUsd: calculateCost(effectiveInput, outputTokens),
       },
+      urlSelection,
       model: MODEL,
       durationMs,
     };

@@ -47,7 +47,12 @@ JSON_PAYLOAD=$(cat <<'EOF'
   "product_name": "다이브인 저분자 히알루론산 세럼",
   "urls": [
     "https://www.oliveyoung.co.kr/store/goods/getGoodsDetail.do?goodsNo=A000000238213",
-    "https://zigzag.kr/catalog/products/131281148"
+    "https://zigzag.kr/catalog/products/131281148",
+    "https://www.kurly.com/goods/1000146242",
+    "https://m.a-bly.com/goods/24156347",
+    "https://m.a-bly.com/goods/18545259",
+    "https://www.hwahae.co.kr/goods/54413",
+    "https://www.musinsa.com/products/4220847"
   ]
 }
 EOF

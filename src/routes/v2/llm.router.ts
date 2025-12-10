@@ -223,6 +223,11 @@ router.post("/generate-description", async (req: Request, res: Response) => {
             cost_usd: response.totalUsage.costUsd,
           },
         },
+        url_selection: {
+          original_count: response.urlSelection.originalCount,
+          selected_count: response.urlSelection.selectedCount,
+          by_platform: response.urlSelection.selectionByPlatform,
+        },
         model: response.model,
         duration_ms: response.durationMs,
       },

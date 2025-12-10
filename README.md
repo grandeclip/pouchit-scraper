@@ -738,7 +738,21 @@ Gemini 2.5 Flash에서 URL Context와 Structured Output을 동시 사용할 수 
 - "도톰한 당근 한 장으로 덮는 열감 진정"
 - "저분자 히알루론산이 피부 깊숙이 수분 채우는 고보습 세럼"
 
-**상품 설명 생성 (동기 API - 10~30초 소요)**
+**URL 선택 규칙**
+
+토큰 사용량 최적화를 위해 입력된 URL 중 **최대 3개만 선택**합니다.
+
+| 항목     | 값                                                    |
+| -------- | ----------------------------------------------------- |
+| 총 선택  | 1~3개                                                 |
+| 플랫폼당 | 최대 2개                                              |
+| 우선순위 | oliveyoung → musinsa → ably → zigzag → hwahae → kurly |
+
+예: 7개 URL 입력 시 → oliveyoung 1개 + musinsa 1개 + ably 1개 = **3개 선택**
+
+> 💡 설정 파일: `src/llm/config/urlSelectionConfig.ts`
+
+**상품 설명 생성 (동기 API - 5~15초 소요)**
 
 ```bash
 POST /api/v2/llm/generate-description
@@ -763,18 +777,23 @@ Content-Type: application/json
       "path": "스킨케어 > 에센스/세럼/앰플"
     },
     "usage": {
-      "stage1": { "input": 180, "output": 463, "url_context": 12587 },
-      "stage2": { "input": 2148, "output": 77 },
+      "stage1": { "input": 373, "output": 479, "url_context": 2294 },
+      "stage2": { "input": 2245, "output": 56 },
       "total": {
-        "input": 2328,
-        "output": 540,
-        "url_context": 12587,
-        "total": 15455,
-        "cost_usd": 0.002561
+        "input": 2618,
+        "output": 535,
+        "url_context": 2294,
+        "total": 5447,
+        "cost_usd": 0.00106
       }
     },
+    "url_selection": {
+      "original_count": 7,
+      "selected_count": 3,
+      "by_platform": { "oliveyoung": 1, "musinsa": 1, "ably": 1 }
+    },
     "model": "gemini-2.5-flash",
-    "duration_ms": 6788
+    "duration_ms": 6218
   }
 }
 ```
@@ -782,7 +801,7 @@ Content-Type: application/json
 **LLM 비용**
 
 - 모델: `gemini-2.5-flash`
-- 평균 비용: ~$0.002/요청 (약 ₩3)
+- 평균 비용: ~$0.001/요청 (약 ₩1.5)
 - 비용 로그: `results/{date}/llm_cost__{date}.jsonl`
   - `description` (URL Context 추출)
   - `description` (Structured Output)
