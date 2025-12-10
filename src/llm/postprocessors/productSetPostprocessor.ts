@@ -28,6 +28,10 @@ export interface ProductSetColumns {
   sanitized_item_name: string;
   /** 모든 항목 (풀네임 + 용량) */
   structured_item_name: string;
+  /** 메인 상품 용량 (단일 상품일 때만, 복수 상품 세트는 null) */
+  volume: number | null;
+  /** 메인 상품 용량 단위 (단일 상품일 때만, 복수 상품 세트는 null) */
+  volume_unit: string | null;
 }
 
 // ============================================
@@ -169,10 +173,22 @@ export function buildProductSetColumns(
   ];
   const structured_item_name = joinItems(allItemsByFullName);
 
+  // volume, volume_unit: 메인 상품이 1개일 때만 추출 (복수 상품 세트는 null)
+  let volume: number | null = null;
+  let volume_unit: string | null = null;
+
+  if (main_products.length === 1) {
+    const mainProduct = main_products[0];
+    volume = mainProduct.volume;
+    volume_unit = mainProduct.unit ? normalizeUnit(mainProduct.unit) : null;
+  }
+
   return {
     set_name,
     sanitized_item_name,
     structured_item_name,
+    volume,
+    volume_unit,
   };
 }
 
@@ -184,5 +200,7 @@ export function createEmptyColumns(): ProductSetColumns {
     set_name: "",
     sanitized_item_name: "",
     structured_item_name: "",
+    volume: null,
+    volume_unit: null,
   };
 }

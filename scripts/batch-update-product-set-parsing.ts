@@ -244,6 +244,8 @@ async function updateSingleProductSet(
         set_name: columns.set_name,
         sanitized_item_name: columns.sanitized_item_name,
         structured_item_name: columns.structured_item_name,
+        volume: columns.volume,
+        volume_unit: columns.volume_unit,
       })
       .eq("product_set_id", productSet.product_set_id);
 
@@ -292,6 +294,8 @@ async function main(): Promise<void> {
 
   console.log("\n" + "═".repeat(60));
   console.log("🔄 Product Set Parsing 배치 업데이트");
+  console.log("   업데이트 컬럼: set_name, sanitized_item_name,");
+  console.log("                  structured_item_name, volume, volume_unit");
   console.log("═".repeat(60));
 
   // 1. product_sets 조회

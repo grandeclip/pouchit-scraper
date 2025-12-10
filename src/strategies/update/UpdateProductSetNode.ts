@@ -478,6 +478,8 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         set_name: string;
         sanitized_item_name: string;
         structured_item_name: string;
+        volume: number | null;
+        volume_unit: string | null;
       }
     >();
 
@@ -520,6 +522,8 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
           set_name: llmResult.set_name,
           sanitized_item_name: llmResult.sanitized_item_name,
           structured_item_name: llmResult.structured_item_name,
+          volume: llmResult.volume,
+          volume_unit: llmResult.volume_unit,
         };
       }
       return update;
@@ -607,6 +611,12 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
       if (update.structured_item_name !== undefined) {
         filtered.structured_item_name = update.structured_item_name;
       }
+      if (update.volume !== undefined) {
+        filtered.volume = update.volume;
+      }
+      if (update.volume_unit !== undefined) {
+        filtered.volume_unit = update.volume_unit;
+      }
 
       return filtered;
     });
@@ -621,7 +631,9 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
         update.sale_status !== undefined ||
         update.set_name !== undefined ||
         update.sanitized_item_name !== undefined ||
-        update.structured_item_name !== undefined
+        update.structured_item_name !== undefined ||
+        update.volume !== undefined ||
+        update.volume_unit !== undefined
       );
     });
 

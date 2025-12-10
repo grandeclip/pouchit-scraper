@@ -151,6 +151,8 @@ export class SupabaseProductUpdateRepository implements IProductUpdateRepository
        * - set_name: 메인 상품만 (타입 + 용량)
        * - sanitized_item_name: 모든 항목 (타입 + 용량)
        * - structured_item_name: 모든 항목 (full_name + 용량)
+       * - volume: 메인 상품 용량 (단일 상품일 때만)
+       * - volume_unit: 메인 상품 용량 단위 (단일 상품일 때만)
        */
       if (data.set_name !== undefined) {
         updateFields.set_name = data.set_name;
@@ -162,6 +164,14 @@ export class SupabaseProductUpdateRepository implements IProductUpdateRepository
 
       if (data.structured_item_name !== undefined) {
         updateFields.structured_item_name = data.structured_item_name;
+      }
+
+      if (data.volume !== undefined) {
+        updateFields.volume = data.volume;
+      }
+
+      if (data.volume_unit !== undefined) {
+        updateFields.volume_unit = data.volume_unit;
       }
 
       // UPDATE 실행 전 로깅
@@ -265,7 +275,9 @@ export class SupabaseProductUpdateRepository implements IProductUpdateRepository
         update.sale_status !== undefined ||
         update.set_name !== undefined ||
         update.sanitized_item_name !== undefined ||
-        update.structured_item_name !== undefined;
+        update.structured_item_name !== undefined ||
+        update.volume !== undefined ||
+        update.volume_unit !== undefined;
 
       if (!hasUpdates) {
         result.skipped_count++;

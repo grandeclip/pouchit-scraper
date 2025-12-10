@@ -188,6 +188,10 @@ main_product_name: "${product.name}"`;
     console.log(`  set_name: "${columns.set_name}"`);
     console.log(`  sanitized_item_name: "${columns.sanitized_item_name}"`);
     console.log(`  structured_item_name: "${columns.structured_item_name}"`);
+    console.log(`  volume: ${columns.volume}`);
+    console.log(
+      `  volume_unit: ${columns.volume_unit ? `"${columns.volume_unit}"` : null}`,
+    );
 
     // 토큰 & 비용 정보
     const { usage } = response;

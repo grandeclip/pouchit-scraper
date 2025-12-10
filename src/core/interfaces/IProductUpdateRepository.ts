@@ -49,6 +49,20 @@ export interface ProductUpdateData {
    * 예: "다이브인 세럼 50ml + 시카 크림 10g"
    */
   structured_item_name?: string | null;
+
+  /**
+   * LLM Product Set Parsing - 용량
+   * 메인 상품이 1개일 때만 값이 있음 (복수 상품 세트는 null)
+   * 예: 50
+   */
+  volume?: number | null;
+
+  /**
+   * LLM Product Set Parsing - 용량 단위
+   * 메인 상품이 1개일 때만 값이 있음 (복수 상품 세트는 null)
+   * 예: "ml", "g", "매"
+   */
+  volume_unit?: string | null;
 }
 
 /**
