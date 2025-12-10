@@ -13,7 +13,7 @@ Scanner 동작을 직접 검증합니다.
 ```bash
 # Docker dev 환경에서 실행
 cd product_scanner
-make dev
+make up
 
 # 컨테이너 내부에서
 npx tsx scripts/test-zigzag-strategy.ts

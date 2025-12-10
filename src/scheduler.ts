@@ -81,6 +81,8 @@ function createUpdateJob(
       batch_size: SCHEDULER_CONFIG.DEFAULT_BATCH_SIZE,
       concurrency: SCHEDULER_CONFIG.DEFAULT_CONCURRENCY,
       update_sale_status: true,
+      // 스케줄러에서는 auto_crawled=true 항목 제외 (DailyPlanningProductSync에서 등록한 항목)
+      exclude_auto_crawled: true,
     },
     current_node: null,
     progress: 0,

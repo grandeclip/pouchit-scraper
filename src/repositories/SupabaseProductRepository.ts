@@ -12,7 +12,11 @@
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { IProductRepository } from "@/core/interfaces/IProductRepository";
+import {
+  IProductRepository,
+  ProductSetInsertRequest,
+  ProductSetInsertResult,
+} from "@/core/interfaces/IProductRepository";
 import {
   ProductSet,
   ProductSetEntity,
@@ -124,7 +128,8 @@ export class SupabaseProductRepository implements IProductRepository {
    * 검색 쿼리 빌더 (공통 로직)
    */
   private buildSearchQuery(request: ProductSetSearchRequest) {
-    const { link_url_pattern, sale_status, product_id } = request;
+    const { link_url_pattern, sale_status, product_id, exclude_auto_crawled } =
+      request;
 
     let query = this.client
       .from(this.tableName)
@@ -140,6 +145,11 @@ export class SupabaseProductRepository implements IProductRepository {
 
     if (sale_status) {
       query = query.eq("sale_status", sale_status);
+    }
+
+    // 스케줄러용: auto_crawled=true인 항목 제외
+    if (exclude_auto_crawled) {
+      query = query.or("auto_crawled.is.null,auto_crawled.eq.false");
     }
 
     return query;
@@ -304,6 +314,155 @@ export class SupabaseProductRepository implements IProductRepository {
         "[Repository] Health check 실패",
       );
       return false;
+    }
+  }
+
+  /**
+   * 새 product_set 삽입
+   * @param request 삽입할 데이터
+   * @returns 생성된 product_set 정보
+   */
+  async insert(
+    request: ProductSetInsertRequest,
+  ): Promise<ProductSetInsertResult | null> {
+    logger.info(
+      {
+        product_id: request.product_id,
+        link_url: request.link_url,
+        auto_crawled: request.auto_crawled,
+      },
+      "[Repository] product_set 삽입 시작",
+    );
+
+    try {
+      const insertData: Record<string, unknown> = {
+        product_id: request.product_id,
+        link_url: request.link_url,
+        platform_id: request.platform_id,
+        auto_crawled: request.auto_crawled ?? false,
+      };
+
+      // sale_status가 제공된 경우 추가
+      if (request.sale_status) {
+        insertData.sale_status = request.sale_status;
+      }
+
+      const { data, error } = await this.client
+        .from(this.tableName)
+        .insert(insertData)
+        .select("product_set_id, product_id, link_url")
+        .single();
+
+      if (error) {
+        logger.error(
+          {
+            error: error.message,
+            code: error.code,
+            product_id: request.product_id,
+          },
+          "[Repository] product_set 삽입 실패",
+        );
+        return null;
+      }
+
+      logger.info(
+        {
+          product_set_id: data.product_set_id,
+          product_id: data.product_id,
+        },
+        "[Repository] product_set 삽입 완료",
+      );
+
+      return {
+        product_set_id: data.product_set_id,
+        product_id: data.product_id,
+        link_url: data.link_url,
+      };
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          product_id: request.product_id,
+        },
+        "[Repository] product_set 삽입 예외",
+      );
+      return null;
+    }
+  }
+
+  /**
+   * 여러 product_set 일괄 삽입
+   * @param requests 삽입할 데이터 배열
+   * @returns 생성된 product_set 정보 배열
+   */
+  async insertMany(
+    requests: ProductSetInsertRequest[],
+  ): Promise<ProductSetInsertResult[]> {
+    if (requests.length === 0) {
+      return [];
+    }
+
+    logger.info(
+      { count: requests.length },
+      "[Repository] product_set 일괄 삽입 시작",
+    );
+
+    try {
+      const insertData = requests.map((req) => {
+        const data: Record<string, unknown> = {
+          product_id: req.product_id,
+          link_url: req.link_url,
+          platform_id: req.platform_id,
+          auto_crawled: req.auto_crawled ?? false,
+        };
+        // sale_status가 제공된 경우 추가
+        if (req.sale_status) {
+          data.sale_status = req.sale_status;
+        }
+        return data;
+      });
+
+      const { data, error } = await this.client
+        .from(this.tableName)
+        .insert(insertData)
+        .select("product_set_id, product_id, link_url");
+
+      if (error) {
+        logger.error(
+          {
+            error: error.message,
+            code: error.code,
+            count: requests.length,
+          },
+          "[Repository] product_set 일괄 삽입 실패",
+        );
+        return [];
+      }
+
+      const results: ProductSetInsertResult[] = (data ?? []).map((d) => ({
+        product_set_id: d.product_set_id,
+        product_id: d.product_id,
+        link_url: d.link_url,
+      }));
+
+      logger.info(
+        {
+          requested: requests.length,
+          inserted: results.length,
+        },
+        "[Repository] product_set 일괄 삽입 완료",
+      );
+
+      return results;
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          count: requests.length,
+        },
+        "[Repository] product_set 일괄 삽입 예외",
+      );
+      return [];
     }
   }
 }

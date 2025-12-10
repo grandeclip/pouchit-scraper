@@ -45,6 +45,8 @@ tags:
     description: Worker 컨테이너 관리 (재시작, 상태 조회)
   - name: Scheduler
     description: 자동 스케줄러 제어
+  - name: Daily Sync
+    description: 기획상품 자동 추가 스케줄러 (매일 특정 시간 실행)
   - name: Alert Watcher
     description: 테이블 모니터링 및 Slack 알림 서비스
   - name: LLM
@@ -934,6 +936,255 @@ paths:
                     musinsa: 3
                   total_cleared: 5
 
+  # ============================================================================
+  # Daily Sync API - 기획상품 자동 추가
+  # ============================================================================
+
+  /api/v2/daily-sync/status:
+    get:
+      tags: [Daily Sync]
+      summary: Daily Sync 상태 조회
+      description: |
+        기획상품 자동 추가 스케줄러의 상태를 조회합니다.
+
+        **Shell 스크립트**: `scripts/daily-sync-control.sh status`
+      responses:
+        '200':
+          description: Daily Sync 상태
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailySyncStatusResponse'
+              example:
+                success: true
+                data:
+                  scheduler:
+                    enabled: true
+                    running: true
+                    last_changed_at: "2025-12-10T10:00:00.000Z"
+                    last_heartbeat_at: "2025-12-10T11:30:05.000Z"
+                    next_run_at: "2025-12-11T02:00:00.000Z"
+                  config:
+                    hour: 2
+                    minute: 0
+                    cron_expression: "0 2 * * *"
+                    timezone: "Asia/Seoul (KST, +09:00)"
+                  last_run:
+                    started_at: "2025-12-10T02:00:00.000Z"
+                    completed_at: "2025-12-10T02:15:30.000Z"
+                    success: true
+                    summary:
+                      total_products: 150
+                      success_count: 145
+                      failed_count: 5
+                      new_product_sets: 23
+                      duration_ms: 930000
+
+  /api/v2/daily-sync/start:
+    post:
+      tags: [Daily Sync]
+      summary: Daily Sync 스케줄러 시작
+      description: |
+        기획상품 자동 추가 스케줄러를 활성화합니다.
+
+        **Shell 스크립트**: `scripts/daily-sync-control.sh start`
+
+        실행 시간을 함께 지정할 수 있습니다.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hour:
+                  type: integer
+                  minimum: 0
+                  maximum: 23
+                  description: 실행 시간 (0-23, 기본: 2)
+                minute:
+                  type: integer
+                  minimum: 0
+                  maximum: 59
+                  description: 실행 분 (0-59, 기본: 0)
+            examples:
+              default:
+                summary: 기본 시간 (02:00)
+                value: {}
+              custom:
+                summary: 사용자 지정 시간 (03:30)
+                value:
+                  hour: 3
+                  minute: 30
+      responses:
+        '200':
+          description: 시작 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Daily Sync scheduler started"
+                data:
+                  enabled: true
+                  was_enabled: false
+                  config:
+                    hour: 2
+                    minute: 0
+                    cron_expression: "0 2 * * *"
+                    timezone: "Asia/Seoul (KST, +09:00)"
+
+  /api/v2/daily-sync/stop:
+    post:
+      tags: [Daily Sync]
+      summary: Daily Sync 스케줄러 중지
+      description: |
+        기획상품 자동 추가 스케줄러를 비활성화합니다.
+
+        **Shell 스크립트**: `scripts/daily-sync-control.sh stop`
+      responses:
+        '200':
+          description: 중지 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Daily Sync scheduler stopped"
+                data:
+                  enabled: false
+                  was_enabled: true
+
+  /api/v2/daily-sync/run:
+    post:
+      tags: [Daily Sync]
+      summary: Daily Sync 즉시 실행
+      description: |
+        기획상품 자동 추가를 즉시 실행합니다 (테스트/수동 실행용).
+
+        **Shell 스크립트**: `scripts/daily-sync-control.sh run`
+
+        ## 처리 흐름
+        1. products 테이블에서 전체 상품 조회
+        2. 각 상품에 대해 6개 플랫폼 통합 검색
+        3. LLM 기반 상품 유효성 필터링
+        4. 기존 product_sets와 URL 비교 (정규화)
+        5. 신규 URL만 product_sets에 INSERT (auto_crawled=true)
+        6. extract-product-set-update-v2 워크플로우 enqueue
+
+        ## dry_run 모드
+        `dry_run: true`로 설정하면 실제 INSERT/enqueue 없이 시뮬레이션만 수행합니다.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dry_run:
+                  type: boolean
+                  default: false
+                  description: 테스트 모드 (INSERT/enqueue 없음)
+                product_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: 특정 product_id만 처리
+                batch_size:
+                  type: integer
+                  default: 10
+                  description: 배치 크기
+                delay_ms:
+                  type: integer
+                  default: 2000
+                  description: 요청 간 딜레이 (ms)
+            examples:
+              full_run:
+                summary: 전체 실행
+                value: {}
+              dry_run:
+                summary: 테스트 실행
+                value:
+                  dry_run: true
+              specific_products:
+                summary: 특정 상품만 처리
+                value:
+                  product_ids:
+                    - "550e8400-e29b-41d4-a716-446655440000"
+                  dry_run: true
+      responses:
+        '200':
+          description: 실행 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailySyncRunResponse'
+              example:
+                success: true
+                message: "Daily Sync completed"
+                data:
+                  dry_run: false
+                  total_products: 150
+                  success_count: 145
+                  skipped_count: 3
+                  failed_count: 2
+                  new_product_sets_count: 23
+                  enqueued_jobs_count: 23
+                  duration_ms: 930000
+
+  /api/v2/daily-sync/config:
+    put:
+      tags: [Daily Sync]
+      summary: Daily Sync 실행 시간 변경
+      description: |
+        기획상품 자동 추가 스케줄러의 실행 시간을 변경합니다.
+
+        **Shell 스크립트**: `scripts/daily-sync-control.sh config --hour 4`
+
+        **주의**: 변경사항은 스케줄러 재시작 후 적용됩니다.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [hour]
+              properties:
+                hour:
+                  type: integer
+                  minimum: 0
+                  maximum: 23
+                  description: 실행 시간 (0-23)
+                minute:
+                  type: integer
+                  minimum: 0
+                  maximum: 59
+                  default: 0
+                  description: 실행 분 (0-59)
+            example:
+              hour: 4
+              minute: 0
+      responses:
+        '200':
+          description: 설정 변경 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Daily Sync config updated"
+                data:
+                  hour: 4
+                  minute: 0
+                  cron_expression: "0 4 * * *"
+                  timezone: "Asia/Seoul (KST, +09:00)"
+                  note: "변경사항은 스케줄러 재시작 후 적용됩니다"
+        '400':
+          description: 잘못된 요청
+          content:
+            application/json:
+              example:
+                success: false
+                error: "Invalid hour"
+                message: "hour is required and must be between 0 and 23"
+
   /api/v2/alert-watcher/status:
     get:
       tags: [Alert Watcher]
@@ -1357,6 +1608,117 @@ components:
               description: 작업별 상태 (last_completed_at 등)
 
     # ==========================================================================
+    # Daily Sync API Schemas
+    # ==========================================================================
+
+    DailySyncStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            scheduler:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                running:
+                  type: boolean
+                last_changed_at:
+                  type: string
+                  format: date-time
+                last_heartbeat_at:
+                  type: string
+                  format: date-time
+                next_run_at:
+                  type: string
+                  format: date-time
+            config:
+              type: object
+              properties:
+                hour:
+                  type: integer
+                  minimum: 0
+                  maximum: 23
+                minute:
+                  type: integer
+                  minimum: 0
+                  maximum: 59
+                cron_expression:
+                  type: string
+                  description: Cron 표현식 (예- "0 2 * * *")
+                timezone:
+                  type: string
+                  description: 타임존 (예- "Asia/Seoul (KST, +09:00)")
+            last_run:
+              type: object
+              nullable: true
+              properties:
+                started_at:
+                  type: string
+                  format: date-time
+                completed_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+                success:
+                  type: boolean
+                summary:
+                  type: object
+                  nullable: true
+                  properties:
+                    total_products:
+                      type: integer
+                    success_count:
+                      type: integer
+                    failed_count:
+                      type: integer
+                    new_product_sets:
+                      type: integer
+                    duration_ms:
+                      type: integer
+                error:
+                  type: string
+                  nullable: true
+
+    DailySyncRunResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            dry_run:
+              type: boolean
+            total_products:
+              type: integer
+            success_count:
+              type: integer
+            skipped_count:
+              type: integer
+            failed_count:
+              type: integer
+            new_product_sets_count:
+              type: integer
+            enqueued_jobs_count:
+              type: integer
+            duration_ms:
+              type: integer
+            errors:
+              type: array
+              items:
+                type: string
+              description: 에러 목록 (최대 10개)
+            errors_truncated:
+              type: boolean
+              description: 에러가 10개 이상인 경우 true
+
+    # ==========================================================================
     # Search API Schemas
     # ==========================================================================
 
@@ -1773,6 +2135,39 @@ components:
 #
 # # 원격 서버
 # API_URL=http://remote-server:3989 ./scripts/worker-control.sh status
+# ```
+#
+# ## Daily Sync 제어 (daily-sync-control.sh)
+#
+# 기획상품 자동 추가 스케줄러 제어 스크립트
+#
+# ```bash
+# # 상태 확인
+# ./scripts/daily-sync-control.sh status
+#
+# # Daily Sync 시작 (기본: 02:00)
+# ./scripts/daily-sync-control.sh start
+#
+# # Daily Sync 시작 (03:30에 실행)
+# ./scripts/daily-sync-control.sh start --hour 3 --minute 30
+#
+# # Daily Sync 중지
+# ./scripts/daily-sync-control.sh stop
+#
+# # Daily Sync 즉시 실행
+# ./scripts/daily-sync-control.sh run
+#
+# # Daily Sync 테스트 실행 (INSERT 없음)
+# ./scripts/daily-sync-control.sh run --dry-run
+#
+# # 특정 상품만 처리
+# ./scripts/daily-sync-control.sh run --product-ids 'id1,id2' --dry-run
+#
+# # 실행 시간 변경
+# ./scripts/daily-sync-control.sh config --hour 4 --minute 0
+#
+# # 원격 서버
+# API_URL=http://remote-server:3989 ./scripts/daily-sync-control.sh status
 # ```
 #
 # ## Alert Watcher 제어 (alert-watcher-control.sh)

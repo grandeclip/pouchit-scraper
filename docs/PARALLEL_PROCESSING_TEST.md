@@ -20,7 +20,7 @@
 
 ```bash
 cd product_scanner
-make dev
+make up
 ```
 
 ### 2. Supabase 데이터 확인
@@ -56,8 +56,8 @@ WHERE link_url LIKE '%oliveyoung.co.kr%';
 **2. 서버 재시작**
 
 ```bash
-make dev-down
-make dev
+make down
+make up
 ```
 
 **3. Workflow 실행**
@@ -115,8 +115,8 @@ docker logs product_scanner-app-1 2>&1 | grep "배치"
 **2. 서버 재시작 + 실행**
 
 ```bash
-make dev-down
-make dev
+make down
+make up
 
 curl -X POST http://localhost:3000/api/v1/workflows/execute \
   -H "Content-Type: application/json" \
@@ -166,8 +166,8 @@ curl -X POST http://localhost:3000/api/v1/workflows/execute \
 **2. 서버 재시작 + 실행**
 
 ```bash
-make dev-down
-make dev
+make down
+make up
 
 curl -X POST http://localhost:3000/api/v1/workflows/execute \
   -H "Content-Type: application/json" \
@@ -352,8 +352,8 @@ SELECT * FROM product_sets WHERE link_url LIKE '%oliveyoung.co.kr%';
 
 ```bash
 git checkout main
-make dev-down
-make dev
+make down
+make up
 ```
 
 ---

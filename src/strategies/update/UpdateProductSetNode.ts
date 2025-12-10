@@ -43,7 +43,7 @@ import { logger } from "@/config/logger";
 import { createJobLogger, logImportant } from "@/utils/LoggerContext";
 import { ProductSetParsingService, logLlmCost } from "@/llm";
 import { buildProductSetColumns } from "@/llm/postprocessors/productSetPostprocessor";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import type { Logger } from "pino";
 import {
   UpdateProductSetInput,
@@ -208,10 +208,16 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
       );
 
       // 4. 예외 필드 제거 적용 + sale_status 옵션 처리
-      const updates = this.applyExclusions(
+      const updatesAfterExclusions = this.applyExclusions(
         updatesWithLlm,
         exclusions,
         updateSaleStatus,
+        jobLogger,
+      );
+
+      // 4.5. auto_crawled=true인 항목의 sale_status를 off_sale로 강제
+      const updates = await this.applyAutoCrawledSaleStatus(
+        updatesAfterExclusions,
         jobLogger,
       );
 
@@ -632,6 +638,95 @@ export class UpdateProductSetNode implements ITypedNodeStrategy<
     );
 
     return nonEmptyUpdates;
+  }
+
+  /**
+   * auto_crawled=true인 product_set의 sale_status를 off_sale로 강제
+   *
+   * DailyPlanningProductSync에서 등록된 상품(auto_crawled=true)은
+   * 업데이트 시 sale_status가 무조건 off_sale이어야 함
+   *
+   * @param updates 업데이트 데이터
+   * @param jobLogger 로거
+   * @returns auto_crawled 적용된 업데이트 데이터
+   */
+  private async applyAutoCrawledSaleStatus(
+    updates: ProductUpdateData[],
+    jobLogger: Logger,
+  ): Promise<ProductUpdateData[]> {
+    if (updates.length === 0) {
+      return updates;
+    }
+
+    try {
+      // Supabase 클라이언트 생성
+      const supabaseUrl = process.env.SUPABASE_URL;
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!supabaseUrl || !supabaseKey) {
+        jobLogger.warn("Supabase 환경변수 없음 - auto_crawled 체크 스킵");
+        return updates;
+      }
+
+      const supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
+
+      // product_set_id 목록으로 auto_crawled 조회
+      const productSetIds = updates.map((u) => u.product_set_id);
+
+      const { data, error } = await supabase
+        .from("product_sets")
+        .select("product_set_id, auto_crawled")
+        .in("product_set_id", productSetIds);
+
+      if (error) {
+        jobLogger.error(
+          { error: error.message },
+          "auto_crawled 조회 실패 - 원본 유지",
+        );
+        return updates;
+      }
+
+      // auto_crawled=true인 product_set_id Set 생성
+      const autoCrawledIds = new Set(
+        (data ?? [])
+          .filter((row) => row.auto_crawled === true)
+          .map((row) => row.product_set_id),
+      );
+
+      if (autoCrawledIds.size === 0) {
+        jobLogger.debug("auto_crawled=true 항목 없음");
+        return updates;
+      }
+
+      // auto_crawled=true인 항목의 sale_status를 off_sale로 강제
+      let forcedCount = 0;
+      const modifiedUpdates = updates.map((update) => {
+        if (autoCrawledIds.has(update.product_set_id)) {
+          forcedCount++;
+          return {
+            ...update,
+            sale_status: "off_sale",
+          };
+        }
+        return update;
+      });
+
+      jobLogger.info(
+        {
+          auto_crawled_count: autoCrawledIds.size,
+          forced_off_sale_count: forcedCount,
+        },
+        "auto_crawled=true 항목 sale_status → off_sale 강제 적용",
+      );
+
+      return modifiedUpdates;
+    } catch (error) {
+      jobLogger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "auto_crawled 처리 중 예외 - 원본 유지",
+      );
+      return updates;
+    }
   }
 
   /**

@@ -11,6 +11,7 @@ import productsRouter from "./products.router";
 import workflowsRouter from "./workflows.router";
 import jobsRouter from "./jobs.router";
 import schedulerRouter from "./scheduler.router";
+import dailySyncRouter from "./daily-sync.router";
 import alertWatcherRouter from "./alert-watcher.router";
 import workersRouter from "./workers.router";
 import searchRouter from "./search.router";
@@ -30,6 +31,9 @@ router.use("/jobs", jobsRouter);
 
 // Scheduler API (스케줄러 제어)
 router.use("/scheduler", schedulerRouter);
+
+// Daily Sync API (기획상품 자동 추가 스케줄러)
+router.use("/daily-sync", dailySyncRouter);
 
 // Alert Watcher API (테이블 모니터링 제어)
 router.use("/alert-watcher", alertWatcherRouter);
@@ -56,6 +60,11 @@ logger.info(
       "GET /api/v2/scheduler/status",
       "POST /api/v2/scheduler/start",
       "POST /api/v2/scheduler/stop",
+      "GET /api/v2/daily-sync/status",
+      "POST /api/v2/daily-sync/start",
+      "POST /api/v2/daily-sync/stop",
+      "POST /api/v2/daily-sync/run",
+      "PUT /api/v2/daily-sync/config",
       "GET /api/v2/alert-watcher/status",
       "POST /api/v2/alert-watcher/start",
       "POST /api/v2/alert-watcher/stop",

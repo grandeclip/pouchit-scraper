@@ -8,6 +8,7 @@
     "express": "^4.18.0",
     "ioredis": "^5.4.1",
     "js-yaml": "^4.1.0",
+    "node-cron": "^4.2.1",
     "pino": "^9.5.0",
     "pino-http": "^10.3.0",
     "pino-pretty": "^11.2.2",
@@ -24,6 +25,7 @@
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.0",
     "@types/js-yaml": "^4.0.9",
+    "@types/node-cron": "^3.0.11",
     "@types/uuid": "^10.0.0",
     "jest": "^29.5.0",
     "ts-jest": "^29.1.0",
@@ -37,6 +39,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "scheduler": "tsx src/scheduler.ts",
+    "daily-sync": "tsx src/daily-sync-scheduler.ts",
     "alert-watcher": "tsx src/alert-watcher.ts",
     "search-worker": "tsx src/search-worker.ts",
     "search-worker:dev": "tsx watch src/search-worker.ts",

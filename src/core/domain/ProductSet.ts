@@ -79,6 +79,7 @@ export interface ProductSetSearchRequest {
   sale_status?: string; // = 검색용
   product_id?: string; // UUID (Multi-Platform 조회용)
   limit?: number; // 결과 개수 제한. undefined면 전체 조회 (자동 pagination)
+  exclude_auto_crawled?: boolean; // true이면 auto_crawled=true인 항목 제외 (스케줄러용)
 }
 
 /**

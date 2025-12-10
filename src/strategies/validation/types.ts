@@ -30,6 +30,9 @@ export interface FetchProductInput {
 
   /** 배치 크기 (병렬 처리용) */
   batch_size?: number;
+
+  /** auto_crawled=true 제외 (스케줄러용) */
+  exclude_auto_crawled?: boolean;
 }
 
 /**

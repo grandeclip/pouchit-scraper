@@ -12,6 +12,40 @@ import {
 } from "@/core/domain/ProductSet";
 
 /**
+ * product_sets INSERT 요청 데이터
+ */
+export interface ProductSetInsertRequest {
+  /** 상품 ID (FK to products) */
+  product_id: string;
+
+  /** 상품 링크 URL */
+  link_url: string;
+
+  /** 플랫폼 ID (FK to platforms) */
+  platform_id: number;
+
+  /** 자동 크롤링 여부 (기본값: false) */
+  auto_crawled?: boolean;
+
+  /** 판매 상태 (auto_crawled=true인 경우 off_sale) */
+  sale_status?: string;
+}
+
+/**
+ * product_sets INSERT 결과
+ */
+export interface ProductSetInsertResult {
+  /** 생성된 product_set_id (UUID) */
+  product_set_id: string;
+
+  /** 상품 ID */
+  product_id: string;
+
+  /** 링크 URL */
+  link_url: string;
+}
+
+/**
  * Product Repository 인터페이스
  */
 export interface IProductRepository {
@@ -34,4 +68,22 @@ export interface IProductRepository {
    * @returns 연결 여부
    */
   healthCheck(): Promise<boolean>;
+
+  /**
+   * 새 product_set 삽입
+   * @param request 삽입할 데이터
+   * @returns 생성된 product_set 정보
+   */
+  insert(
+    request: ProductSetInsertRequest,
+  ): Promise<ProductSetInsertResult | null>;
+
+  /**
+   * 여러 product_set 일괄 삽입
+   * @param requests 삽입할 데이터 배열
+   * @returns 생성된 product_set 정보 배열
+   */
+  insertMany(
+    requests: ProductSetInsertRequest[],
+  ): Promise<ProductSetInsertResult[]>;
 }

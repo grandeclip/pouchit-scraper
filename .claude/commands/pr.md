@@ -16,7 +16,7 @@ Create a well-formatted GitHub PR for the current branch.
 
 ```bash
 # 1. Docker Compose Build & Up
-make dev
+make up
 
 # 2. Container Status Check
 docker ps | grep product_scanner_dev  # healthy 확인
@@ -25,7 +25,7 @@ docker ps | grep product_scanner_dev  # healthy 확인
 curl http://localhost:3989/health
 
 # 4. Cleanup
-make dev-down
+make down
 ```
 
 ## Steps

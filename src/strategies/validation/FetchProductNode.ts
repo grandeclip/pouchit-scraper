@@ -117,6 +117,7 @@ export class FetchProductNode implements ITypedNodeStrategy<
         sale_status: mergedInput.sale_status,
         product_id: mergedInput.product_id,
         limit: mergedInput.limit,
+        exclude_auto_crawled: mergedInput.exclude_auto_crawled,
       });
 
       // 배치 정보 계산
@@ -254,6 +255,9 @@ export class FetchProductNode implements ITypedNodeStrategy<
       product_id: input.product_id ?? (config.product_id as string),
       limit: input.limit ?? (config.limit as number | undefined),
       batch_size: input.batch_size ?? (config.batch_size as number),
+      exclude_auto_crawled:
+        input.exclude_auto_crawled ??
+        (config.exclude_auto_crawled as boolean | undefined),
     };
   }
 }

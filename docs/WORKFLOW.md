@@ -20,7 +20,7 @@
 
 ```bash
 # 개발 환경 시작 (서버 + Worker + Redis)
-make dev
+make up
 
 # 또는 직접 실행
 cd product_scanner
@@ -445,7 +445,7 @@ GET /api/v1/workflows/health
 
 ```bash
 # Docker Compose로 자동 시작
-make dev
+make up
 
 # 또는 수동 시작
 docker compose -f docker/docker-compose.dev.yml up -d workflow_worker_dev

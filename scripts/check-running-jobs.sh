@@ -25,6 +25,9 @@ scheduler_response=$(curl -s "${API_URL}/api/v2/scheduler/status" 2>/dev/null)
 # Alert Watcher API 호출
 alert_watcher_response=$(curl -s "${API_URL}/api/v2/alert-watcher/status" 2>/dev/null)
 
+# Daily Sync API 호출
+daily_sync_response=$(curl -s "${API_URL}/api/v2/daily-sync/status" 2>/dev/null)
+
 # API 응답 확인
 if [ -z "$response" ]; then
     echo -e "${RED}Error: API 서버에 연결할 수 없습니다.${NC}"
@@ -96,6 +99,33 @@ if [ -n "$alert_watcher_response" ]; then
         fi
 
         echo -e "  총 실행 Job: ${BLUE}${total_executed}${NC}"
+        echo ""
+    fi
+fi
+
+# Daily Sync 상태 표시
+if [ -n "$daily_sync_response" ]; then
+    daily_sync_success=$(echo "$daily_sync_response" | jq -r '.success // false' 2>/dev/null)
+    if [ "$daily_sync_success" = "true" ]; then
+        sync_enabled=$(echo "$daily_sync_response" | jq -r '.data.scheduler.enabled')
+        sync_next_run=$(echo "$daily_sync_response" | jq -r '.data.scheduler.next_run_at // "N/A"')
+        sync_cron=$(echo "$daily_sync_response" | jq -r '.data.config.cron_expression // "N/A"')
+        sync_hour=$(echo "$daily_sync_response" | jq -r '.data.config.hour // 2')
+        sync_minute=$(echo "$daily_sync_response" | jq -r '.data.config.minute // 0')
+
+        echo -e "${CYAN}[Daily Sync]${NC}"
+        if [ "$sync_enabled" = "true" ]; then
+            echo -e "  상태: ${GREEN}✓ 활성화${NC}"
+        else
+            echo -e "  상태: ${YELLOW}✗ 비활성화${NC}"
+        fi
+
+        printf "  실행 시간: %02d:%02d (KST)\n" "$sync_hour" "$sync_minute"
+        echo -e "  Cron: ${sync_cron}"
+
+        if [ "$sync_next_run" != "N/A" ] && [ "$sync_next_run" != "null" ]; then
+            echo -e "  다음 실행: ${sync_next_run}"
+        fi
         echo ""
     fi
 fi

@@ -20,7 +20,7 @@ Complete pre-commit checks and create a commit.
 
 ```bash
 # 1. Docker Compose Build & Up
-make dev
+make up
 
 # 2. Container Status Check
 docker ps | grep product_scanner_dev
@@ -30,7 +30,7 @@ docker ps | grep product_scanner_dev
 curl http://localhost:3989/health
 
 # 4. Cleanup
-make dev-down
+make down
 ```
 
 ## Steps
