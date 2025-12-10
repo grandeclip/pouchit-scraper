@@ -27,9 +27,7 @@ export type ApiSaleStatus = "SALE" | "SOLDOUT" | "STOP_SALE";
  *
  * @implements {ISaleStatusExtractor<MusinsaApiResponse>} HTTP API 기반 추출
  */
-export class MusinsaSaleStatusExtractor
-  implements ISaleStatusExtractor<MusinsaApiResponse>
-{
+export class MusinsaSaleStatusExtractor implements ISaleStatusExtractor<MusinsaApiResponse> {
   /**
    * 판매 상태 추출
    *
@@ -37,6 +35,14 @@ export class MusinsaSaleStatusExtractor
    * @returns 추출된 판매 상태 데이터
    */
   async extract(response: MusinsaApiResponse): Promise<SaleStatusData> {
+    // 회원전용 구매 상품 → off_sale (Discontinued)
+    if (response.data.isBuyForMember) {
+      return {
+        saleStatus: SaleStatus.Discontinued,
+        isAvailable: false,
+      };
+    }
+
     const apiStatus = response.data.goodsSaleType;
     const saleStatus = this.mapSaleStatus(apiStatus);
 

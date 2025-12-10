@@ -22,6 +22,7 @@ export interface MusinsaApiResponse {
     goodsNm: string;
     thumbnailImageUrl: string;
     goodsSaleType: "SALE" | "SOLDOUT" | "STOP_SALE";
+    isBuyForMember?: boolean; // 회원전용 구매 상품
     goodsPrice: {
       normalPrice: number;
       salePrice: number;
@@ -42,9 +43,7 @@ export interface MusinsaApiResponse {
  *
  * @implements {IPriceExtractor<MusinsaApiResponse>} HTTP API 기반 추출
  */
-export class MusinsaPriceExtractor
-  implements IPriceExtractor<MusinsaApiResponse>
-{
+export class MusinsaPriceExtractor implements IPriceExtractor<MusinsaApiResponse> {
   /**
    * 가격 정보 추출
    *
