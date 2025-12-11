@@ -30,6 +30,11 @@ import { UpdateProductSetNode } from "@/strategies/update/UpdateProductSetNode";
 import { CollaboBannerMonitorNode } from "@/strategies/monitor/CollaboBannerMonitorNode";
 import { VotesMonitorNode } from "@/strategies/monitor/VotesMonitorNode";
 import { PickSectionsMonitorNode } from "@/strategies/monitor/PickSectionsMonitorNode";
+import {
+  DailySyncInitNode,
+  DailySyncBatchNode,
+  DailySyncNotifyNode,
+} from "@/strategies/daily-sync";
 import { logger } from "@/config/logger";
 
 /**
@@ -132,6 +137,25 @@ export class TypedNodeStrategyFactory {
       "PickSectionsMonitorNode",
       () =>
         new PickSectionsMonitorNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    // Daily Sync Pipeline 노드 등록
+    this.registerTypedNode(
+      "daily_sync_init",
+      "DailySyncInitNode",
+      () => new DailySyncInitNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    this.registerTypedNode(
+      "daily_sync_batch",
+      "DailySyncBatchNode",
+      () => new DailySyncBatchNode() as ITypedNodeStrategy<unknown, unknown>,
+    );
+
+    this.registerTypedNode(
+      "daily_sync_notify",
+      "DailySyncNotifyNode",
+      () => new DailySyncNotifyNode() as ITypedNodeStrategy<unknown, unknown>,
     );
   }
 

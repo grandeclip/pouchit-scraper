@@ -1,5 +1,10 @@
 /**
  * Daily Sync Scheduler
+ *
+ * @deprecated 이 스케줄러는 workflow 기반 daily-sync-v2로 대체되었습니다.
+ * 새로운 구현: workflows/daily-sync-v2.json + src/strategies/daily-sync/
+ * API를 통해 workflow job을 enqueue하여 실행하세요.
+ *
  * node-cron 기반 기획상품 자동 추가 스케줄러
  *
  * 목적:

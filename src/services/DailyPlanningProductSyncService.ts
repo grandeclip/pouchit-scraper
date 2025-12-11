@@ -1,6 +1,9 @@
 /**
  * DailyPlanningProductSyncService
  *
+ * @deprecated 이 서비스는 workflow 기반 daily-sync-v2로 대체되었습니다.
+ * 새로운 구현: workflows/daily-sync-v2.json + src/strategies/daily-sync/
+ *
  * 매일 products 테이블을 순회하며 새로운 기획상품을 자동 등록하는 서비스
  *
  * 플로우:

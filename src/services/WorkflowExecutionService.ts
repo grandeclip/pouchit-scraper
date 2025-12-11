@@ -241,23 +241,38 @@ export class WorkflowExecutionService implements IWorkflowService {
       const workflow = await this.loader.loadWorkflow(job.workflow_id);
 
       // 2. Job 상태 업데이트 (RUNNING)
+      // current_node가 이미 설정되어 있으면 resume (특정 노드부터 시작)
+      const startNode = job.current_node || workflow.start_node;
+      const isResume = job.current_node !== null;
+
       job.status = JobStatus.RUNNING;
       job.started_at = getTimestampWithTimezone();
-      job.current_node = workflow.start_node;
+      job.current_node = startNode;
       await this.repository.updateJob(job);
 
       // 3. DAG 선행 노드 맵 빌드
       const predecessorMap = this.buildPredecessorMap(workflow);
 
       // 4. 노드 DAG 실행 (병렬 처리 지원)
+      // job.params를 accumulatedData에 포함 (limit, dry_run 등 전달)
       let accumulatedData: Record<string, unknown> = {
+        ...job.params,
         // Job 메타데이터 추가 (시작 시간을 ResultWriterNode에서 사용)
         job_metadata: {
           started_at: job.started_at,
         },
       };
       const executedNodes = new Set<string>(); // 실행 완료된 노드 추적
-      let pendingNodes: string[] = [workflow.start_node]; // 실행 대기 큐
+
+      // Resume 시 startNode의 선행 노드들을 "이미 실행됨"으로 마킹
+      if (isResume) {
+        const predecessors = predecessorMap.get(startNode) || [];
+        for (const pred of predecessors) {
+          executedNodes.add(pred);
+        }
+      }
+
+      let pendingNodes: string[] = [startNode]; // 실행 대기 큐 (resume 시 특정 노드부터)
 
       const jobLogger = createJobLogger(job.job_id, job.workflow_id);
       const totalNodes = Object.keys(workflow.nodes).length;

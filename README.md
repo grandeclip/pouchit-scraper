@@ -1802,100 +1802,113 @@ SLACK_BOT_TOKEN=xoxb-your-token      # Slack Bot 토큰
 - **다중 전략**: API 우선으로 응답 시간 단축
 - **병렬 처리**: Workflow 배치 병렬 실행 (올리브영: 최대 88% 성능 개선)
 
-## 🔄 Daily Planning Product Sync
+## 🔄 Daily Planning Product Sync (v2)
 
-기획상품(products)을 대상으로 자동으로 상품 URL을 검색하고 등록하는 시스템입니다.
+기획상품(products)을 대상으로 자동으로 상품 URL을 검색하고 등록하는 **Workflow 기반 시스템**입니다.
 
 ### 개요
 
 - **목적**: products 테이블의 상품들에 대해 6개 플랫폼(올리브영, 화해, 무신사, 지그재그, 에이블리, 마켓컬리)에서 자동으로 검색하여 신규 URL을 product_sets에 등록
-- **실행 주기**: 매일 지정된 시간 (기본: 오전 2시 KST)
-- **스케줄러**: node-cron 기반 독립 프로세스
+- **실행 주기**: 매일 오전 2시 KST (Host Crontab)
+- **아키텍처**: Workflow + Redis Job Queue 기반
+- **처리 단위**: 1 product per Job (Queue 공정성 보장)
 
-### 처리 흐름
+### 아키텍처 (v2)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Daily Planning Product Sync                   │
+│                    Daily Sync Workflow v2                        │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  1. products 테이블 전체 조회                                      │
-│     └─ product_id, name, brand_id                                │
+│  [Cron 2AM] → POST /api/v2/workflows/execute                     │
+│                   └─ workflow_id: "daily-sync-v2"                │
 │                                                                  │
-│  2. brand_id → brand name 매핑 (일괄 조회)                         │
-│                                                                  │
-│  3. 각 product 순회:                                              │
-│     ├─ unified search (brand + productName) → 6개 플랫폼 검색     │
-│     ├─ filter-products (LLM) → 관련 상품만 필터링                  │
-│     ├─ 기존 product_sets.link_url과 비교 (URL 정규화 적용)         │
-│     ├─ 신규 URL → INSERT (auto_crawled=true, sale_status=off_sale)│
-│     └─ workflow enqueue (extract-product-set-update-v2)          │
-│                                                                  │
-│  4. Slack 알림 (시작/완료)                                         │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Job 1: init → process_batch (product[0])                  │   │
+│  │   └─ 완료 후 Job 2 enqueue (LOW priority)                  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                           ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Job 2: process_batch (product[1])                         │   │
+│  │   └─ 완료 후 Job 3 enqueue (LOW priority)                  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                           ↓                                      │
+│                         ... (반복)                               │
+│                           ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Job N: process_batch (마지막 product)                      │   │
+│  │   └─ 완료 → daily-sync-notify-v2 enqueue (HIGH)           │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                           ↓                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Notify Job: Slack 알림 발송                                │   │
+│  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### 핵심 설계
+
+| 항목                        | 설명                                           |
+| --------------------------- | ---------------------------------------------- |
+| **1 Product per Job**       | 메모리 효율 (OOM 방지), Queue 공정성 보장      |
+| **LOW Priority Re-enqueue** | 다른 workflow Job이 끼어들 수 있도록           |
+| **Resume 없음**             | Start/Stop만 지원. 중단 시 처음부터 재시작     |
+| **JSONL 로깅**              | `results/YYYY-MM-DD/daily-sync-{job_id}.jsonl` |
+
+### 처리 흐름 (각 product)
+
+```
+1. unified search (brand + productName) → 6개 플랫폼 검색
+2. filter-products (LLM) → 관련 상품만 필터링
+3. 기존 product_sets.link_url과 비교 (URL 정규화)
+4. 신규 URL → INSERT (auto_crawled=true, sale_status=off_sale)
+5. extract-product-set-update-v2 workflow enqueue
+6. JSONL 로그 기록
+```
+
 ### auto_crawled 플래그 처리
 
-자동 크롤링으로 등록된 상품은 수동 검토 전까지 특수 처리됩니다:
+| 상황                 | 처리                                                      |
+| -------------------- | --------------------------------------------------------- |
+| INSERT 시            | `auto_crawled=true`, `sale_status="off_sale"`             |
+| Scheduler 실행 시    | `auto_crawled=true` 항목 제외                             |
+| UpdateProductSetNode | `auto_crawled=true`면 `sale_status`를 `"off_sale"`로 강제 |
 
-| 상황                 | 처리                                                             |
-| -------------------- | ---------------------------------------------------------------- |
-| INSERT 시            | `auto_crawled=true`, `sale_status="off_sale"`                    |
-| Scheduler 실행 시    | `auto_crawled=true` 항목 제외 (스케줄링 대상에서 제외)           |
-| UpdateProductSetNode | `auto_crawled=true`면 `sale_status`를 무조건 `"off_sale"`로 강제 |
+### 사용법
 
-### API 엔드포인트
-
-| Method | Endpoint                    | 설명                                      |
-| ------ | --------------------------- | ----------------------------------------- |
-| GET    | `/api/v2/daily-sync/status` | 상태 조회 (config, last_run, next_run_at) |
-| POST   | `/api/v2/daily-sync/start`  | 스케줄러 시작 (hour, minute 파라미터)     |
-| POST   | `/api/v2/daily-sync/stop`   | 스케줄러 중지                             |
-| POST   | `/api/v2/daily-sync/run`    | 즉시 실행 (dry_run, product_ids 옵션)     |
-| PUT    | `/api/v2/daily-sync/config` | 실행 시간 변경                            |
-
-### Shell 스크립트
+#### 테스트 실행
 
 ```bash
-# 상태 확인
-./scripts/daily-sync-control.sh status
+# dry-run + limit 8 (실제 DB 변경 없음)
+./scripts/test-daily-sync.sh --dry-run --limit 8
 
-# 스케줄러 시작 (기본: 02:00 KST)
-./scripts/daily-sync-control.sh start
+# 특정 product만 테스트
+./scripts/test-daily-sync.sh --dry-run --product-ids 'uuid1,uuid2'
+```
 
-# 특정 시간에 시작
-./scripts/daily-sync-control.sh start --hour 3 --minute 30
+#### 수동 실행
 
-# 스케줄러 중지
-./scripts/daily-sync-control.sh stop
+```bash
+# 전체 실행 (실제 운영)
+curl -X POST "http://localhost:3989/api/v2/workflows/execute" \
+  -H "Content-Type: application/json" \
+  -d '{"workflow_id": "daily-sync-v2", "platform": "default", "params": {}}'
+```
 
-# 테스트 실행 (dry-run)
-./scripts/daily-sync-control.sh run --dry-run
+#### Cron 스케줄 설정 (Host Crontab)
 
-# 특정 product만 실행
-./scripts/daily-sync-control.sh run --product-ids 'uuid1,uuid2'
-
-# 실행 시간 변경
-./scripts/daily-sync-control.sh config --hour 4 --minute 0
+```bash
+# crontab -e
+0 2 * * * /path/to/scoob-scraper/scripts/cron-daily-sync.sh >> /var/log/daily-sync.log 2>&1
 ```
 
 ### Slack 알림
 
-환경변수 설정 시 시작/완료 알림 발송:
+환경변수 설정 시 완료 알림 발송:
 
 - `SLACK_BOT_TOKEN`: Slack Bot Token
 - `ALERT_SLACK_CHANNEL_ID`: 알림 채널 ID
-
-**시작 알림:**
-
-```
-🚀 Daily Sync 시작
-
-• 대상 상품: 150개
-• 시작 시간: 2025. 12. 10. 오전 2:00:00
-```
 
 **완료 알림:**
 
@@ -1906,43 +1919,50 @@ SLACK_BOT_TOKEN=xoxb-your-token      # Slack Bot 토큰
 신규 ProductSet: 23개    소요 시간: 15분 30초
 ```
 
+### JSONL 출력 형식
+
+`results/YYYY-MM-DD/daily-sync-{job_id}.jsonl`:
+
+```jsonl
+{"_meta":true,"type":"header","job_id":"xxx","workflow_id":"daily-sync-v2","total_products":150,"started_at":"2025-12-11T02:00:00Z"}
+{"product_id":"uuid1","status":"success","search_result_count":12,"valid_url_count":3,"inserted_count":2,"enqueued_count":2,"duration_ms":1500,"timestamp":"..."}
+{"product_id":"uuid2","status":"skipped","skip_reason":"no_valid_urls","duration_ms":800,"timestamp":"..."}
+{"product_id":"uuid3","status":"failed","error":"timeout","duration_ms":30000,"timestamp":"..."}
+{"_meta":true,"type":"footer","completed_at":"...","summary":{"total_products":150,"success_count":145,"skipped_count":3,"failed_count":2,...}}
+```
+
 ### 관련 파일
 
-| 파일                                              | 설명                    |
-| ------------------------------------------------- | ----------------------- |
-| `src/services/DailyPlanningProductSyncService.ts` | 메인 동기화 서비스      |
-| `src/repositories/DailySyncStateRepository.ts`    | Redis 기반 상태 관리    |
-| `src/routes/v2/daily-sync.router.ts`              | API 라우터              |
-| `src/daily-sync-scheduler.ts`                     | node-cron 기반 스케줄러 |
-| `scripts/daily-sync-control.sh`                   | Shell 제어 스크립트     |
+| 파일                                               | 설명                      |
+| -------------------------------------------------- | ------------------------- |
+| `workflows/daily-sync-v2.json`                     | 메인 워크플로우 정의      |
+| `workflows/daily-sync-notify-v2.json`              | 알림 워크플로우 (분리)    |
+| `src/strategies/daily-sync/DailySyncInitNode.ts`   | 초기화 노드               |
+| `src/strategies/daily-sync/DailySyncBatchNode.ts`  | 처리 노드 (1 product/Job) |
+| `src/strategies/daily-sync/DailySyncNotifyNode.ts` | Slack 알림 노드           |
+| `src/strategies/daily-sync/types.ts`               | 타입 정의                 |
+| `scripts/cron-daily-sync.sh`                       | Cron 실행 스크립트        |
+| `scripts/test-daily-sync.sh`                       | 테스트 스크립트           |
 
 ### URL 정규화
 
-플랫폼별로 동일 상품이라도 URL 쿼리 파라미터가 다를 수 있어, `PlatformDetector.normalizeUrl()`을 사용하여 정규화 후 비교합니다:
+플랫폼별로 동일 상품이라도 URL 쿼리 파라미터가 다를 수 있어, `PlatformDetector.normalizeUrl()`을 사용:
 
 ```
 원본: https://zigzag.kr/catalog/products/161457862?utm_source=affiliate&...
 정규화: https://zigzag.kr/catalog/products/161457862
 ```
 
-### 아키텍처 결정 노트
+### v1 → v2 마이그레이션 노트
 
-현재 Daily Sync는 **독립 서비스**로 구현되어 있습니다. Workflow/Job 시스템으로 구현하는 방안도 고려했으나, 다음 이유로 현재 방식을 선택했습니다:
-
-**현재 방식 (독립 서비스)의 장점:**
-
-- 단순한 구현 (하루 1회, 수십~수백 개 처리에 적합)
-- 기존 workflow와 충돌 없음
-- 빠른 개발 속도
-
-**Workflow 방식의 장점 (향후 마이그레이션 고려):**
-
-- 기존 Job Queue, Worker, 모니터링 인프라 재사용
-- 개별 product 단위로 재시도 가능
-- `check-running-jobs.sh` 통합
-- 진행률 실시간 확인
-
-규모가 커지면 workflow로 마이그레이션을 고려할 수 있습니다.
+| 항목         | v1 (독립 서비스)          | v2 (Workflow 기반)      |
+| ------------ | ------------------------- | ----------------------- |
+| 스케줄러     | node-cron (프로세스 내장) | Host Crontab            |
+| 처리 단위    | 전체 순회 (loop)          | 1 product per Job       |
+| Resume       | 지원 (복잡)               | 미지원 (단순)           |
+| 모니터링     | 별도 API                  | Job Queue 통합          |
+| 메모리       | 전체 로드 (OOM 위험)      | 1개씩 처리 (안정)       |
+| Queue 공정성 | N/A                       | LOW priority re-enqueue |
 
 ## 🔄 Workflow 시스템
 

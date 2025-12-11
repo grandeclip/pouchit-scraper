@@ -1,0 +1,27 @@
+{
+  "workflow_id": "daily-sync-notify-v2",
+  "name": "Daily Sync 완료 알림",
+  "description": "Daily Sync 완료 후 JSONL 집계 및 Slack 알림 발송",
+  "version": "2.0.0",
+  "defaults": {
+    "platform": "default"
+  },
+  "metadata": {
+    "author": "Product Scanner Team",
+    "created_at": "2025-12-11",
+    "tags": ["daily", "sync", "notify", "slack"]
+  },
+  "start_node": "notify",
+  "nodes": {
+    "notify": {
+      "type": "daily_sync_notify",
+      "name": "완료 알림 (Slack)",
+      "config": {
+        "slack_enabled": true,
+        "notify_on_failure": true
+      },
+      "next_nodes": [],
+      "timeout_ms": 30000
+    }
+  }
+}
