@@ -8,7 +8,7 @@
  *
  * 포맷 규칙:
  * - count > 1: "x N개" 형식 (예: "세럼 50ml x 2개")
- * - 단위: 소문자 (L은 대문자 유지)
+ * - 단위: ml, g, L, kg, 개, 매 허용 (L은 대문자 유지)
  * - 기획 상품: gifts 비어있으면 "+ 증정품" 추가
  */
 
@@ -65,12 +65,12 @@ function normalizeUnit(unit: string): string {
 }
 
 /**
- * 단일 항목을 텍스트로 변환 (타입 기반)
+ * 단일 항목을 텍스트로 변환 (타입 + 용량)
  *
  * @example
  * { type: "세럼", volume: 50, unit: "ml", count: 1 } → "세럼 50ml"
  * { type: "세럼", volume: 2, unit: "ml", count: 3 } → "세럼 2ml x 3개"
- * { type: "마스크팩", volume: 10, unit: "매", count: 1 } → "마스크팩 10매"
+ * { type: "마스크팩", volume: null, count: 1 } → "마스크팩"
  * { type: "립틴트", volume: null, count: 2 } → "립틴트 x 2개"
  */
 function formatItemByType(item: ProductItem): string {

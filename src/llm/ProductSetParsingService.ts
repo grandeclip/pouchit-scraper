@@ -28,7 +28,7 @@ import { productSetParsingPrompt } from "./prompts/productSetParsingPrompt";
 export interface ProductSetParsingParams {
   /** 쇼핑몰에서 수집한 전체 상품명 */
   productName: string;
-  /** 메인 상품의 정식 이름 (브랜드명 제외) */
+  /** 메인 상품의 정식 이름 (브랜드명 제외) - products.name에서 조회 */
   mainProductName: string;
   /** 사용할 모델 (선택) */
   model?: string;

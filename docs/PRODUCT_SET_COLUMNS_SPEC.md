@@ -99,19 +99,16 @@ Gemini 2.5의 `thinkingBudget` 파라미터로 reasoning 토큰 사용량 제어
 
 ### 2. sanitized_item_name
 
-**목적**: 제품 타입 + 용량만 추출 (간소화)
+**목적**: 제품명 + 용량 추출
 
 **예시**:
 
 ```text
 입력: "다이브인 저분자 히알루론산 세럼 50ml + 다이브인 세럼 2ml*3매"
-출력: "세럼 50ml + 세럼 2ml*3"
+출력: "다이브인 저분자 히알루론산 세럼 50ml + 다이브인 세럼 2ml x 3개"
 ```
 
-**제거 대상**:
-
-- 라인명 (예: 다이브인)
-- 제품 특성 (예: 저분자 히알루론산)
+**참고**: type 필드 제거로 인해 set_name과 동일한 포맷 사용
 
 ### 3. set_name
 
@@ -120,15 +117,14 @@ Gemini 2.5의 `thinkingBudget` 파라미터로 reasoning 토큰 사용량 제어
 **예시**:
 
 ```text
-단일 메인: "세럼 50ml"
-복수 메인: "세럼 50ml + 크림 10g"
+단일 메인: "다이브인 저분자 히알루론산 세럼 50ml"
+복수 메인: "다이브인 세럼 50ml + 워터뱅크 크림 10g"
 ```
 
 **규칙**:
 
 - 증정품/샘플 제외
 - 메인 상품이 2개 이상일 경우 "+"로 연결
-- (메인 상품 2개 이상 케이스는 추후 예시 확인 필요)
 
 ## 처리 파이프라인
 
@@ -155,16 +151,18 @@ Gemini 2.5의 `thinkingBudget` 파라미터로 reasoning 토큰 사용량 제어
 ### LLM 프롬프트 규칙
 
 ```
-1. main_product_name과 매칭되는 상품만 main_products에 포함 (부분 일치 허용)
+1. main_product_name(products.name)과 매칭되는 상품만 main_products에 포함 (부분 일치 허용)
 2. 그 외 모든 상품은 gifts로 분류 (SET 구성품, 증정품, 샘플 모두 포함)
 3. SET 상품: main_product_name 외 다른 본품(50ml 등)도 매칭 안 되면 gifts
 4. 제거 대상: 브랜드명, 쇼핑몰 태그([직잭픽], [올영픽], [SET] 등)
-5. 용량 형식: "50ml", "2ml*3", "10g" 등에서 숫자와 단위 분리
-6. 단위(unit) 규칙:
-   - 부피/무게: ml, g, L, kg (영어)
-   - 개수: 매, 개, 장, 팩 (한글)
-   - ea, EA → "개"로 변환
-7. 개수(count): "*3", "x2" 등에서 추출, 없으면 1
+5. type 추출: cosmeticCategories 목록을 "참고"하여 추출 (강제 선택 아님, 약한 참조)
+   - 목록에 없는 type도 허용: 상품명에 명시된 그대로 사용
+6. 용량 형식: "50ml", "2ml*3", "10g" 등에서 숫자와 단위 분리
+7. 단위(unit) 규칙:
+   - 허용: ml, g, L, kg, 개, 매
+   - 비허용: colors, 구 등 모호한 단위 → volume=null, unit=""
+8. 개수(count): "*3", "x2" 등에서 추출, 없으면 1
+   - "10매입", "2개"는 count로 추출하지 않음
 ```
 
 **SET 상품 처리 예시**:
@@ -201,14 +199,12 @@ import { z } from "zod";
 
 // 개별 상품 아이템 스키마
 const ProductItemSchema = z.object({
+  type: z.string().describe("제품 카테고리 (세럼, 크림, 토너 등)"),
   full_name: z.string().describe("라인명 + 제품 상세명 (브랜드 제외)"),
-  type: z.string().describe("제품 타입 (세럼, 크림, 토너 등)"),
   volume: z.number().nullable().describe("용량 숫자"),
   unit: z
     .string()
-    .describe(
-      "단위 - 부피/무게: ml, g, L, kg (영어) / 개수: 매, 개, 장, 팩 (한글)",
-    ),
+    .describe("단위 - ml, g, L, kg, 개, 매 허용 / 비허용 시 빈 문자열"),
   count: z.number().describe("개수"),
 });
 
@@ -246,8 +242,8 @@ const response = await ai.models.generateContent({
 {
   "main_products": [
     {
-      "full_name": "다이브인 저분자 히알루론산 세럼",
       "type": "세럼",
+      "full_name": "다이브인 저분자 히알루론산 세럼",
       "volume": 50,
       "unit": "ml",
       "count": 1
@@ -255,8 +251,8 @@ const response = await ai.models.generateContent({
   ],
   "gifts": [
     {
-      "full_name": "다이브인 세럼",
       "type": "세럼",
+      "full_name": "다이브인 세럼",
       "volume": 2,
       "unit": "ml",
       "count": 3
@@ -271,28 +267,28 @@ LLM JSON 출력 → 각 컬럼 텍스트 생성:
 
 | 컬럼                 | 조합 로직                                 |
 | -------------------- | ----------------------------------------- |
-| structured_item_name | `{full_name} {volume}{unit}` (모든 항목)  |
-| sanitized_item_name  | `{type} {volume}{unit}` (모든 항목)       |
 | set_name             | `{type} {volume}{unit}` (main_products만) |
+| sanitized_item_name  | `{type} {volume}{unit}` (모든 항목)       |
+| structured_item_name | `{full_name} {volume}{unit}` (모든 항목)  |
 
 ### 조합 규칙
 
 - 여러 항목은 " + "로 연결
-- count > 1인 경우: `{volume}{unit}*{count}` (예: 2ml\*3)
-- volume이 null인 경우: `{type}` 또는 `{full_name}`만 출력
+- count > 1인 경우: `x {count}개` (예: 세럼 2ml x 3개)
+- volume이 null인 경우: `{full_name}`만 출력
 
 ### 단위(unit) 규칙
 
-| 유형        | 예시           | 처리             |
-| ----------- | -------------- | ---------------- |
-| 부피/무게   | ml, g, L, kg   | 영어 그대로 사용 |
-| 개수 (한글) | 매, 개, 장, 팩 | 한글 그대로 유지 |
-| 개수 (영어) | ea, EA         | → "개"로 변환    |
+| 유형   | 예시                      | 처리                 |
+| ------ | ------------------------- | -------------------- |
+| 허용   | ml, g, L, kg, 개, 매      | 그대로 사용          |
+| 비허용 | colors, 구 등 모호한 단위 | volume=null, unit="" |
 
 **예시**:
 
 - 마스크팩 10매입 → `volume: 10, unit: "매"`
 - 패드 2개 → `volume: 2, unit: "개"`
+- 섀도우팔레트 24 colors → `volume: null, unit: ""` (모호한 단위)
 - 세럼 50ml → `volume: 50, unit: "ml"`
 
 ## 구현 체크리스트

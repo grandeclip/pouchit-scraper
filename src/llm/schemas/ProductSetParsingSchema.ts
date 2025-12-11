@@ -13,25 +13,24 @@ import { z } from "zod";
  * 메인 상품 또는 증정품 하나를 나타냄
  */
 export const ProductItemSchema = z.object({
+  /** 제품 카테고리 (세럼, 크림, 토너 등) */
+  type: z.string().describe("제품 카테고리 (세럼, 크림, 토너 등)"),
+
   /** 라인명 + 제품 상세명 (브랜드 제외) */
   full_name: z.string().describe("라인명 + 제품 상세명 (브랜드 제외)"),
-
-  /** 제품 타입 (세럼, 크림, 토너 등) */
-  type: z.string().describe("제품 타입 (세럼, 크림, 토너 등)"),
 
   /** 용량 숫자 (없으면 null) */
   volume: z.number().nullable().describe("용량 숫자"),
 
   /**
    * 단위
-   * - 부피/무게: ml, g, L, kg (영어)
-   * - 개수: 매, 개, 장, 팩 (한글)
+   * - 부피/무게: ml, g, L, kg
+   * - 개수: 개, 매
+   * - 비허용 시 빈 문자열
    */
   unit: z
     .string()
-    .describe(
-      "단위 - 부피/무게: ml, g, L, kg (영어) / 개수: 매, 개, 장, 팩 (한글)",
-    ),
+    .describe("단위 - ml, g, L, kg, 개, 매 허용 / 비허용 시 빈 문자열"),
 
   /** 개수 (기본값 1) */
   count: z.number().describe("개수"),
