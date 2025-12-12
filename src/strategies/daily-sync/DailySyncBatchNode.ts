@@ -90,7 +90,8 @@ export class DailySyncBatchNode implements ITypedNodeStrategy<
   ): Promise<ITypedNodeResult<DailySyncBatchOutput>> {
     const { logger, config } = context;
 
-    const dryRun = (config.dry_run as boolean) || input.dry_run || false;
+    // dry_run은 input에서만 받음 (init에서 전달)
+    const dryRun = input.dry_run === true;
     const maxPerPlatform =
       (config.max_per_platform as number) ||
       input.max_per_platform ||

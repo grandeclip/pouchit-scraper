@@ -172,6 +172,7 @@ export class DailySyncInitNode implements ITypedNodeStrategy<
         platform_id_map: Object.fromEntries(platformIdMap),
         job_log_file: jobLogFile,
         started_at: startedAt,
+        dry_run: input.dry_run,
       };
 
       logger.info(

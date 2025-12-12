@@ -131,6 +131,9 @@ export interface DailySyncInitOutput {
 
   /** 시작 시각 */
   started_at: string;
+
+  /** dry run 모드 (batch로 전달) */
+  dry_run?: boolean;
 }
 
 // ============================================================

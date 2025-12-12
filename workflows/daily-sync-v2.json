@@ -27,7 +27,6 @@
       "type": "daily_sync_batch",
       "name": "단일 처리",
       "config": {
-        "dry_run": "${dry_run}",
         "max_per_platform": 10,
         "update_workflow_id": "extract-product-set-update-v2"
       },
