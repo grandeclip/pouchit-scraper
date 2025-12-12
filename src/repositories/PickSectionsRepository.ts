@@ -96,17 +96,19 @@ export class PickSectionsRepository {
   }
 
   /**
-   * 모든 pick_sections의 content 조회
+   * 최신 pick_sections의 content 조회 (created_at 기준 최신 1개)
    *
-   * @returns content 배열
+   * @returns content 배열 (최신 1개만 포함)
    */
   async findAllContents(): Promise<PickSectionsContent[]> {
-    logger.info("[PickSectionsRepository] content 조회 시작");
+    logger.info("[PickSectionsRepository] 최신 content 조회 시작");
 
     try {
       const { data, error } = await this.client
         .from(this.tableName)
-        .select("content");
+        .select("content")
+        .order("created_at", { ascending: false })
+        .limit(1);
 
       if (error) {
         logger.error(
@@ -121,10 +123,7 @@ export class PickSectionsRepository {
         return [];
       }
 
-      logger.info(
-        { count: data.length },
-        "[PickSectionsRepository] content 조회 완료",
-      );
+      logger.info("[PickSectionsRepository] 최신 content 조회 완료");
 
       return data.map((row) => row.content as PickSectionsContent);
     } catch (error) {
