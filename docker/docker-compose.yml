@@ -5,6 +5,12 @@
 # API 기반: hwahae, musinsa, zigzag (각 2GB)
 # Default: 기타 (2GB)
 
+x-logging-default: &logging-default
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-worker-common: &worker-common
   build:
     context: ..
@@ -19,6 +25,7 @@ x-worker-common: &worker-common
   command: npm run worker
   restart: unless-stopped
   stop_grace_period: 30s
+  logging: *logging-default
   environment: &worker-env-common
     NODE_ENV: development
     REDIS_HOST: redis
@@ -85,6 +92,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    logging: *logging-default
 
   # ============================================
   # Browser-based Workers (Playwright)
@@ -214,6 +222,7 @@ services:
       resources:
         limits:
           memory: 256M
+    logging: *logging-default
 
   # ============================================
   # Alert Watcher (테이블 모니터링 및 알림)
@@ -248,6 +257,7 @@ services:
       resources:
         limits:
           memory: 256M
+    logging: *logging-default
 
   # ============================================
   # Redis
@@ -269,6 +279,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    logging: *logging-default
 
   # ============================================
   # Container Restarter (주기적 재시작 + Heartbeat 모니터링)
@@ -323,9 +334,9 @@ services:
             docker restart $$w && sleep 5
           done
 
-          # Phase 4: Scheduler & Alert
-          echo "[$(date)] Phase 4: Scheduler, Alert 재시작"
-          docker restart scheduler alert_watcher
+          # Phase 4: Scheduler & Alert & DailySync
+          echo "[$(date)] Phase 4: Scheduler, Alert, DailySync 재시작"
+          docker restart scheduler alert_watcher daily_sync_scheduler
           sleep 10
 
           # Phase 5: 서비스 재활성화 (product_scanner 내 curl 사용)
@@ -393,3 +404,72 @@ services:
       resources:
         limits:
           memory: 64M
+    logging: *logging-default
+
+  # ============================================================================
+  # Daily Sync Scheduler - 매일 04:25 기획상품 동기화 실행
+  # ============================================================================
+  daily_sync_scheduler:
+    image: alpine:3.19
+    container_name: daily_sync_scheduler
+    environment:
+      - TZ=Asia/Seoul
+      - SYNC_HOUR=04
+      - SYNC_MINUTE=25
+      - API_HOST=product_scanner
+      - API_PORT=3000
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # Alpine에서 TZ 환경변수 적용을 위해 tzdata, curl 설치
+        apk add --no-cache tzdata curl jq > /dev/null 2>&1
+
+        echo "[DailySync] 시작"
+        echo "  - Timezone: $${TZ}"
+        echo "  - 현재 시간: $$(date)"
+        echo "  - 스케줄: 매일 $${SYNC_HOUR}:$${SYNC_MINUTE}"
+        echo "  - API: http://$${API_HOST}:$${API_PORT}/api/v2/workflows/execute"
+
+        execute_sync() {
+          echo "[$(date)] === Daily Sync 실행 ==="
+
+          RESPONSE=$$(curl -s -X POST "http://$${API_HOST}:$${API_PORT}/api/v2/workflows/execute" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "workflow_id": "daily-sync-v2",
+              "platform": "default",
+              "params": {},
+              "metadata": {"source": "container_scheduler"}
+            }')
+
+          JOB_ID=$$(echo "$$RESPONSE" | jq -r '.job_id // empty')
+
+          if [ -z "$$JOB_ID" ]; then
+            echo "[$(date)] ERROR: $$RESPONSE"
+          else
+            echo "[$(date)] Job 생성: $${JOB_ID}"
+          fi
+
+          echo "[$(date)] === Daily Sync 완료 ==="
+        }
+
+        while true; do
+          current_hour=$$(date +%H)
+          current_min=$$(date +%M)
+
+          if [ "$$current_hour" = "$${SYNC_HOUR}" ] && [ "$$current_min" = "$${SYNC_MINUTE}" ]; then
+            execute_sync
+            # 같은 분에 중복 실행 방지
+            sleep 120
+          fi
+
+          sleep 30
+        done
+    restart: unless-stopped
+    depends_on:
+      - product_scanner
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+    logging: *logging-default
