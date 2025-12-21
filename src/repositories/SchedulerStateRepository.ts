@@ -10,6 +10,7 @@
 import Redis from "ioredis";
 import { SCHEDULER_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
+import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
  * Redis 키 패턴
@@ -210,7 +211,7 @@ export class SchedulerStateRepository {
    */
   async setJobCompletedAt(platform: string): Promise<void> {
     await this.updatePlatformState(platform, {
-      last_completed_at: new Date().toISOString(),
+      last_completed_at: getTimestampWithTimezone(),
     });
   }
 
@@ -397,7 +398,7 @@ export class SchedulerStateRepository {
   async updateHeartbeat(): Promise<void> {
     await this.updateSchedulerStatus({
       running: true,
-      last_heartbeat_at: new Date().toISOString(),
+      last_heartbeat_at: getTimestampWithTimezone(),
     });
   }
 

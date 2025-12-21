@@ -15,10 +15,11 @@
  * - Docker 환경에서 TZ=Asia/Seoul 설정 시 +09:00 반영
  * - 밀리초 단위까지 기록
  *
+ * @param timestamp - Unix timestamp (밀리초), 생략 시 현재 시간
  * @returns ISO 8601 형식의 타임스탬프 문자열
  */
-export function getTimestampWithTimezone(): string {
-  const now = new Date();
+export function getTimestampWithTimezone(timestamp?: number): string {
+  const now = timestamp ? new Date(timestamp) : new Date();
   const offset = -now.getTimezoneOffset();
   const offsetHours = Math.floor(Math.abs(offset) / 60);
   const offsetMinutes = Math.abs(offset) % 60;

@@ -10,6 +10,7 @@
 
 import Redis from "ioredis";
 import { logger } from "@/config/logger";
+import { getTimestampWithTimezone } from "@/utils/timestamp";
 
 /**
  * Redis 키 패턴
@@ -192,7 +193,7 @@ export class AlertWatcherStateRepository {
   async updateHeartbeat(): Promise<void> {
     await this.updateStatus({
       running: true,
-      last_heartbeat_at: new Date().toISOString(),
+      last_heartbeat_at: getTimestampWithTimezone(),
     });
   }
 
@@ -297,7 +298,7 @@ export class AlertWatcherStateRepository {
       const completedAt = await this.getTaskCompletedAt(taskId);
       states[taskId] = {
         last_completed_at:
-          completedAt > 0 ? new Date(completedAt).toISOString() : null,
+          completedAt > 0 ? getTimestampWithTimezone(completedAt) : null,
       };
     }
 
