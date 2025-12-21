@@ -23,6 +23,7 @@ import { v7 as uuidv7 } from "uuid";
 import { RedisWorkflowRepository } from "@/repositories/RedisWorkflowRepository";
 import { AlertWatcherStateRepository } from "@/repositories/AlertWatcherStateRepository";
 import { logger } from "@/config/logger";
+import { startHeartbeat } from "@/utils/heartbeat";
 import { Job, JobStatus } from "@/core/domain/Workflow";
 
 /**
@@ -202,13 +203,21 @@ async function waitForJobCompletion(
  * 메인 Watcher 루프
  */
 async function runAlertWatcher(): Promise<void> {
+  const startTime = Date.now();
   const repository = RedisWorkflowRepository.getInstance();
   const watcherState = new AlertWatcherStateRepository(repository.client);
 
   // Shutdown 핸들러 설정
   setupShutdownHandlers(repository, watcherState);
 
-  // Heartbeat 타이머 시작
+  // Heartbeat 시작 (30초 간격) - Restarter 모니터링용
+  const stopHeartbeat = startHeartbeat(
+    repository.client,
+    "alert_watcher",
+    startTime,
+  );
+
+  // Alert Watcher 내부 Heartbeat 타이머 (10초 간격)
   const heartbeatTimer = setInterval(async () => {
     if (isRunning) {
       await watcherState.updateHeartbeat();
@@ -223,6 +232,7 @@ async function runAlertWatcher(): Promise<void> {
         interval_min: t.interval_ms / 60000,
       })),
       check_interval_ms: WATCHER_CONFIG.CHECK_INTERVAL_MS,
+      heartbeat_service: "alert_watcher",
     },
     "[AlertWatcher] Alert Watcher 시작",
   );
@@ -325,6 +335,7 @@ async function runAlertWatcher(): Promise<void> {
 
   // Cleanup
   clearInterval(heartbeatTimer);
+  stopHeartbeat();
 }
 
 /**

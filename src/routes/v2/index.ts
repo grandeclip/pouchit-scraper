@@ -16,6 +16,7 @@ import alertWatcherRouter from "./alert-watcher.router";
 import workersRouter from "./workers.router";
 import searchRouter from "./search.router";
 import llmRouter from "./llm.router";
+import systemRouter from "./system.router";
 import { logger } from "@/config/logger";
 
 const router = Router();
@@ -46,6 +47,9 @@ router.use("/search", searchRouter);
 
 // LLM API (LLM 기반 서비스)
 router.use("/llm", llmRouter);
+
+// System API (시스템 전체 관리)
+router.use("/system", systemRouter);
 
 logger.info(
   {
@@ -78,6 +82,9 @@ logger.info(
       "GET /api/v2/search/queue",
       "POST /api/v2/llm/generate-description",
       "GET /api/v2/llm/cost-stats",
+      "POST /api/v2/system/restart-all",
+      "DELETE /api/v2/system/restart-all",
+      "GET /api/v2/system/restart-status",
     ],
   },
   "[v2Router] API v2 라우터 등록",

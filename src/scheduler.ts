@@ -19,6 +19,7 @@ import { SchedulerStateRepository } from "@/repositories/SchedulerStateRepositor
 import { PlatformLock } from "@/repositories/PlatformLock";
 import { SCHEDULER_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
+import { startHeartbeat } from "@/utils/heartbeat";
 import { Job, JobStatus } from "@/core/domain/Workflow";
 
 /**
@@ -41,10 +42,16 @@ let isRunning = true;
 /**
  * Graceful shutdown 핸들러
  */
-function setupShutdownHandlers(repository: RedisWorkflowRepository): void {
+function setupShutdownHandlers(
+  repository: RedisWorkflowRepository,
+  stopHeartbeat: () => void,
+): void {
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "[Scheduler] 종료 신호 수신");
     isRunning = false;
+
+    // Heartbeat 정리
+    stopHeartbeat();
 
     // Redis 연결 종료
     await repository.disconnect();
@@ -103,11 +110,19 @@ function createUpdateJob(
  * 메인 스케줄러 루프
  */
 async function runScheduler(): Promise<void> {
+  const startTime = Date.now();
   const repository = new RedisWorkflowRepository();
   const schedulerState = new SchedulerStateRepository(repository.client);
 
-  // Shutdown 핸들러 설정
-  setupShutdownHandlers(repository);
+  // Heartbeat 시작 (30초 간격) - Restarter 모니터링용
+  const stopHeartbeat = startHeartbeat(
+    repository.client,
+    "scheduler",
+    startTime,
+  );
+
+  // Shutdown 핸들러 설정 (stopHeartbeat 전달)
+  setupShutdownHandlers(repository, stopHeartbeat);
 
   logger.info(
     {
@@ -117,6 +132,7 @@ async function runScheduler(): Promise<void> {
       same_platform_cooldown_ms: SCHEDULER_CONFIG.SAME_PLATFORM_COOLDOWN_MS,
       on_sale_ratio: SCHEDULER_CONFIG.ON_SALE_RATIO,
       limit: "전체 조회 (자동 pagination)",
+      heartbeat_service: "scheduler",
     },
     "[Scheduler] 스케줄러 컨테이너 시작 (API로 활성화 필요)",
   );

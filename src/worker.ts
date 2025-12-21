@@ -20,6 +20,7 @@ import { RedisWorkflowRepository } from "@/repositories/RedisWorkflowRepository"
 import { PlatformLock } from "@/repositories/PlatformLock";
 import { SchedulerStateRepository } from "@/repositories/SchedulerStateRepository";
 import { logImportant } from "@/utils/LoggerContext";
+import { startHeartbeat } from "@/utils/heartbeat";
 import { WORKFLOW_CONFIG } from "@/config/constants";
 import { logger } from "@/config/logger";
 import type { Job } from "@/core/domain/Workflow";
@@ -201,11 +202,16 @@ function startKillFlagChecker(
  * Worker 시작
  */
 async function startWorker() {
+  const startTime = Date.now();
   const service = new WorkflowExecutionService();
   const repository = RedisWorkflowRepository.getInstance();
   const schedulerState = new SchedulerStateRepository(repository.client);
 
   const workerMode = process.env.WORKER_PLATFORMS ? "dedicated" : "legacy";
+
+  // Heartbeat 서비스 이름 결정 (dedicated 모드: 첫 번째 플랫폼, legacy 모드: "worker:legacy")
+  const heartbeatServiceName =
+    workerMode === "dedicated" ? `worker:${PLATFORMS[0]}` : "worker:legacy";
 
   logImportant(logger, "Workflow Worker 시작", {
     mode: workerMode,
@@ -213,7 +219,15 @@ async function startWorker() {
     platform_count: PLATFORMS.length,
     poll_interval_ms: POLL_INTERVAL_MS,
     kill_check_interval_ms: KILL_CHECK_INTERVAL_MS,
+    heartbeat_service: heartbeatServiceName,
   });
+
+  // Heartbeat 시작 (30초 간격)
+  const stopHeartbeat = startHeartbeat(
+    repository.client,
+    heartbeatServiceName,
+    startTime,
+  );
 
   // Kill Flag 체크 시작 (5초 간격)
   const stopKillChecker = startKillFlagChecker(PLATFORMS, repository);
@@ -228,6 +242,7 @@ async function startWorker() {
 
   // 정리
   stopKillChecker();
+  stopHeartbeat();
 
   logImportant(logger, "Workflow Worker 중지", {});
 }

@@ -16,6 +16,19 @@ restart: ## 개발 환경 재시작
 	@echo "🔄 개발 환경 재시작 중..."
 	docker compose -f docker/docker-compose.yml restart
 
+restart-all: ## 모든 컨테이너 순차 재시작 (의존성 순서)
+	@echo "🔄 순차 재시작 시작..."
+	@echo "  Phase 1: Redis"
+	docker restart product_scanner_redis && sleep 10
+	@echo "  Phase 2: API Server"
+	docker restart product_scanner && sleep 20
+	@echo "  Phase 3: Workers"
+	docker restart worker_oliveyoung worker_ably worker_kurly worker_search && sleep 15
+	docker restart worker_hwahae worker_musinsa worker_zigzag worker_default worker_alert && sleep 10
+	@echo "  Phase 4: Scheduler & Alert"
+	docker restart scheduler alert_watcher
+	@echo "✅ 순차 재시작 완료"
+
 # 유틸리티
 type-check: ## TypeScript 타입 체크 (컨테이너 내)
 	@echo "🔍 타입 체크 중..."

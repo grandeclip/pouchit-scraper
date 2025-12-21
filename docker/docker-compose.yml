@@ -18,6 +18,7 @@ x-worker-common: &worker-common
     - redis
   command: npm run worker
   restart: unless-stopped
+  stop_grace_period: 30s
   environment: &worker-env-common
     NODE_ENV: development
     REDIS_HOST: redis
@@ -73,6 +74,7 @@ services:
       - redis
     command: npm run dev
     restart: unless-stopped
+    stop_grace_period: 30s
     deploy:
       resources:
         limits:
@@ -191,6 +193,7 @@ services:
       - product_scanner
     command: npm run scheduler
     restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       NODE_ENV: development
       REDIS_HOST: redis
@@ -229,6 +232,7 @@ services:
       - product_scanner
     command: npm run alert-watcher
     restart: unless-stopped
+    stop_grace_period: 30s
     environment:
       NODE_ENV: development
       REDIS_HOST: redis
@@ -253,6 +257,7 @@ services:
     container_name: product_scanner_redis
     command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru --save ""
     restart: unless-stopped
+    stop_grace_period: 10s
     tmpfs:
       - /data
     deploy:
@@ -264,3 +269,122 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+
+  # ============================================
+  # Container Restarter (주기적 재시작 + Heartbeat 모니터링)
+  # - 매일 04:10에 자동 재시작
+  # - API 트리거: POST /api/v2/system/restart-all
+  # - Heartbeat 실패 시 개별 컨테이너 재시작
+  # ============================================
+  restarter:
+    image: docker:cli
+    container_name: container_restarter
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - TZ=Asia/Seoul
+      - RESTART_HOUR=04
+      - RESTART_MINUTE=10
+      - REDIS_CONTAINER=product_scanner_redis
+      - TRIGGER_KEY=system:restart:trigger
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "[Restarter] 시작"
+        echo "  - 스케줄: 매일 $${RESTART_HOUR}:$${RESTART_MINUTE}"
+        echo "  - API 트리거: POST /api/v2/system/restart-all"
+        echo "  - Heartbeat 모니터링: 60초 timeout"
+
+        # 전체 순차 재시작
+        do_restart() {
+          echo "[$(date)] === 순차 재시작 시작 ==="
+
+          # Phase 1: Redis
+          echo "[$(date)] Phase 1: Redis 재시작"
+          docker restart product_scanner_redis
+          sleep 15
+
+          # Phase 2: API Server
+          echo "[$(date)] Phase 2: product_scanner 재시작"
+          docker restart product_scanner
+          sleep 30
+
+          # Phase 3: Workers (순차)
+          echo "[$(date)] Phase 3: Workers 재시작"
+          for w in worker_oliveyoung worker_ably worker_kurly worker_search; do
+            docker restart $$w && sleep 10
+          done
+          for w in worker_hwahae worker_musinsa worker_zigzag worker_default worker_alert; do
+            docker restart $$w && sleep 5
+          done
+
+          # Phase 4: Scheduler & Alert
+          echo "[$(date)] Phase 4: Scheduler, Alert 재시작"
+          docker restart scheduler alert_watcher
+          sleep 10
+
+          # Phase 5: 서비스 재활성화 (product_scanner 내 curl 사용)
+          echo "[$(date)] Phase 5: 서비스 재활성화"
+          docker exec product_scanner curl -s -X POST "http://localhost:3000/api/v2/scheduler/start" || true
+          docker exec product_scanner curl -s -X POST "http://localhost:3000/api/v2/alert-watcher/start" || true
+          echo "[$(date)] 서비스 재활성화 완료"
+
+          echo "[$(date)] === 순차 재시작 완료 ==="
+        }
+
+        # Heartbeat 체크 및 개별 재시작
+        check_heartbeat() {
+          local service=$$1
+          local container=$$2
+          local hb=$$(docker exec $${REDIS_CONTAINER} redis-cli GET "heartbeat:$${service}" 2>/dev/null)
+
+          if [ -z "$$hb" ] || [ "$$hb" = "(nil)" ]; then
+            echo "[$(date)] ⚠️ $${service} heartbeat 없음 - $${container} 재시작"
+            docker restart $${container}
+            sleep 30
+            return 1
+          fi
+          return 0
+        }
+
+        while true; do
+          # 1. API 트리거 확인 (Redis 폴링)
+          trigger=$$(docker exec $${REDIS_CONTAINER} redis-cli GET $${TRIGGER_KEY} 2>/dev/null)
+          if [ -n "$$trigger" ] && [ "$$trigger" != "(nil)" ]; then
+            echo "[$(date)] API 트리거 감지: $$trigger"
+            docker exec $${REDIS_CONTAINER} redis-cli DEL $${TRIGGER_KEY}
+            do_restart
+            sleep 120
+            continue
+          fi
+
+          # 2. 스케줄 기반 재시작 확인
+          current_hour=$$(date +%H)
+          current_min=$$(date +%M)
+          if [ "$$current_hour" = "$${RESTART_HOUR}" ] && [ "$$current_min" = "$${RESTART_MINUTE}" ]; then
+            echo "[$(date)] 스케줄 트리거 (매일 $${RESTART_HOUR}:$${RESTART_MINUTE})"
+            do_restart
+            sleep 120
+            continue
+          fi
+
+          # 3. Heartbeat 모니터링 (개별 재시작)
+          check_heartbeat "worker:oliveyoung" "worker_oliveyoung"
+          check_heartbeat "worker:ably" "worker_ably"
+          check_heartbeat "worker:kurly" "worker_kurly"
+          check_heartbeat "worker:search" "worker_search"
+          check_heartbeat "worker:hwahae" "worker_hwahae"
+          check_heartbeat "worker:musinsa" "worker_musinsa"
+          check_heartbeat "worker:zigzag" "worker_zigzag"
+          check_heartbeat "worker:default" "worker_default"
+          check_heartbeat "worker:alert" "worker_alert"
+          check_heartbeat "scheduler" "scheduler"
+          check_heartbeat "alert_watcher" "alert_watcher"
+
+          sleep 30
+        done
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M

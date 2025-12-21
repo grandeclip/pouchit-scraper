@@ -13,6 +13,7 @@ import { SearcherRegistry } from "@/services/SearcherRegistry";
 import { registerAllSearchers, getSupportedSearchPlatforms } from "@/searchers";
 import { SearchConfigLoader } from "@/config/SearchConfigLoader";
 import { logImportant } from "@/utils/LoggerContext";
+import { startHeartbeat } from "@/utils/heartbeat";
 import { logger } from "@/config/logger";
 import type { SearchJob } from "@/core/domain/search/SearchJob";
 import type { SearchRequest } from "@/core/domain/search/SearchProduct";
@@ -139,6 +140,8 @@ function sleep(ms: number): Promise<void> {
  * Worker 시작
  */
 async function startWorker(): Promise<void> {
+  const startTime = Date.now();
+
   // 1. Searcher 등록
   registerAllSearchers();
 
@@ -167,12 +170,21 @@ async function startWorker(): Promise<void> {
     platform_count: platforms.length,
     poll_interval_ms: POLL_INTERVAL_MS,
     concurrency: CONCURRENCY,
+    heartbeat_service: "worker:search",
   });
 
-  // 5. 큐 처리 루프 시작
+  // 5. Heartbeat 시작 (30초 간격)
+  const stopHeartbeat = startHeartbeat(
+    repository.client,
+    "worker:search",
+    startTime,
+  );
+
+  // 6. 큐 처리 루프 시작
   await processQueue(repository, registry);
 
-  // 6. 종료 처리
+  // 7. 종료 처리
+  stopHeartbeat();
   logImportant(logger, "Search Worker 종료", {});
 
   // Searcher 리소스 정리
