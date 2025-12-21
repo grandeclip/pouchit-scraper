@@ -43,6 +43,8 @@ tags:
     description: 실행 중인 Job 모니터링
   - name: Workers
     description: Worker 컨테이너 관리 (재시작, 상태 조회)
+  - name: System
+    description: 시스템 전체 관리 (전체 컨테이너 재시작)
   - name: Scheduler
     description: 자동 스케줄러 제어
   - name: Daily Sync
@@ -772,6 +774,152 @@ paths:
                     started_at: "2024-11-28T11:25:11.000Z"
                   lock_released: true
                   job_marked_failed: true
+
+  # ==================== System APIs ====================
+
+  /api/v2/system/restart-all:
+    post:
+      tags: [System]
+      summary: 전체 컨테이너 순차 재시작 트리거
+      description: |
+        모든 컨테이너를 순차적으로 재시작하도록 트리거합니다.
+
+        **동작 방식**:
+        1. Redis에 재시작 신호 키 설정 (TTL 5분)
+        2. Restarter 컨테이너가 30초 이내에 감지
+        3. 순차 재시작 실행: redis → product_scanner → workers → scheduler, alert_watcher
+
+        **Shell 스크립트**: `scripts/test-restart-api.sh trigger`
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: 재시작 사유 (선택사항)
+                  example: "관리자 페이지에서 요청 - 2025-12-21T15:30:00 KST"
+      responses:
+        '200':
+          description: 트리거 설정 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemRestartTriggerResponse'
+              example:
+                success: true
+                message: "System restart triggered. Restarter will execute within 30 seconds."
+                data:
+                  trigger_key: "system:restart:trigger"
+                  trigger_ttl_seconds: 300
+                  expected_execution_within_seconds: 30
+                  restart_order:
+                    - "redis"
+                    - "product_scanner"
+                    - "workers (browser → api)"
+                    - "scheduler, alert_watcher"
+                  triggered_at: "2025-12-21T15:30:00.000Z"
+                  reason: "관리자 페이지에서 요청 - 2025-12-21T15:30:00 KST"
+                  triggered_by: "api"
+        '409':
+          description: 이미 재시작 트리거가 설정됨
+          content:
+            application/json:
+              example:
+                success: false
+                error: "Restart already triggered"
+                message: "A restart is already pending. Please wait for it to complete."
+                data:
+                  triggered_at: "2025-12-21T15:25:00.000Z"
+                  reason: "Previous trigger"
+                  ttl_seconds: 180
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              example:
+                success: false
+                error: "Failed to trigger system restart"
+                message: "Redis connection error"
+
+    delete:
+      tags: [System]
+      summary: 재시작 트리거 취소
+      description: |
+        대기 중인 재시작 트리거를 취소합니다.
+
+        **Shell 스크립트**: `scripts/test-restart-api.sh cancel`
+      responses:
+        '200':
+          description: 취소 성공
+          content:
+            application/json:
+              example:
+                success: true
+                message: "Restart trigger cancelled successfully."
+        '404':
+          description: 대기 중인 트리거 없음
+          content:
+            application/json:
+              example:
+                success: false
+                error: "No pending restart"
+                message: "There is no pending restart trigger to cancel."
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              example:
+                success: false
+                error: "Failed to cancel restart trigger"
+                message: "Redis connection error"
+
+  /api/v2/system/restart-status:
+    get:
+      tags: [System]
+      summary: 재시작 트리거 상태 조회
+      description: |
+        현재 재시작 트리거의 상태를 조회합니다.
+
+        **Shell 스크립트**: `scripts/test-restart-api.sh status`
+      responses:
+        '200':
+          description: 상태 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemRestartStatusResponse'
+              examples:
+                no_pending:
+                  summary: 대기 중인 트리거 없음
+                  value:
+                    success: true
+                    data:
+                      pending: false
+                      message: "No restart pending"
+                pending:
+                  summary: 재시작 대기 중
+                  value:
+                    success: true
+                    data:
+                      pending: true
+                      triggered_at: "2025-12-21T15:30:00.000Z"
+                      reason: "관리자 페이지에서 요청 - 2025-12-21T15:30:00 KST"
+                      triggered_by: "api"
+                      ttl_seconds: 250
+                      message: "Restart pending - restarter will execute soon"
+        '500':
+          description: 서버 오류
+          content:
+            application/json:
+              example:
+                success: false
+                error: "Failed to get restart status"
+                message: "Redis connection error"
+
+  # ==================== Workers APIs ====================
 
   /api/v2/workers/status:
     get:
@@ -1563,6 +1711,60 @@ components:
                   type: boolean
             expected_restart_within_seconds:
               type: integer
+
+    SystemRestartTriggerResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+          properties:
+            trigger_key:
+              type: string
+            trigger_ttl_seconds:
+              type: integer
+            expected_execution_within_seconds:
+              type: integer
+            restart_order:
+              type: array
+              items:
+                type: string
+            triggered_at:
+              type: string
+              format: date-time
+            reason:
+              type: string
+            triggered_by:
+              type: string
+
+    SystemRestartStatusResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            pending:
+              type: boolean
+            triggered_at:
+              type: string
+              format: date-time
+              nullable: true
+            reason:
+              type: string
+              nullable: true
+            triggered_by:
+              type: string
+              nullable: true
+            ttl_seconds:
+              type: integer
+              nullable: true
+            message:
+              type: string
 
     AlertWatcherStatusResponse:
       type: object
