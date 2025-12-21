@@ -94,6 +94,9 @@ export class AblyApiCaptureStrategy implements IApiCaptureStrategy {
     try {
       // API 응답 Promise 설정
       const apiPromise = new Promise<any>((resolve, reject) => {
+        let timeoutId: NodeJS.Timeout | null = null;
+        let isSettled = false;
+
         const responseHandler = async (response: any) => {
           if (response.url().includes(targetPattern)) {
             try {
@@ -102,7 +105,12 @@ export class AblyApiCaptureStrategy implements IApiCaptureStrategy {
                 { productId, url: response.url() },
                 "Ably API 응답 캡처 성공",
               );
-              resolve(data);
+              // 메모리 누수 방지: 성공 시에도 핸들러 정리
+              if (!isSettled) {
+                isSettled = true;
+                cleanup();
+                resolve(data);
+              }
             } catch (parseError) {
               logger.warn(
                 {
@@ -114,21 +122,37 @@ export class AblyApiCaptureStrategy implements IApiCaptureStrategy {
                 },
                 "Ably API JSON 파싱 실패",
               );
-              reject(
-                new Error(
-                  `API JSON 파싱 실패: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
-                ),
-              );
+              if (!isSettled) {
+                isSettled = true;
+                cleanup();
+                reject(
+                  new Error(
+                    `API JSON 파싱 실패: ${parseError instanceof Error ? parseError.message : String(parseError)}`,
+                  ),
+                );
+              }
             }
+          }
+        };
+
+        // 클린업 함수: 핸들러와 타이머 정리
+        const cleanup = () => {
+          page.off("response", responseHandler);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
           }
         };
 
         page.on("response", responseHandler);
 
         // 타임아웃 설정
-        setTimeout(() => {
-          page.off("response", responseHandler);
-          reject(new Error("API 응답 타임아웃"));
+        timeoutId = setTimeout(() => {
+          if (!isSettled) {
+            isSettled = true;
+            cleanup();
+            reject(new Error("API 응답 타임아웃"));
+          }
         }, AblyApiCaptureStrategy.API_TIMEOUT_MS);
       });
 

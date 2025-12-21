@@ -391,6 +391,9 @@ export class WorkflowExecutionService implements IWorkflowService {
       await this.repository.updateJob(job);
 
       throw error;
+    } finally {
+      // 메모리 누수 방지: Job 완료 후 공유 상태 정리
+      this.sharedStateMap.delete(job.job_id);
     }
   }
 

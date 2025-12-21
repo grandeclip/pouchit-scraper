@@ -297,12 +297,12 @@ export class DailySyncStateRepository {
    */
   async setLastRun(lastRun: DailySyncLastRun): Promise<void> {
     try {
-      // TTL 7일
+      // TTL 4시간
       await this.redis.set(
         DAILY_SYNC_KEYS.LAST_RUN,
         JSON.stringify(lastRun),
         "EX",
-        604800,
+        14400,
       );
     } catch (error) {
       logger.error(

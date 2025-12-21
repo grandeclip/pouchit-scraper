@@ -16,13 +16,26 @@ import { ScannerFactory } from "@/scanners/base/ScannerFactory";
 import { logger } from "@/config/logger";
 
 /**
+ * TTL 설정 (ms)
+ */
+const SCANNER_TTL_MS = 60 * 60 * 1000; // 1시간
+const CLEANUP_INTERVAL_MS = 10 * 60 * 1000; // 10분마다 체크
+
+/**
  * 스캐너 레지스트리 (Singleton)
  */
 export class ScannerRegistry {
   private static instance: ScannerRegistry;
   private scanners: Map<string, IScanner> = new Map();
+  /** 스캐너별 마지막 접근 시간 (TTL 기반 정리용) */
+  private lastAccessTime: Map<string, number> = new Map();
+  /** 자동 정리 타이머 */
+  private cleanupTimer: NodeJS.Timeout | null = null;
 
-  private constructor() {}
+  private constructor() {
+    // TTL 기반 자동 정리 시작
+    this.startAutoCleanup();
+  }
 
   /**
    * Singleton 인스턴스 반환
@@ -49,6 +62,9 @@ export class ScannerRegistry {
       const scanner = ScannerFactory.createScanner(platform, strategyId);
       this.scanners.set(key, scanner);
     }
+
+    // TTL 갱신: 마지막 접근 시간 업데이트
+    this.lastAccessTime.set(key, Date.now());
 
     return this.scanners.get(key)!;
   }
@@ -81,6 +97,7 @@ export class ScannerRegistry {
       const scanner = this.scanners.get(key)!;
       await scanner.cleanup();
       this.scanners.delete(key);
+      this.lastAccessTime.delete(key);
       logger.info({ key, platform, strategyId }, "스캐너 제거");
     }
   }
@@ -91,12 +108,16 @@ export class ScannerRegistry {
   async clearAll(): Promise<void> {
     logger.info({ count: this.scanners.size }, "모든 스캐너 정리 중");
 
+    // 자동 정리 타이머 중지
+    this.stopAutoCleanup();
+
     const cleanupPromises = Array.from(this.scanners.values()).map((scanner) =>
       scanner.cleanup(),
     );
 
     await Promise.allSettled(cleanupPromises);
     this.scanners.clear();
+    this.lastAccessTime.clear();
 
     logger.info("모든 스캐너 정리 완료");
   }
@@ -121,5 +142,77 @@ export class ScannerRegistry {
    */
   private makeKey(platform: string, strategyId?: string): string {
     return strategyId ? `${platform}:${strategyId}` : `${platform}:default`;
+  }
+
+  /**
+   * TTL 기반 자동 정리 시작
+   * 주기적으로 미사용 스캐너 정리
+   */
+  private startAutoCleanup(): void {
+    if (this.cleanupTimer) return;
+
+    this.cleanupTimer = setInterval(() => {
+      this.cleanupExpiredScanners().catch((error) => {
+        logger.warn(
+          { error: error instanceof Error ? error.message : String(error) },
+          "스캐너 자동 정리 중 오류",
+        );
+      });
+    }, CLEANUP_INTERVAL_MS);
+
+    // unref: 이 타이머가 프로세스 종료를 막지 않도록
+    this.cleanupTimer.unref();
+  }
+
+  /**
+   * 자동 정리 타이머 중지
+   */
+  private stopAutoCleanup(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
+  /**
+   * 만료된 스캐너 정리
+   * TTL(1시간) 동안 미사용된 스캐너 제거
+   */
+  private async cleanupExpiredScanners(): Promise<void> {
+    const now = Date.now();
+    const expiredKeys: string[] = [];
+
+    // 만료된 스캐너 키 수집
+    for (const [key, lastAccess] of this.lastAccessTime) {
+      if (now - lastAccess > SCANNER_TTL_MS) {
+        expiredKeys.push(key);
+      }
+    }
+
+    if (expiredKeys.length === 0) return;
+
+    logger.info(
+      { count: expiredKeys.length, keys: expiredKeys },
+      "만료된 스캐너 정리 시작",
+    );
+
+    // 만료된 스캐너 정리
+    for (const key of expiredKeys) {
+      const scanner = this.scanners.get(key);
+      if (scanner) {
+        try {
+          await scanner.cleanup();
+        } catch (error) {
+          logger.warn(
+            { key, error: error instanceof Error ? error.message : String(error) },
+            "스캐너 cleanup 실패",
+          );
+        }
+        this.scanners.delete(key);
+        this.lastAccessTime.delete(key);
+      }
+    }
+
+    logger.info({ count: expiredKeys.length }, "만료된 스캐너 정리 완료");
   }
 }

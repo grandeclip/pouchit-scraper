@@ -360,3 +360,38 @@ export { logger };
  * TypeScript 타입 내보내기
  */
 export type Logger = pino.Logger;
+
+/**
+ * 스트림 정리 함수
+ * 프로세스 종료 시 호출하여 파일 핸들 누수 방지
+ */
+export function cleanupLoggerStreams(): void {
+  // 서비스별 스트림 정리
+  for (const [serviceName, stream] of serviceStreams) {
+    try {
+      stream.end();
+    } catch (error) {
+      // 정리 실패 무시
+    }
+  }
+  serviceStreams.clear();
+
+  // 에러 스트림 정리
+  try {
+    errorStream.end();
+  } catch (error) {
+    // 정리 실패 무시
+  }
+}
+
+/**
+ * 프로세스 종료 시 스트림 자동 정리
+ * beforeExit: 정상 종료 시
+ * SIGTERM/SIGINT: 시그널 종료 시
+ */
+process.on("beforeExit", () => {
+  cleanupLoggerStreams();
+});
+
+// 참고: SIGTERM/SIGINT는 각 서비스에서 개별 처리
+// cleanupLoggerStreams()를 export하여 필요 시 수동 호출 가능

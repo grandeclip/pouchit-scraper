@@ -92,6 +92,11 @@ const WATCHER_CONFIG = {
 let isRunning = true;
 
 /**
+ * Heartbeat 타이머 (메모리 누수 방지를 위해 모듈 레벨에서 관리)
+ */
+let heartbeatTimer: NodeJS.Timeout | null = null;
+
+/**
  * Graceful shutdown 핸들러
  */
 function setupShutdownHandlers(
@@ -101,6 +106,12 @@ function setupShutdownHandlers(
   const shutdown = async (signal: string) => {
     logger.info({ signal }, "[AlertWatcher] 종료 신호 수신");
     isRunning = false;
+
+    // 메모리 누수 방지: Heartbeat 타이머 정리
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
 
     // running 상태 업데이트
     await watcherState.updateStatus({ running: false });
@@ -218,7 +229,8 @@ async function runAlertWatcher(): Promise<void> {
   );
 
   // Alert Watcher 내부 Heartbeat 타이머 (10초 간격)
-  const heartbeatTimer = setInterval(async () => {
+  // 모듈 레벨 변수에 할당 (shutdown에서 정리 가능)
+  heartbeatTimer = setInterval(async () => {
     if (isRunning) {
       await watcherState.updateHeartbeat();
     }
@@ -334,7 +346,10 @@ async function runAlertWatcher(): Promise<void> {
   }
 
   // Cleanup
-  clearInterval(heartbeatTimer);
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
   stopHeartbeat();
 }
 

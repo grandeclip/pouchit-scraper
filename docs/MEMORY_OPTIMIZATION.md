@@ -319,3 +319,159 @@ if (i > 0 && i % 50 === 0) {
 1. Container 재시작: `docker restart workflow_worker`
 2. 로그 확인: `docker logs workflow_worker --tail 100`
 3. 메모리 확인: `docker stats workflow_worker`
+
+---
+
+## 2025-12-21 메모리 누수 예방 조치
+
+### 적용된 수정사항
+
+서버 먹통 현상 조사 후 발견된 메모리 누수 가능성에 대한 예방 조치:
+
+| 파일 | 수정 내용 | 효과 |
+|------|----------|------|
+| `WorkflowExecutionService.ts` | `finally`에서 `sharedStateMap.delete()` 호출 | Job 완료 후 메모리 해제 |
+| `AblyApiCaptureStrategy.ts` | response handler cleanup 함수 분리 | Page 리스너 누적 방지 |
+| `alert-watcher.ts` | `heartbeatTimer` 모듈 레벨 + shutdown 정리 | 비정상 종료 시 타이머 정리 |
+| `logger.ts` | `cleanupLoggerStreams()` + `beforeExit` 핸들러 | 파일 핸들 누수 방지 |
+| `ScannerRegistry.ts` | TTL 기반 자동 정리 (1시간 미사용 시) | 장시간 운영 메모리 안정화 |
+
+---
+
+## 향후 개선 아이디어
+
+### 1. SupabaseProductsRepository.findAll() 최적화
+
+현재 `findAll()`은 모든 데이터를 메모리에 로드합니다. 데이터 양이 많아지면 메모리 부담이 커질 수 있습니다.
+
+#### 문제점
+
+```typescript
+// 현재 구현 (src/repositories/SupabaseProductsRepository.ts)
+async findAll(): Promise<ProductEntity[]> {
+  const allResults: ProductEntity[] = [];
+
+  while (hasMore) {
+    const { data } = await this.client.from(...).select(...).range(...);
+    allResults.push(...data);  // 메모리에 계속 누적
+  }
+
+  return allResults;  // 전체 데이터 반환
+}
+```
+
+- 10만 상품 × 500bytes = ~50MB 메모리 사용
+- GC 전까지 메모리 점유
+
+#### 개선 방안 A: 배치 처리
+
+호출부에서 limit/offset으로 나눠서 처리. **기존 인터페이스 유지**.
+
+```typescript
+// 호출부 예시
+const BATCH_SIZE = 1000;
+let offset = 0;
+
+while (true) {
+  const batch = await repository.findAll({ limit: BATCH_SIZE, offset });
+  if (batch.length === 0) break;
+
+  await processBatch(batch);  // 배치 단위 처리
+  offset += BATCH_SIZE;
+
+  // 배치 처리 후 GC 기회 제공
+}
+```
+
+**장점**: 기존 코드 변경 최소화
+**단점**: 호출부마다 배치 로직 구현 필요
+
+#### 개선 방안 B: AsyncIterator 스트리밍
+
+Generator 패턴으로 스트리밍 처리. **호출부 수정 필요**.
+
+```typescript
+// Repository 구현
+async *findAllStream(pageSize = 1000): AsyncGenerator<ProductEntity[]> {
+  let offset = 0;
+
+  while (true) {
+    const { data } = await this.client
+      .from("products")
+      .select("*")
+      .range(offset, offset + pageSize - 1);
+
+    if (!data || data.length === 0) break;
+
+    yield data;  // 페이지 단위로 yield
+    offset += pageSize;
+  }
+}
+
+// 호출부
+for await (const batch of repository.findAllStream()) {
+  await processBatch(batch);
+  // 각 배치 처리 후 이전 배치 메모리 해제 가능
+}
+```
+
+**장점**: 메모리 효율적, 대용량 데이터 처리 가능
+**단점**: 호출부 코드 변경 필요 (`for await...of`)
+
+#### 적용 시점
+
+- **현재**: 데이터 양이 많지 않아 보류
+- **향후**: 상품 수가 10만 개 이상으로 증가 시 적용 검토
+
+---
+
+### 2. 메모리 모니터링 추가 (선택사항)
+
+장시간 운영 시 메모리 사용량 추적을 위한 모니터링:
+
+```typescript
+// 주기적 메모리 로깅 (60초마다)
+setInterval(() => {
+  const mem = process.memoryUsage();
+  logger.info({
+    heapUsed: `${Math.round(mem.heapUsed / 1024 / 1024)}MB`,
+    heapTotal: `${Math.round(mem.heapTotal / 1024 / 1024)}MB`,
+    rss: `${Math.round(mem.rss / 1024 / 1024)}MB`,
+    external: `${Math.round(mem.external / 1024 / 1024)}MB`,
+  }, "메모리 사용량");
+}, 60000);
+```
+
+#### 적용 위치
+
+- `src/worker.ts`: Worker 프로세스
+- `src/search-worker.ts`: Search Worker
+- `src/scheduler.ts`: Scheduler
+
+#### Grafana/Prometheus 연동
+
+```typescript
+// prometheus-client 사용 시
+import { collectDefaultMetrics, Gauge } from "prom-client";
+
+const heapUsedGauge = new Gauge({
+  name: "nodejs_heap_used_bytes",
+  help: "Node.js heap used in bytes",
+});
+
+setInterval(() => {
+  heapUsedGauge.set(process.memoryUsage().heapUsed);
+}, 10000);
+```
+
+---
+
+### 3. Container Restarter 개선 (현재 적용됨)
+
+서버 먹통 시 자동 복구를 위해 `restarter` 컨테이너가 추가되었습니다:
+
+- **스케줄**: 매일 04:10 자동 재시작
+- **Heartbeat 모니터링**: 60초 timeout 시 개별 컨테이너 재시작
+- **API 트리거**: `POST /api/v2/system/restart-all`
+
+자세한 내용은 `docker/docker-compose.yml`의 `restarter` 서비스 참조.

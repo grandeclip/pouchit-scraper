@@ -30,10 +30,10 @@ const REDIS_KEYS = {
  * TTL 설정 (초)
  */
 const REDIS_TTL = {
-  JOB_PENDING: 3600,
-  JOB_RUNNING: 7200,
-  JOB_COMPLETED: 86400,
-  JOB_FAILED: 86400,
+  JOB_PENDING: 3600, // 1시간
+  JOB_RUNNING: 7200, // 2시간
+  JOB_COMPLETED: 3600, // 1시간 (jsonl로 저장하므로)
+  JOB_FAILED: 3600, // 1시간
 } as const;
 
 /**

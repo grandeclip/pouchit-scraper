@@ -284,13 +284,18 @@ services:
     environment:
       - TZ=Asia/Seoul
       - RESTART_HOUR=04
-      - RESTART_MINUTE=10
+      - RESTART_MINUTE=05
       - REDIS_CONTAINER=product_scanner_redis
       - TRIGGER_KEY=system:restart:trigger
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        # Alpine에서 TZ 환경변수 적용을 위해 tzdata 설치
+        apk add --no-cache tzdata > /dev/null 2>&1
+
         echo "[Restarter] 시작"
+        echo "  - Timezone: $${TZ}"
+        echo "  - 현재 시간: $$(date)"
         echo "  - 스케줄: 매일 $${RESTART_HOUR}:$${RESTART_MINUTE}"
         echo "  - API 트리거: POST /api/v2/system/restart-all"
         echo "  - Heartbeat 모니터링: 60초 timeout"
