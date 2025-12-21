@@ -1631,7 +1631,24 @@ components:
                   description: "전체 조회 (자동 pagination)"
             platforms:
               type: object
-              description: 플랫폼별 상태
+              description: 플랫폼별 상태 (hwahae, oliveyoung, zigzag, musinsa, ably, kurly)
+              additionalProperties:
+                $ref: '#/components/schemas/PlatformState'
+
+    PlatformState:
+      type: object
+      description: 개별 플랫폼 스케줄러 상태
+      properties:
+        on_sale_counter:
+          type: integer
+          description: on_sale 카운터 (0 ~ ON_SALE_RATIO-1)
+          example: 1
+        last_completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 마지막 Job 완료 시간 (ISO 8601)
+          example: "2025-12-21T13:50:00.167Z"
 
     WorkerStatusResponse:
       type: object

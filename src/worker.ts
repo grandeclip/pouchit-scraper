@@ -96,17 +96,17 @@ async function processPlatformQueue(
         continue;
       }
 
+      // 3. Lock 획득 후 dequeue (race condition 방지를 위해 다시 조회)
+      const job: Job | null = await repository.dequeueJobByPlatform(platform);
+
+      if (!job) {
+        // 다른 프로세스가 먼저 가져감 → Lock 해제 후 대기
+        await lock.release();
+        await sleep(POLL_INTERVAL_MS);
+        continue;
+      }
+
       try {
-        // 3. Lock 획득 후 dequeue (race condition 방지를 위해 다시 조회)
-        const job: Job | null = await repository.dequeueJobByPlatform(platform);
-
-        if (!job) {
-          // 다른 프로세스가 먼저 가져감 → Lock 해제 후 대기
-          await lock.release();
-          await sleep(POLL_INTERVAL_MS);
-          continue;
-        }
-
         // 4. Running Job 설정 (모니터링/디버깅용)
         await lock.setRunningJob(job.job_id, job.workflow_id);
 
@@ -123,10 +123,10 @@ async function processPlatformQueue(
           job_id: job.job_id,
           status: job.status,
         });
-      } finally {
-        // 6. Job 완료 시간 기록 (Scheduler 연동용)
-        await schedulerState.setJobCompletedAt(platform);
 
+        // 6. Job 완료 시간 기록 (성공 시에만 - Scheduler 연동용)
+        await schedulerState.setJobCompletedAt(platform);
+      } finally {
         // 7. Running Job 초기화 및 Lock 해제 (성공/실패 관계없이)
         await lock.clearRunningJob();
         await lock.release();
