@@ -21,6 +21,7 @@
 | [04-MODULES.md](./04-MODULES.md)                 | src/ 디렉토리별 상세               | 코드 탐색     |
 | [05-DEPENDENCIES.md](./05-DEPENDENCIES.md)       | 모듈 의존성, 외부 라이브러리       | 결합도 분석   |
 | [06-TECH-DEBT.md](./06-TECH-DEBT.md)             | 개선점, 로드맵                     | 리팩터링 계획 |
+| [07-SCALING-PLAN.md](./07-SCALING-PLAN.md)       | 배치 분할, 스케일링 전략           | 확장 계획     |
 
 ---
 
@@ -36,6 +37,7 @@ flowchart TB
 
     MODULES --> DEPS[05-DEPENDENCIES]
     MODULES --> DEBT[06-TECH-DEBT]
+    DEBT --> SCALE[07-SCALING-PLAN]
 
     PATTERNS -.-> FLOW
     DEPS -.-> DEBT
@@ -121,4 +123,4 @@ flowchart TB
 
 ## 최종 수정일
 
-2024-01-02
+2026-01-02
