@@ -347,10 +347,15 @@ export class SupabaseProductRepository implements IProductRepository {
         insertData.sale_status = request.sale_status;
       }
 
+      // mobile_link_url이 제공된 경우 추가
+      if (request.mobile_link_url) {
+        insertData.mobile_link_url = request.mobile_link_url;
+      }
+
       const { data, error } = await this.client
         .from(this.tableName)
         .insert(insertData)
-        .select("product_set_id, product_id, link_url")
+        .select("product_set_id, product_id, link_url, mobile_link_url")
         .single();
 
       if (error) {
@@ -377,6 +382,7 @@ export class SupabaseProductRepository implements IProductRepository {
         product_set_id: data.product_set_id,
         product_id: data.product_id,
         link_url: data.link_url,
+        mobile_link_url: data.mobile_link_url,
       };
     } catch (error) {
       logger.error(
@@ -419,13 +425,17 @@ export class SupabaseProductRepository implements IProductRepository {
         if (req.sale_status) {
           data.sale_status = req.sale_status;
         }
+        // mobile_link_url이 제공된 경우 추가
+        if (req.mobile_link_url) {
+          data.mobile_link_url = req.mobile_link_url;
+        }
         return data;
       });
 
       const { data, error } = await this.client
         .from(this.tableName)
         .insert(insertData)
-        .select("product_set_id, product_id, link_url");
+        .select("product_set_id, product_id, link_url, mobile_link_url");
 
       if (error) {
         logger.error(
@@ -443,6 +453,7 @@ export class SupabaseProductRepository implements IProductRepository {
         product_set_id: d.product_set_id,
         product_id: d.product_id,
         link_url: d.link_url,
+        mobile_link_url: d.mobile_link_url,
       }));
 
       logger.info(

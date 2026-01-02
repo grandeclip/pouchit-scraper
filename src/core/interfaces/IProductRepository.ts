@@ -18,8 +18,11 @@ export interface ProductSetInsertRequest {
   /** 상품 ID (FK to products) */
   product_id: string;
 
-  /** 상품 링크 URL */
+  /** 상품 링크 URL (PC) */
   link_url: string;
+
+  /** 모바일 링크 URL */
+  mobile_link_url?: string;
 
   /** 플랫폼 ID (FK to platforms) */
   platform_id: number;
@@ -41,8 +44,11 @@ export interface ProductSetInsertResult {
   /** 상품 ID */
   product_id: string;
 
-  /** 링크 URL */
+  /** 링크 URL (PC) */
   link_url: string;
+
+  /** 모바일 링크 URL */
+  mobile_link_url?: string;
 }
 
 /**

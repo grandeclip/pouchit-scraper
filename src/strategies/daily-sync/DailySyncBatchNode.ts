@@ -482,9 +482,20 @@ export class DailySyncBatchNode implements ITypedNodeStrategy<
           return null;
         }
 
+        // mobile_link_url 생성 (platform이 확인된 상태에서만 실행)
+        const productId = PlatformDetector.extractProductId(
+          url,
+          platform ?? undefined,
+        );
+        const mobileLinkUrl =
+          platform && productId
+            ? PlatformDetector.buildMobileProductUrl(platform, productId)
+            : normalizedUrl;
+
         return {
           product_id,
           link_url: normalizedUrl,
+          mobile_link_url: mobileLinkUrl,
           platform_id: platformId,
           auto_crawled: true,
           sale_status: "off_sale",
