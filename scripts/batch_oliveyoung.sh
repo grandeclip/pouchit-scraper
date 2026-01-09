@@ -29,8 +29,14 @@ for ((i=0; i<MAX_OFFSET; i+=BATCH_SIZE)); do
 
   echo "[$(date '+%H:%M:%S')] 완료: total=$TOTAL, success=$SUCCESS, failed=$FAILED"
 
+  # 에러 체크 (TOTAL이 비어있으면 에러 발생)
+  if [ -z "$TOTAL" ]; then
+    echo "ERROR: API 응답 파싱 실패. 응답: $RESPONSE"
+    continue  # 다음 배치로 계속
+  fi
+
   # 더 이상 상품이 없으면 종료
-  if [ -z "$TOTAL" ] || [ "$TOTAL" -eq 0 ]; then
+  if [ "$TOTAL" -eq 0 ]; then
     echo ""
     echo "더 이상 처리할 상품이 없습니다. 종료합니다."
     break
