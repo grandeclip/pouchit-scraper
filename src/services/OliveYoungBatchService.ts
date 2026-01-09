@@ -162,18 +162,31 @@ export class OliveYoungBatchService {
     const productName = product.name_ko || product.name;
 
     // 키워드 결정 로직:
-    // 1. name_ko에 브랜드명 포함 → name_ko만 사용
-    // 2. name_ko 있지만 브랜드명 미포함 → 브랜드 + name_ko
-    // 3. name_ko 없음 → 브랜드 + name
+    // 1. name_ko에 영문 브랜드명 포함 + brand_name_ko 존재 → 한글 브랜드명으로 치환
+    // 2. name_ko에 브랜드명 포함 → name_ko만 사용
+    // 3. name_ko 있지만 브랜드명 미포함 → 브랜드 + name_ko
+    // 4. name_ko 없음 → 브랜드 + name
     let keyword: string;
     if (product.name_ko) {
-      const hasBrandInNameKo =
-        product.name_ko.includes(product.brand_name) ||
-        (product.brand_name_ko &&
-          product.name_ko.includes(product.brand_name_ko));
-      keyword = hasBrandInNameKo
-        ? product.name_ko
-        : `${brandName} ${product.name_ko}`;
+      // 영문 브랜드명이 포함되어 있고, 한글 브랜드명이 있으면 치환
+      if (
+        product.name_ko.includes(product.brand_name) &&
+        product.brand_name_ko
+      ) {
+        keyword = product.name_ko.replace(
+          product.brand_name,
+          product.brand_name_ko,
+        );
+      } else if (
+        product.brand_name_ko &&
+        product.name_ko.includes(product.brand_name_ko)
+      ) {
+        // 이미 한글 브랜드명 포함
+        keyword = product.name_ko;
+      } else {
+        // 브랜드명 미포함 → 브랜드 + name_ko
+        keyword = `${brandName} ${product.name_ko}`;
+      }
     } else {
       keyword = `${brandName} ${product.name}`;
     }
