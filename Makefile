@@ -4,9 +4,13 @@
 .DEFAULT_GOAL := help
 
 # 개발 환경 (Volume Mount + Hot Reload)
-up: ## 개발 환경 시작 (Volume mount, hot reload)
-	@echo "🚀 개발 환경 시작 중..."
-	docker compose -f docker/docker-compose.yml up --build -d
+up: ## 올리브영 전용 환경 시작 (api + oliveyoung worker + redis)
+	@echo "🚀 올리브영 전용 환경 시작 중..."
+	docker compose -f docker/docker-compose.yml up --build -d product_scanner worker_oliveyoung redis
+
+up-full: ## 전체 서비스 시작 (모든 worker 포함)
+	@echo "🚀 전체 환경 시작 중..."
+	docker compose -f docker/docker-compose.yml --profile full up --build -d
 
 down: ## 개발 환경 종료
 	@echo "🛑 개발 환경 종료 중..."
@@ -19,24 +23,21 @@ restart: ## 개발 환경 재시작
 restart-all: ## 모든 컨테이너 순차 재시작 (의존성 순서)
 	@echo "🔄 순차 재시작 시작..."
 	@echo "  Phase 1: Redis"
-	docker restart product_scanner_redis && sleep 10
+	docker restart pouchit_redis && sleep 10
 	@echo "  Phase 2: API Server"
-	docker restart product_scanner && sleep 20
+	docker restart pouchit_api_server && sleep 20
 	@echo "  Phase 3: Workers"
-	docker restart worker_oliveyoung worker_ably worker_kurly worker_search && sleep 15
-	docker restart worker_hwahae worker_musinsa worker_zigzag worker_default worker_alert && sleep 10
-	@echo "  Phase 4: Scheduler & Alert"
-	docker restart scheduler alert_watcher
+	docker restart pouchit_worker_oliveyoung && sleep 15
 	@echo "✅ 순차 재시작 완료"
 
 # 유틸리티
 type-check: ## TypeScript 타입 체크 (컨테이너 내)
 	@echo "🔍 타입 체크 중..."
-	docker compose -f docker/docker-compose.yml exec product_scanner npm run type-check
+	docker compose -f docker/docker-compose.yml exec pouchit_api_server npm run type-check
 
 test: ## 테스트 실행 (컨테이너 내)
 	@echo "🧪 테스트 실행 중..."
-	docker compose -f docker/docker-compose.yml exec product_scanner npm test
+	docker compose -f docker/docker-compose.yml exec pouchit_api_server npm test
 
 logs: ## 로그 확인
 	docker compose -f docker/docker-compose.yml logs
