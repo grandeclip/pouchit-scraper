@@ -199,9 +199,10 @@ export class OliveYoungBatchService {
       success: false,
     };
 
+    const searcher = SearcherFactory.createSearcher("oliveyoung");
+
     try {
       // 올리브영 검색
-      const searcher = SearcherFactory.createSearcher("oliveyoung");
       const searchResult = await searcher.search({ keyword, limit: 1 });
 
       if (searchResult.products.length === 0) {
@@ -279,6 +280,9 @@ export class OliveYoungBatchService {
         ...baseResult,
         error: errorMessage,
       };
+    } finally {
+      // 브라우저 리소스 정리 (메모리 누수 방지)
+      await searcher.cleanup();
     }
   }
 
