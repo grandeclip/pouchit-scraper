@@ -16,6 +16,7 @@ import { RedisSearchRepository } from "@/repositories/RedisSearchRepository";
 import { SearchJobRequestSchema } from "@/core/domain/search/SearchJob";
 import { SearchQueueService } from "@/services/SearchQueueService";
 import { getSupportedSearchPlatforms } from "@/searchers";
+import { SearcherFactory } from "@/searchers/base/SearcherFactory";
 import { logger } from "@/config/logger";
 import {
   ProductFilteringService,
@@ -36,6 +37,15 @@ const UnifiedSearchRequestSchema = z.object({
   brand: z.string().min(1, "brand is required"),
   productName: z.string().default(""),
   maxPerPlatform: z.number().int().min(1).max(20).default(5),
+});
+
+/**
+ * 올리브영 단독 검색 요청 스키마
+ */
+const OliveYoungSearchRequestSchema = z.object({
+  brand: z.string().min(1, "brand is required"),
+  productName: z.string().default(""),
+  maxResults: z.number().int().min(1).max(50).default(10),
 });
 
 const router = Router();
@@ -361,6 +371,110 @@ router.get("/unified/status", (_req: Request, res: Response) => {
       waiting_count: status.waitingCount,
     },
   });
+});
+
+// ============================================
+// OliveYoung 단독 검색 API
+// ============================================
+
+/**
+ * POST /api/v2/search/oliveyoung
+ *
+ * 올리브영 단독 검색 (동기 - 결과 즉시 반환)
+ *
+ * Body:
+ * {
+ *   "brand": "라네즈",
+ *   "productName": "워터뱅크 크림",
+ *   "maxResults": 10
+ * }
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "keyword": "라네즈 워터뱅크 크림",
+ *     "totalCount": 100,
+ *     "products": [{
+ *       "productName": "...",
+ *       "productUrl": "...",
+ *       "thumbnail": "...",
+ *       "originalPrice": 35000,
+ *       "price": 28000
+ *     }],
+ *     "durationMs": 5234
+ *   }
+ * }
+ */
+router.post("/oliveyoung", async (req: Request, res: Response) => {
+  const startTime = Date.now();
+
+  try {
+    // 입력 검증
+    const parseResult = OliveYoungSearchRequestSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        error: "Bad Request",
+        message: parseResult.error.errors.map((e) => e.message).join(", "),
+      });
+      return;
+    }
+
+    const { brand, productName, maxResults } = parseResult.data;
+    const keyword = productName ? `${brand} ${productName}` : brand;
+
+    logger.info(
+      { brand, productName, keyword, maxResults },
+      "[SearchRouter] 올리브영 단독 검색 요청",
+    );
+
+    // OliveYoung Searcher 생성 및 검색
+    const searcher = SearcherFactory.createSearcher("oliveyoung");
+    const result = await searcher.search({ keyword, limit: maxResults });
+
+    const durationMs = Date.now() - startTime;
+
+    logger.info(
+      {
+        keyword,
+        total_count: result.totalCount,
+        products_count: result.products.length,
+        duration_ms: durationMs,
+      },
+      "[SearchRouter] 올리브영 검색 완료",
+    );
+
+    res.json({
+      success: true,
+      data: {
+        keyword,
+        totalCount: result.totalCount,
+        products: result.products.map((p) => ({
+          productId: p.productId,
+          productName: p.productName,
+          productUrl: p.productUrl,
+          thumbnail: p.thumbnail,
+          brand: p.brand,
+          originalPrice: p.originalPrice,
+          price: p.price,
+          discountRate: p.discountRate,
+        })),
+        durationMs,
+      },
+    });
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "[SearchRouter] 올리브영 검색 실패",
+    );
+
+    res.status(500).json({
+      success: false,
+      error: "Internal Server Error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
 });
 
 // ============================================
