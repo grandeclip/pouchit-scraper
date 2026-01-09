@@ -59,7 +59,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
-    container_name: product_scanner
+    container_name: pouchit_api_server
     ports:
       - "3989:3000"
     environment:
@@ -99,7 +99,7 @@ services:
   # ============================================
   worker_oliveyoung:
     <<: *browser-worker
-    container_name: worker_oliveyoung
+    container_name: pouchit_worker_oliveyoung
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-oliveyoung
@@ -107,7 +107,8 @@ services:
 
   worker_ably:
     <<: *browser-worker
-    container_name: worker_ably
+    container_name: pouchit_worker_ably
+    profiles: ["full"]  # 비활성화: docker compose --profile full up
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-ably
@@ -115,7 +116,8 @@ services:
 
   worker_kurly:
     <<: *browser-worker
-    container_name: worker_kurly
+    container_name: pouchit_worker_kurly
+    profiles: ["full"]  # 비활성화
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-kurly
@@ -126,7 +128,8 @@ services:
   # ============================================
   worker_hwahae:
     <<: *api-worker
-    container_name: worker_hwahae
+    container_name: pouchit_worker_hwahae
+    profiles: ["full"]  # 비활성화
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-hwahae
@@ -134,7 +137,8 @@ services:
 
   worker_musinsa:
     <<: *api-worker
-    container_name: worker_musinsa
+    container_name: pouchit_worker_musinsa
+    profiles: ["full"]  # 비활성화
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-musinsa
@@ -142,7 +146,8 @@ services:
 
   worker_zigzag:
     <<: *api-worker
-    container_name: worker_zigzag
+    container_name: pouchit_worker_zigzag
+    profiles: ["full"]  # 비활성화
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-zigzag
@@ -153,7 +158,8 @@ services:
   # ============================================
   worker_default:
     <<: *api-worker
-    container_name: worker_default
+    container_name: pouchit_worker_default
+    profiles: ["full"]  # 비활성화
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-default
@@ -164,7 +170,8 @@ services:
   # ============================================
   worker_alert:
     <<: *api-worker
-    container_name: worker_alert
+    container_name: pouchit_worker_alert
+    profiles: ["full"]  # 비활성화
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-alert
@@ -175,7 +182,8 @@ services:
   # ============================================
   worker_search:
     <<: *browser-worker
-    container_name: worker_search
+    container_name: pouchit_worker_search
+    profiles: ["full"]  # 비활성화
     environment:
       <<: *worker-env-common
       SERVICE_NAME: worker-search
@@ -191,7 +199,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
-    container_name: scheduler
+    container_name: pouchit_scheduler
+    profiles: ["full"]  # 비활성화
     env_file:
       - ../.env.local
     volumes:
@@ -231,7 +240,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
-    container_name: alert_watcher
+    container_name: pouchit_alert_watcher
+    profiles: ["full"]  # 비활성화
     env_file:
       - ../.env.local
     volumes:
@@ -264,7 +274,7 @@ services:
   # ============================================
   redis:
     image: redis:8.2-alpine
-    container_name: product_scanner_redis
+    container_name: pouchit_redis
     command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru --save ""
     restart: unless-stopped
     stop_grace_period: 10s
@@ -289,14 +299,15 @@ services:
   # ============================================
   restarter:
     image: docker:cli
-    container_name: container_restarter
+    container_name: pouchit_restarter
+    profiles: ["full"]  # 비활성화
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       - TZ=Asia/Seoul
       - RESTART_HOUR=04
       - RESTART_MINUTE=05
-      - REDIS_CONTAINER=product_scanner_redis
+      - REDIS_CONTAINER=pouchit_redis
       - TRIGGER_KEY=system:restart:trigger
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -317,32 +328,32 @@ services:
 
           # Phase 1: Redis
           echo "[$(date)] Phase 1: Redis 재시작"
-          docker restart product_scanner_redis
+          docker restart pouchit_redis
           sleep 15
 
           # Phase 2: API Server
-          echo "[$(date)] Phase 2: product_scanner 재시작"
-          docker restart product_scanner
+          echo "[$(date)] Phase 2: pouchit_api_server 재시작"
+          docker restart pouchit_api_server
           sleep 30
 
           # Phase 3: Workers (순차)
           echo "[$(date)] Phase 3: Workers 재시작"
-          for w in worker_oliveyoung worker_ably worker_kurly worker_search; do
+          for w in pouchit_worker_oliveyoung pouchit_worker_ably pouchit_worker_kurly pouchit_worker_search; do
             docker restart $$w && sleep 10
           done
-          for w in worker_hwahae worker_musinsa worker_zigzag worker_default worker_alert; do
+          for w in pouchit_worker_hwahae pouchit_worker_musinsa pouchit_worker_zigzag pouchit_worker_default pouchit_worker_alert; do
             docker restart $$w && sleep 5
           done
 
           # Phase 4: Scheduler & Alert & DailySync
           echo "[$(date)] Phase 4: Scheduler, Alert, DailySync 재시작"
-          docker restart scheduler alert_watcher daily_sync_scheduler
+          docker restart pouchit_scheduler pouchit_alert_watcher pouchit_daily_sync
           sleep 10
 
-          # Phase 5: 서비스 재활성화 (product_scanner 내 curl 사용)
+          # Phase 5: 서비스 재활성화 (pouchit_api_server 내 curl 사용)
           echo "[$(date)] Phase 5: 서비스 재활성화"
-          docker exec product_scanner curl -s -X POST "http://localhost:3000/api/v2/scheduler/start" || true
-          docker exec product_scanner curl -s -X POST "http://localhost:3000/api/v2/alert-watcher/start" || true
+          docker exec pouchit_api_server curl -s -X POST "http://localhost:3000/api/v2/scheduler/start" || true
+          docker exec pouchit_api_server curl -s -X POST "http://localhost:3000/api/v2/alert-watcher/start" || true
           echo "[$(date)] 서비스 재활성화 완료"
 
           echo "[$(date)] === 순차 재시작 완료 ==="
@@ -385,17 +396,17 @@ services:
           fi
 
           # 3. Heartbeat 모니터링 (개별 재시작)
-          check_heartbeat "worker:oliveyoung" "worker_oliveyoung"
-          check_heartbeat "worker:ably" "worker_ably"
-          check_heartbeat "worker:kurly" "worker_kurly"
-          check_heartbeat "worker:search" "worker_search"
-          check_heartbeat "worker:hwahae" "worker_hwahae"
-          check_heartbeat "worker:musinsa" "worker_musinsa"
-          check_heartbeat "worker:zigzag" "worker_zigzag"
-          check_heartbeat "worker:default" "worker_default"
-          check_heartbeat "worker:alert" "worker_alert"
-          check_heartbeat "scheduler" "scheduler"
-          check_heartbeat "alert_watcher" "alert_watcher"
+          check_heartbeat "worker:oliveyoung" "pouchit_worker_oliveyoung"
+          check_heartbeat "worker:ably" "pouchit_worker_ably"
+          check_heartbeat "worker:kurly" "pouchit_worker_kurly"
+          check_heartbeat "worker:search" "pouchit_worker_search"
+          check_heartbeat "worker:hwahae" "pouchit_worker_hwahae"
+          check_heartbeat "worker:musinsa" "pouchit_worker_musinsa"
+          check_heartbeat "worker:zigzag" "pouchit_worker_zigzag"
+          check_heartbeat "worker:default" "pouchit_worker_default"
+          check_heartbeat "worker:alert" "pouchit_worker_alert"
+          check_heartbeat "scheduler" "pouchit_scheduler"
+          check_heartbeat "alert_watcher" "pouchit_alert_watcher"
 
           sleep 30
         done
@@ -411,7 +422,8 @@ services:
   # ============================================================================
   daily_sync_scheduler:
     image: alpine:3.19
-    container_name: daily_sync_scheduler
+    container_name: pouchit_daily_sync
+    profiles: ["full"]  # 비활성화
     environment:
       - TZ=Asia/Seoul
       - SYNC_HOUR=04
