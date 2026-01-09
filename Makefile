@@ -6,7 +6,7 @@
 # 개발 환경 (Volume Mount + Hot Reload)
 up: ## 올리브영 전용 환경 시작 (api + oliveyoung worker + redis)
 	@echo "🚀 올리브영 전용 환경 시작 중..."
-	docker compose -f docker/docker-compose.yml up --build -d product_scanner worker_oliveyoung redis
+	docker compose -f docker/docker-compose.yml up --build -d pouchit_api_server pouchit_worker_oliveyoung pouchit_redis
 
 up-full: ## 전체 서비스 시작 (모든 worker 포함)
 	@echo "🚀 전체 환경 시작 중..."

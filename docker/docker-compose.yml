@@ -21,7 +21,7 @@ x-worker-common: &worker-common
     - ../logs:/app/logs
     - ../results:/app/results
   depends_on:
-    - redis
+    - pouchit_redis
   command: npm run worker
   restart: unless-stopped
   stop_grace_period: 30s
@@ -55,7 +55,7 @@ services:
   # ============================================
   # API Server
   # ============================================
-  product_scanner:
+  pouchit_api_server:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
@@ -78,7 +78,7 @@ services:
       - ../logs:/app/logs
       - ../results:/app/results
     depends_on:
-      - redis
+      - pouchit_redis
     command: npm run dev
     restart: unless-stopped
     stop_grace_period: 30s
@@ -97,7 +97,7 @@ services:
   # ============================================
   # Browser-based Workers (Playwright)
   # ============================================
-  worker_oliveyoung:
+  pouchit_worker_oliveyoung:
     <<: *browser-worker
     container_name: pouchit_worker_oliveyoung
     environment:
@@ -105,7 +105,7 @@ services:
       SERVICE_NAME: worker-oliveyoung
       WORKER_PLATFORMS: oliveyoung
 
-  worker_ably:
+  pouchit_worker_ably:
     <<: *browser-worker
     container_name: pouchit_worker_ably
     profiles: ["full"]  # 비활성화: docker compose --profile full up
@@ -114,7 +114,7 @@ services:
       SERVICE_NAME: worker-ably
       WORKER_PLATFORMS: ably
 
-  worker_kurly:
+  pouchit_worker_kurly:
     <<: *browser-worker
     container_name: pouchit_worker_kurly
     profiles: ["full"]  # 비활성화
@@ -126,7 +126,7 @@ services:
   # ============================================
   # API-based Workers (HTTP/GraphQL)
   # ============================================
-  worker_hwahae:
+  pouchit_worker_hwahae:
     <<: *api-worker
     container_name: pouchit_worker_hwahae
     profiles: ["full"]  # 비활성화
@@ -135,7 +135,7 @@ services:
       SERVICE_NAME: worker-hwahae
       WORKER_PLATFORMS: hwahae
 
-  worker_musinsa:
+  pouchit_worker_musinsa:
     <<: *api-worker
     container_name: pouchit_worker_musinsa
     profiles: ["full"]  # 비활성화
@@ -144,7 +144,7 @@ services:
       SERVICE_NAME: worker-musinsa
       WORKER_PLATFORMS: musinsa
 
-  worker_zigzag:
+  pouchit_worker_zigzag:
     <<: *api-worker
     container_name: pouchit_worker_zigzag
     profiles: ["full"]  # 비활성화
@@ -156,7 +156,7 @@ services:
   # ============================================
   # Default Worker (기타)
   # ============================================
-  worker_default:
+  pouchit_worker_default:
     <<: *api-worker
     container_name: pouchit_worker_default
     profiles: ["full"]  # 비활성화
@@ -168,7 +168,7 @@ services:
   # ============================================
   # Alert Worker (Alert Watcher 전용)
   # ============================================
-  worker_alert:
+  pouchit_worker_alert:
     <<: *api-worker
     container_name: pouchit_worker_alert
     profiles: ["full"]  # 비활성화
@@ -180,7 +180,7 @@ services:
   # ============================================
   # Search Worker (상품 검색 전용 - Queue Consumer)
   # ============================================
-  worker_search:
+  pouchit_worker_search:
     <<: *browser-worker
     container_name: pouchit_worker_search
     profiles: ["full"]  # 비활성화
@@ -195,7 +195,7 @@ services:
   # ============================================
   # Scheduler (자동 Job 스케줄링)
   # ============================================
-  scheduler:
+  pouchit_scheduler:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
@@ -206,8 +206,8 @@ services:
     volumes:
       - ../logs:/app/logs
     depends_on:
-      - redis
-      - product_scanner
+      - pouchit_redis
+      - pouchit_api_server
     command: npm run scheduler
     restart: unless-stopped
     stop_grace_period: 30s
@@ -236,7 +236,7 @@ services:
   # ============================================
   # Alert Watcher (테이블 모니터링 및 알림)
   # ============================================
-  alert_watcher:
+  pouchit_alert_watcher:
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
@@ -247,8 +247,8 @@ services:
     volumes:
       - ../logs:/app/logs
     depends_on:
-      - redis
-      - product_scanner
+      - pouchit_redis
+      - pouchit_api_server
     command: npm run alert-watcher
     restart: unless-stopped
     stop_grace_period: 30s
@@ -272,7 +272,7 @@ services:
   # ============================================
   # Redis
   # ============================================
-  redis:
+  pouchit_redis:
     image: redis:8.2-alpine
     container_name: pouchit_redis
     command: redis-server --appendonly no --maxmemory 1gb --maxmemory-policy allkeys-lru --save ""
@@ -297,7 +297,7 @@ services:
   # - API 트리거: POST /api/v2/system/restart-all
   # - Heartbeat 실패 시 개별 컨테이너 재시작
   # ============================================
-  restarter:
+  pouchit_restarter:
     image: docker:cli
     container_name: pouchit_restarter
     profiles: ["full"]  # 비활성화
@@ -420,7 +420,7 @@ services:
   # ============================================================================
   # Daily Sync Scheduler - 매일 04:25 기획상품 동기화 실행
   # ============================================================================
-  daily_sync_scheduler:
+  pouchit_daily_sync:
     image: alpine:3.19
     container_name: pouchit_daily_sync
     profiles: ["full"]  # 비활성화
@@ -428,7 +428,7 @@ services:
       - TZ=Asia/Seoul
       - SYNC_HOUR=04
       - SYNC_MINUTE=25
-      - API_HOST=product_scanner
+      - API_HOST=pouchit_api_server
       - API_PORT=3000
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -479,7 +479,7 @@ services:
         done
     restart: unless-stopped
     depends_on:
-      - product_scanner
+      - pouchit_api_server
     deploy:
       resources:
         limits:
