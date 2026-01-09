@@ -5,7 +5,7 @@
 #
 
 API_URL="http://localhost:9607/api/v2/batch/oliveyoung-sync"
-BATCH_SIZE=1000
+BATCH_SIZE=100
 MAX_OFFSET=20000  # 필요시 조정
 
 echo "============================================"
