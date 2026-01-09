@@ -22,6 +22,7 @@ import {
 } from "@/repositories/ProductPlatformListingsRepository";
 import { SearcherFactory } from "@/searchers/base/SearcherFactory";
 import { registerAllSearchers } from "@/searchers/SearcherRegistration";
+import { ISearcher } from "@/core/interfaces/search/ISearcher";
 import { logger } from "@/config/logger";
 
 /**
@@ -103,32 +104,44 @@ export class OliveYoungBatchService {
     let successCount = 0;
     let failedCount = 0;
 
-    // 각 상품 순차 처리
-    for (let i = 0; i < products.length; i++) {
-      const product = products[i];
+    // Searcher 재사용 (브라우저 1개로 모든 상품 처리)
+    const searcher = SearcherFactory.createSearcher("oliveyoung");
 
-      logger.info(
-        {
-          progress: `${i + 1}/${products.length}`,
-          productId: product.id,
-          productName: product.name_ko || product.name,
-        },
-        "[OliveYoungBatch] 상품 처리 중",
-      );
+    try {
+      // 각 상품 순차 처리
+      for (let i = 0; i < products.length; i++) {
+        const product = products[i];
 
-      const result = await this.processSingleProduct(product);
-      results.push(result);
+        logger.info(
+          {
+            progress: `${i + 1}/${products.length}`,
+            productId: product.id,
+            productName: product.name_ko || product.name,
+          },
+          "[OliveYoungBatch] 상품 처리 중",
+        );
 
-      if (result.success) {
-        successCount++;
-      } else {
-        failedCount++;
+        const result = await this.processSingleProductWithSearcher(
+          product,
+          searcher,
+        );
+        results.push(result);
+
+        if (result.success) {
+          successCount++;
+        } else {
+          failedCount++;
+        }
+
+        // Rate Limiting (마지막 항목 제외)
+        if (i < products.length - 1 && delayMs > 0) {
+          await this.delay(delayMs);
+        }
       }
-
-      // Rate Limiting (마지막 항목 제외)
-      if (i < products.length - 1 && delayMs > 0) {
-        await this.delay(delayMs);
-      }
+    } finally {
+      // 모든 처리 완료 후 브라우저 정리
+      await searcher.cleanup();
+      logger.info("[OliveYoungBatch] 브라우저 리소스 정리 완료");
     }
 
     const durationMs = Date.now() - startTime;
@@ -154,42 +167,14 @@ export class OliveYoungBatchService {
   }
 
   /**
-   * 단일 상품 처리
+   * 단일 상품 처리 (외부 Searcher 사용 - 배치용)
    */
-  async processSingleProduct(product: ProductWithBrand): Promise<SingleResult> {
-    // 검색 키워드 생성
-    const brandName = product.brand_name_ko || product.brand_name;
-    const productName = product.name_ko || product.name;
-
-    // 키워드 결정 로직:
-    // 1. name_ko에 영문 브랜드명 포함 + brand_name_ko 존재 → 한글 브랜드명으로 치환
-    // 2. name_ko에 브랜드명 포함 → name_ko만 사용
-    // 3. name_ko 있지만 브랜드명 미포함 → 브랜드 + name_ko
-    // 4. name_ko 없음 → 브랜드 + name
-    let keyword: string;
-    if (product.name_ko) {
-      // 영문 브랜드명이 포함되어 있고, 한글 브랜드명이 있으면 치환
-      if (
-        product.name_ko.includes(product.brand_name) &&
-        product.brand_name_ko
-      ) {
-        keyword = product.name_ko.replace(
-          product.brand_name,
-          product.brand_name_ko,
-        );
-      } else if (
-        product.brand_name_ko &&
-        product.name_ko.includes(product.brand_name_ko)
-      ) {
-        // 이미 한글 브랜드명 포함
-        keyword = product.name_ko;
-      } else {
-        // 브랜드명 미포함 → 브랜드 + name_ko
-        keyword = `${brandName} ${product.name_ko}`;
-      }
-    } else {
-      keyword = `${brandName} ${product.name}`;
-    }
+  private async processSingleProductWithSearcher(
+    product: ProductWithBrand,
+    searcher: ISearcher,
+  ): Promise<SingleResult> {
+    const { keyword, brandName, productName } =
+      this.buildSearchKeyword(product);
 
     const baseResult: SingleResult = {
       productId: product.id,
@@ -198,8 +183,6 @@ export class OliveYoungBatchService {
       keyword,
       success: false,
     };
-
-    const searcher = SearcherFactory.createSearcher("oliveyoung");
 
     try {
       // 올리브영 검색
@@ -280,10 +263,61 @@ export class OliveYoungBatchService {
         ...baseResult,
         error: errorMessage,
       };
+    }
+  }
+
+  /**
+   * 단일 상품 처리 (독립 실행용 - 자체 Searcher 생성/정리)
+   */
+  async processSingleProduct(product: ProductWithBrand): Promise<SingleResult> {
+    const searcher = SearcherFactory.createSearcher("oliveyoung");
+
+    try {
+      return await this.processSingleProductWithSearcher(product, searcher);
     } finally {
-      // 브라우저 리소스 정리 (메모리 누수 방지)
       await searcher.cleanup();
     }
+  }
+
+  /**
+   * 검색 키워드 생성
+   */
+  private buildSearchKeyword(product: ProductWithBrand): {
+    keyword: string;
+    brandName: string;
+    productName: string;
+  } {
+    const brandName = product.brand_name_ko || product.brand_name;
+    const productName = product.name_ko || product.name;
+
+    // 키워드 결정 로직:
+    // 1. name_ko에 영문 브랜드명 포함 + brand_name_ko 존재 → 한글 브랜드명으로 치환
+    // 2. name_ko에 브랜드명 포함 → name_ko만 사용
+    // 3. name_ko 있지만 브랜드명 미포함 → 브랜드 + name_ko
+    // 4. name_ko 없음 → 브랜드 + name
+    let keyword: string;
+    if (product.name_ko) {
+      if (
+        product.name_ko.includes(product.brand_name) &&
+        product.brand_name_ko
+      ) {
+        keyword = product.name_ko.replace(
+          product.brand_name,
+          product.brand_name_ko,
+        );
+      } else if (
+        product.brand_name_ko &&
+        product.name_ko.includes(product.brand_name_ko)
+      ) {
+        keyword = product.name_ko;
+      } else {
+        keyword = `${brandName} ${product.name_ko}`;
+      }
+    } else {
+      keyword = `${brandName} ${product.name}`;
+    }
+
+    return { keyword, brandName, productName };
   }
 
   /**
