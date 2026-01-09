@@ -14,7 +14,7 @@ import { logger } from "@/config/logger";
  * 올리브영 동기화 요청 스키마
  */
 const OliveYoungSyncRequestSchema = z.object({
-  limit: z.number().int().min(1).max(1000).optional(),
+  limit: z.number().int().min(1).max(100000).optional(),
   offset: z.number().int().min(0).optional(),
   delayMs: z.number().int().min(0).max(60000).optional(),
 });
