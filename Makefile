@@ -6,7 +6,7 @@
 # 개발 환경 (Volume Mount + Hot Reload)
 up: ## 올리브영 전용 환경 시작 (api + oliveyoung worker + redis)
 	@echo "🚀 올리브영 전용 환경 시작 중..."
-	docker compose -f docker/docker-compose.yml up --build -d pouchit_api_server pouchit_worker_oliveyoung pouchit_redis
+	docker compose -f docker/docker-compose.yml up --build -d api_server worker_oliveyoung redis
 
 up-full: ## 전체 서비스 시작 (모든 worker 포함)
 	@echo "🚀 전체 환경 시작 중..."
@@ -33,11 +33,11 @@ restart-all: ## 모든 컨테이너 순차 재시작 (의존성 순서)
 # 유틸리티
 type-check: ## TypeScript 타입 체크 (컨테이너 내)
 	@echo "🔍 타입 체크 중..."
-	docker compose -f docker/docker-compose.yml exec pouchit_api_server npm run type-check
+	docker compose -f docker/docker-compose.yml exec api_server npm run type-check
 
 test: ## 테스트 실행 (컨테이너 내)
 	@echo "🧪 테스트 실행 중..."
-	docker compose -f docker/docker-compose.yml exec pouchit_api_server npm test
+	docker compose -f docker/docker-compose.yml exec api_server npm test
 
 logs: ## 로그 확인
 	docker compose -f docker/docker-compose.yml logs
