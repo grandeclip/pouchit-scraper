@@ -18,6 +18,18 @@ import {
   IProductsRepository,
   ProductEntity,
 } from "@/core/interfaces/IProductsRepository";
+
+/**
+ * 상품 + 브랜드 조인 결과 타입
+ */
+export interface ProductWithBrand {
+  id: string;
+  name: string;
+  name_ko: string | null;
+  brand_id: string;
+  brand_name: string;
+  brand_name_ko: string | null;
+}
 import { logger } from "@/config/logger";
 import { REPOSITORY_CONFIG } from "@/config/constants";
 
@@ -188,6 +200,102 @@ export class SupabaseProductsRepository implements IProductsRepository {
         "[ProductsRepository] 상품 수 조회 예외",
       );
       return 0;
+    }
+  }
+
+  /**
+   * 상품 + 브랜드 조인 조회 (애플리케이션 레벨 조인)
+   * DB에 FK 관계 미정의 시 별도 쿼리 후 매핑
+   */
+  async findAllWithBrand(options?: {
+    limit?: number;
+    offset?: number;
+  }): Promise<ProductWithBrand[]> {
+    const limit = options?.limit || REPOSITORY_CONFIG.PAGINATION_PAGE_SIZE;
+    const offset = options?.offset || 0;
+
+    logger.info(
+      { limit, offset },
+      "[ProductsRepository] 상품+브랜드 조회 시작",
+    );
+
+    try {
+      // 1. 상품 조회 (테스트 데이터 제외)
+      const { data: products, error: productsError } = await this.client
+        .from(this.tableName)
+        .select("id, name, name_ko, brand_id")
+        .eq("status", "PUBLISHED")
+        .not("brand_id", "is", null)
+        .not("name", "like", "%테스트%")
+        .not("name", "like", "%매핑%")
+        .range(offset, offset + limit - 1);
+
+      if (productsError) {
+        logger.error(
+          { error: productsError.message, code: productsError.code },
+          "[ProductsRepository] 상품 조회 실패",
+        );
+        throw new Error(`Supabase query failed: ${productsError.message}`);
+      }
+
+      if (!products || products.length === 0) {
+        logger.info("[ProductsRepository] 조회된 상품 없음");
+        return [];
+      }
+
+      // 2. 브랜드 ID 추출
+      const brandIds = [
+        ...new Set(products.map((p) => p.brand_id).filter(Boolean)),
+      ];
+
+      // 3. 브랜드 조회
+      const { data: brands, error: brandsError } = await this.client
+        .from("brands")
+        .select("id, name, name_ko")
+        .in("id", brandIds);
+
+      if (brandsError) {
+        logger.error(
+          { error: brandsError.message, code: brandsError.code },
+          "[ProductsRepository] 브랜드 조회 실패",
+        );
+        throw new Error(`Supabase query failed: ${brandsError.message}`);
+      }
+
+      // 4. 브랜드 맵 생성
+      const brandMap = new Map<
+        string,
+        { name: string; name_ko: string | null }
+      >();
+      brands?.forEach((b) => {
+        brandMap.set(b.id, { name: b.name, name_ko: b.name_ko });
+      });
+
+      // 5. 결과 매핑
+      const results: ProductWithBrand[] = products.map((p) => {
+        const brand = brandMap.get(p.brand_id);
+        return {
+          id: p.id,
+          name: p.name,
+          name_ko: p.name_ko,
+          brand_id: p.brand_id,
+          brand_name: brand?.name || "",
+          brand_name_ko: brand?.name_ko || null,
+        };
+      });
+
+      logger.info(
+        { count: results.length },
+        "[ProductsRepository] 상품+브랜드 조회 완료",
+      );
+
+      return results;
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[ProductsRepository] 조회 예외",
+      );
+      throw error;
     }
   }
 }

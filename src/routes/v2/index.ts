@@ -17,6 +17,7 @@ import workersRouter from "./workers.router";
 import searchRouter from "./search.router";
 import llmRouter from "./llm.router";
 import systemRouter from "./system.router";
+import batchRouter from "./batch.router";
 import { logger } from "@/config/logger";
 
 const router = Router();
@@ -50,6 +51,9 @@ router.use("/llm", llmRouter);
 
 // System API (시스템 전체 관리)
 router.use("/system", systemRouter);
+
+// Batch API (배치 처리)
+router.use("/batch", batchRouter);
 
 logger.info(
   {
@@ -85,6 +89,9 @@ logger.info(
       "POST /api/v2/system/restart-all",
       "DELETE /api/v2/system/restart-all",
       "GET /api/v2/system/restart-status",
+      "POST /api/v2/search/oliveyoung",
+      "POST /api/v2/batch/oliveyoung-sync",
+      "GET /api/v2/batch/status",
     ],
   },
   "[v2Router] API v2 라우터 등록",
