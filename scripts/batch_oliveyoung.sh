@@ -6,8 +6,7 @@
 
 API_URL="http://localhost:9607/api/v2/batch/oliveyoung-sync"
 BATCH_SIZE=50
-START_OFFSET=300  # 이미 처리된 상품 수
-MAX_OFFSET=20000  # 필요시 조정
+START_OFFSET=0
 
 echo "============================================"
 echo "올리브영 배치 크롤링 시작"
@@ -16,13 +15,14 @@ echo "배치 크기: $BATCH_SIZE"
 echo "시작 오프셋: $START_OFFSET"
 echo "============================================"
 
-for ((i=START_OFFSET; i<MAX_OFFSET; i+=BATCH_SIZE)); do
+i=$START_OFFSET
+while true; do
   echo ""
   echo "[$(date '+%H:%M:%S')] 배치 시작: offset=$i, limit=$BATCH_SIZE"
 
   RESPONSE=$(curl -s --max-time 3600 -X POST "$API_URL" \
     -H "Content-Type: application/json" \
-    -d "{\"limit\": $BATCH_SIZE, \"offset\": $i}")
+    -d "{\"limit\": $BATCH_SIZE, \"offset\": $i, \"brandLocale\": \"en_KR\"}")
 
   # 결과 파싱
   SUCCESS=$(echo "$RESPONSE" | grep -o '"success":[0-9]*' | cut -d: -f2)
@@ -43,6 +43,9 @@ for ((i=START_OFFSET; i<MAX_OFFSET; i+=BATCH_SIZE)); do
     echo "더 이상 처리할 상품이 없습니다. 종료합니다."
     break
   fi
+
+  # 다음 배치로
+  i=$((i + BATCH_SIZE))
 done
 
 echo ""
