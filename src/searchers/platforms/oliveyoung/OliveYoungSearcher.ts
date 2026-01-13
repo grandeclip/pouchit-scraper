@@ -34,6 +34,12 @@ interface OliveYoungApiResponse {
       totalCount: number;
       data: OliveYoungProduct[];
     };
+    /**
+     * Neural Search 여부
+     * true: "검색어와 연관된 리뷰가 있는 상품" (실제 검색 결과 아님)
+     * false: 정상 검색 결과
+     */
+    isNeuralSearch?: boolean;
   };
 }
 
@@ -79,6 +85,15 @@ export class OliveYoungSearcher extends PlaywrightApiSearcher<OliveYoungApiRespo
       logger.warn(
         { status: response.status, message: response.message },
         "OliveYoung API 응답 실패",
+      );
+      return [];
+    }
+
+    // Neural Search 결과는 "검색어와 연관된 리뷰가 있는 상품" → 실제 검색 결과 아님
+    if (response.data.isNeuralSearch === true) {
+      logger.info(
+        { totalCount: response.data.oliveGoods.totalCount },
+        "OliveYoung Neural Search 결과 (리뷰 연관 상품) - 결과 없음 처리",
       );
       return [];
     }

@@ -208,4 +208,50 @@ export class ProductPlatformListingsRepository {
       return [];
     }
   }
+
+  /**
+   * product_id + platform_id로 삭제 (단종 상품 처리용)
+   */
+  async deleteByProductAndPlatform(
+    productId: string,
+    platformId: string,
+  ): Promise<boolean> {
+    try {
+      const { error } = await this.client
+        .from(this.tableName)
+        .delete()
+        .eq("product_id", productId)
+        .eq("platform_id", platformId);
+
+      if (error) {
+        logger.error(
+          {
+            error: error.message,
+            code: error.code,
+            product_id: productId,
+            platform_id: platformId,
+          },
+          "[ProductPlatformListingsRepository] 삭제 실패",
+        );
+        return false;
+      }
+
+      logger.info(
+        { product_id: productId, platform_id: platformId },
+        "[ProductPlatformListingsRepository] 삭제 완료 (단종 처리)",
+      );
+
+      return true;
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          product_id: productId,
+          platform_id: platformId,
+        },
+        "[ProductPlatformListingsRepository] 삭제 예외",
+      );
+      return false;
+    }
+  }
 }

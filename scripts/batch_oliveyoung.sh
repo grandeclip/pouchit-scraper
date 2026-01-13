@@ -5,16 +5,18 @@
 #
 
 API_URL="http://localhost:9607/api/v2/batch/oliveyoung-sync"
-BATCH_SIZE=100
+BATCH_SIZE=50
+START_OFFSET=300  # 이미 처리된 상품 수
 MAX_OFFSET=20000  # 필요시 조정
 
 echo "============================================"
 echo "올리브영 배치 크롤링 시작"
 echo "시작 시간: $(date)"
 echo "배치 크기: $BATCH_SIZE"
+echo "시작 오프셋: $START_OFFSET"
 echo "============================================"
 
-for ((i=0; i<MAX_OFFSET; i+=BATCH_SIZE)); do
+for ((i=START_OFFSET; i<MAX_OFFSET; i+=BATCH_SIZE)); do
   echo ""
   echo "[$(date '+%H:%M:%S')] 배치 시작: offset=$i, limit=$BATCH_SIZE"
 

@@ -3,13 +3,15 @@
  *
  * 상품 추출 엔드포인트
  * - POST /api/v2/products/extract-by-product-set
- * - POST /api/v2/products/extract-by-url (후순위)
+ * - POST /api/v2/products/extract-by-url
  * - POST /api/v2/products/extract-by-id (후순위)
+ * - POST /api/v2/products/:productId/sync - 플랫폼 가격 동기화
  */
 
 import { Router, Request, Response } from "express";
 import { ExtractByProductSetService } from "@/services/extract/ExtractByProductSetService";
 import { ExtractByUrlService } from "@/services/extract/ExtractByUrlService";
+import { OliveYoungBatchService } from "@/services/OliveYoungBatchService";
 import { createRequestLogger } from "@/utils/LoggerContext";
 
 const router = Router();
@@ -198,6 +200,118 @@ router.post("/extract-by-id", async (req: Request, res: Response) => {
       message: "extract-by-id is not implemented yet",
     },
   });
+});
+
+/**
+ * POST /api/v2/products/:productId/sync
+ *
+ * 상품의 플랫폼 가격 동기화
+ *
+ * Request Body:
+ * {
+ *   "platform": "oliveyoung"  // 현재 oliveyoung만 지원
+ * }
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "productId": "uuid",
+ *     "productName": "상품명",
+ *     "brandName": "브랜드",
+ *     "keyword": "검색 키워드",
+ *     "oliveyoungUrl": "https://...",
+ *     "oliveyoungPrice": 12000
+ *   }
+ * }
+ */
+router.post("/:productId/sync", async (req: Request, res: Response) => {
+  const requestLogger = createRequestLogger(
+    req.headers["x-request-id"] as string,
+    req.method,
+    req.path,
+  );
+
+  try {
+    const { productId } = req.params;
+    const { platform } = req.body;
+
+    // 필수 파라미터 검증
+    if (!platform) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_REQUEST",
+          message: "platform is required",
+        },
+      });
+      return;
+    }
+
+    // 지원 플랫폼 검증
+    const supportedPlatforms = ["oliveyoung"];
+    if (!supportedPlatforms.includes(platform)) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "PLATFORM_NOT_SUPPORTED",
+          message: `Supported platforms: ${supportedPlatforms.join(", ")}`,
+        },
+      });
+      return;
+    }
+
+    // UUID 형식 검증
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(productId)) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_REQUEST",
+          message: "productId must be a valid UUID",
+        },
+      });
+      return;
+    }
+
+    requestLogger.info({ productId, platform }, "product sync 요청");
+
+    // 플랫폼별 서비스 호출
+    if (platform === "oliveyoung") {
+      const service = new OliveYoungBatchService();
+      const result = await service.processById(productId);
+
+      if (result.success) {
+        res.status(200).json({
+          success: true,
+          data: result,
+        });
+      } else {
+        res.status(result.error === "Product not found" ? 404 : 500).json({
+          success: false,
+          error: {
+            code:
+              result.error === "Product not found"
+                ? "PRODUCT_NOT_FOUND"
+                : "SYNC_FAILED",
+            message: result.error,
+          },
+        });
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    requestLogger.error({ error: message }, "product sync 실패");
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "UNKNOWN_ERROR",
+        message,
+      },
+    });
+  }
 });
 
 /**

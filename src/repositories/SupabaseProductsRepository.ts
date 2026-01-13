@@ -204,6 +204,62 @@ export class SupabaseProductsRepository implements IProductsRepository {
   }
 
   /**
+   * 단일 상품 + 브랜드 조인 조회
+   */
+  async findByIdWithBrand(productId: string): Promise<ProductWithBrand | null> {
+    try {
+      // 1. 상품 조회
+      const { data: product, error: productError } = await this.client
+        .from(this.tableName)
+        .select("id, name, name_ko, brand_id")
+        .eq("id", productId)
+        .single();
+
+      if (productError || !product) {
+        if (productError?.code !== "PGRST116") {
+          logger.error(
+            { error: productError?.message, productId },
+            "[ProductsRepository] 상품 조회 실패",
+          );
+        }
+        return null;
+      }
+
+      // 2. 브랜드 조회
+      const { data: brand, error: brandError } = await this.client
+        .from("brands")
+        .select("id, name, name_ko")
+        .eq("id", product.brand_id)
+        .single();
+
+      if (brandError) {
+        logger.warn(
+          { error: brandError.message, brandId: product.brand_id },
+          "[ProductsRepository] 브랜드 조회 실패",
+        );
+      }
+
+      return {
+        id: product.id,
+        name: product.name,
+        name_ko: product.name_ko,
+        brand_id: product.brand_id,
+        brand_name: brand?.name || "",
+        brand_name_ko: brand?.name_ko || null,
+      };
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+          productId,
+        },
+        "[ProductsRepository] findByIdWithBrand 예외",
+      );
+      return null;
+    }
+  }
+
+  /**
    * 상품 + 브랜드 조인 조회 (애플리케이션 레벨 조인)
    * DB에 FK 관계 미정의 시 별도 쿼리 후 매핑
    */

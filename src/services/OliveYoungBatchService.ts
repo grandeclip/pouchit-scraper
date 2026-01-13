@@ -193,6 +193,13 @@ export class OliveYoungBatchService {
           { keyword, productId: product.id },
           "[OliveYoungBatch] 검색 결과 없음",
         );
+
+        // 기존 데이터 삭제 (Neural Search 결과 또는 실제 상품 없음)
+        await this.listingsRepository.deleteByProductAndPlatform(
+          product.id,
+          this.OLIVEYOUNG_PLATFORM_ID,
+        );
+
         return {
           ...baseResult,
           error: "No search results",
@@ -324,7 +331,7 @@ export class OliveYoungBatchService {
    * 단일 상품 ID로 처리
    */
   async processById(productId: string): Promise<SingleResult> {
-    const product = await this.productsRepository.findById(productId);
+    const product = await this.productsRepository.findByIdWithBrand(productId);
 
     if (!product) {
       return {
@@ -337,18 +344,7 @@ export class OliveYoungBatchService {
       };
     }
 
-    // findById는 brand 정보가 없으므로 별도 조회 필요
-    // 현재는 findAllWithBrand에서 단일 조회 지원 안 함
-    // 임시로 limit=1, offset으로 처리 또는 직접 조회 구현 필요
-
-    return {
-      productId,
-      productName: product.name,
-      brandName: "",
-      keyword: "",
-      success: false,
-      error: "Single product lookup with brand not implemented",
-    };
+    return this.processSingleProduct(product);
   }
 
   /**
