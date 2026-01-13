@@ -32,6 +32,7 @@ export interface BatchOptions {
   limit?: number;
   offset?: number;
   delayMs?: number; // 각 요청 사이 지연 (Rate Limiting)
+  brandLocale?: string; // 브랜드 locale 필터 (예: "en_KR")
 }
 
 /**
@@ -85,7 +86,12 @@ export class OliveYoungBatchService {
     const delayMs = options?.delayMs ?? this.DEFAULT_DELAY_MS;
 
     logger.info(
-      { limit: options?.limit, offset: options?.offset, delayMs },
+      {
+        limit: options?.limit,
+        offset: options?.offset,
+        delayMs,
+        brandLocale: options?.brandLocale,
+      },
       "[OliveYoungBatch] 배치 처리 시작",
     );
 
@@ -93,6 +99,7 @@ export class OliveYoungBatchService {
     const products = await this.productsRepository.findAllWithBrand({
       limit: options?.limit,
       offset: options?.offset,
+      brandLocale: options?.brandLocale,
     });
 
     logger.info(

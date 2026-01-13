@@ -17,6 +17,7 @@ const OliveYoungSyncRequestSchema = z.object({
   limit: z.number().int().min(1).max(100000).optional(),
   offset: z.number().int().min(0).optional(),
   delayMs: z.number().int().min(0).max(60000).optional(),
+  brandLocale: z.string().optional(), // 브랜드 locale 필터 (예: "en_KR")
 });
 
 const router = Router();
@@ -59,10 +60,10 @@ router.post("/oliveyoung-sync", async (req: Request, res: Response) => {
       return;
     }
 
-    const { limit, offset, delayMs } = parseResult.data;
+    const { limit, offset, delayMs, brandLocale } = parseResult.data;
 
     logger.info(
-      { limit, offset, delayMs },
+      { limit, offset, delayMs, brandLocale },
       "[BatchRouter] 올리브영 동기화 배치 시작",
     );
 
@@ -72,6 +73,7 @@ router.post("/oliveyoung-sync", async (req: Request, res: Response) => {
       limit,
       offset,
       delayMs,
+      brandLocale,
     });
 
     logger.info(
