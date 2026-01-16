@@ -295,43 +295,82 @@ export class OliveYoungBatchService {
 
   /**
    * 검색 키워드 생성
+   * - name_ko에서 브랜드명(영문/한글) 제거 후 순수 상품명 추출
+   * - 한글 브랜드명 + 순수 상품명 조합 (중복 방지)
    */
   private buildSearchKeyword(product: ProductWithBrand): {
     keyword: string;
     brandName: string;
     productName: string;
   } {
-    const brandName = product.brand_name_ko || product.brand_name;
-    const productName = product.name_ko || product.name;
+    const brandNameKo = product.brand_name_ko;
+    const brandNameEn = product.brand_name;
+    const preferredBrand = brandNameKo || brandNameEn;
 
-    // 키워드 결정 로직:
-    // 1. name_ko에 영문 브랜드명 포함 + brand_name_ko 존재 → 한글 브랜드명으로 치환
-    // 2. name_ko에 브랜드명 포함 → name_ko만 사용
-    // 3. name_ko 있지만 브랜드명 미포함 → 브랜드 + name_ko
-    // 4. name_ko 없음 → 브랜드 + name
-    let keyword: string;
+    // 순수 상품명 추출: name_ko에서 브랜드명(영문/한글) 제거
+    let pureProductName: string;
     if (product.name_ko) {
-      if (
-        product.name_ko.includes(product.brand_name) &&
-        product.brand_name_ko
-      ) {
-        keyword = product.name_ko.replace(
-          product.brand_name,
-          product.brand_name_ko,
-        );
-      } else if (
-        product.brand_name_ko &&
-        product.name_ko.includes(product.brand_name_ko)
-      ) {
-        keyword = product.name_ko;
-      } else {
-        keyword = `${brandName} ${product.name_ko}`;
+      pureProductName = product.name_ko;
+
+      // 영문 브랜드명 제거 (대소문자 무시)
+      if (brandNameEn) {
+        const regex = new RegExp(this.escapeRegex(brandNameEn), "gi");
+        pureProductName = pureProductName.replace(regex, "");
       }
+
+      // 한글 브랜드명 제거
+      if (brandNameKo) {
+        pureProductName = pureProductName.replace(brandNameKo, "");
+      }
+
+      // 검색 방해 패턴 제거
+      pureProductName = this.removeSearchNoisePatterns(pureProductName);
+
+      // 앞뒤 공백 및 중복 공백 정리
+      pureProductName = pureProductName.replace(/\s+/g, " ").trim();
     } else {
-      keyword = `${brandName} ${product.name}`;
+      pureProductName = product.name;
     }
 
-    return { keyword, brandName, productName };
+    // 한글 브랜드 + 순수 상품명 조합
+    const keyword = pureProductName
+      ? `${preferredBrand} ${pureProductName}`
+      : preferredBrand;
+
+    return {
+      keyword,
+      brandName: preferredBrand,
+      productName: product.name_ko || product.name,
+    };
+  }
+
+  /**
+   * 정규식 특수문자 이스케이프
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  /**
+   * 검색 방해 패턴 제거
+   * - SPF/PA 표기, 용량, 수량 등 제거
+   */
+  private removeSearchNoisePatterns(text: string): string {
+    const patterns = [
+      /SPF\s?\d+\+?/gi, // SPF50, SPF 30+
+      /PA\+{1,4}/gi, // PA+, PA++++
+      /\d+\s?(ml|g|mg|oz|L|kg)/gi, // 70ml, 200g, 1L
+      /\d+\s?(매|개|ea|팩|장|정)/gi, // 10매, 5개, 30ea
+      /\(\s*\d+[^)]*\)/g, // (50ml), (2개입)
+      /\[\s*\d+[^]]*\]/g, // [50ml]
+    ];
+
+    let result = text;
+    for (const pattern of patterns) {
+      result = result.replace(pattern, "");
+    }
+
+    return result;
   }
 
   /**
