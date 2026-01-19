@@ -278,60 +278,10 @@ export class SupabaseProductsRepository implements IProductsRepository {
     );
 
     try {
-      // brandLocale이 있으면 inner join으로 SQL 레벨에서 필터링
-      if (brandLocale) {
-        const { data: productsWithBrands, error } = await this.client
-          .from(this.tableName)
-          .select(
-            "id, name, name_ko, brand_id, brands!inner(id, name, name_ko, locale)",
-          )
-          .eq("status", "PUBLISHED")
-          .eq("brands.locale", brandLocale)
-          .not("brand_id", "is", null)
-          .not("name", "like", "%테스트%")
-          .not("name", "like", "%매핑%")
-          .range(offset, offset + limit - 1);
+      // 1. 상품 조회 (테스트 데이터 제외)
+      // brandLocale 필터가 있으면 더 많이 조회 후 필터링
+      const fetchLimit = brandLocale ? limit * 10 : limit;
 
-        if (error) {
-          logger.error(
-            { error: error.message, code: error.code },
-            "[ProductsRepository] 상품+브랜드 조회 실패",
-          );
-          throw new Error(`Supabase query failed: ${error.message}`);
-        }
-
-        if (!productsWithBrands || productsWithBrands.length === 0) {
-          logger.info("[ProductsRepository] 조회된 상품 없음");
-          return [];
-        }
-
-        // 결과 매핑 (inner join 결과는 단일 객체)
-        const results: ProductWithBrand[] = productsWithBrands.map((p) => {
-          const brandData = p.brands as unknown as {
-            id: string;
-            name: string;
-            name_ko: string | null;
-            locale: string;
-          };
-          return {
-            id: p.id,
-            name: p.name,
-            name_ko: p.name_ko,
-            brand_id: p.brand_id,
-            brand_name: brandData?.name || "",
-            brand_name_ko: brandData?.name_ko || null,
-          };
-        });
-
-        logger.info(
-          { count: results.length, brandLocale },
-          "[ProductsRepository] 상품+브랜드 조회 완료",
-        );
-
-        return results;
-      }
-
-      // brandLocale 없으면 기존 로직
       const { data: products, error: productsError } = await this.client
         .from(this.tableName)
         .select("id, name, name_ko, brand_id")
@@ -339,7 +289,7 @@ export class SupabaseProductsRepository implements IProductsRepository {
         .not("brand_id", "is", null)
         .not("name", "like", "%테스트%")
         .not("name", "like", "%매핑%")
-        .range(offset, offset + limit - 1);
+        .range(offset, offset + fetchLimit - 1);
 
       if (productsError) {
         logger.error(
@@ -354,16 +304,22 @@ export class SupabaseProductsRepository implements IProductsRepository {
         return [];
       }
 
-      // 브랜드 ID 추출
+      // 2. 브랜드 ID 추출
       const brandIds = [
         ...new Set(products.map((p) => p.brand_id).filter(Boolean)),
       ];
 
-      // 브랜드 조회
-      const { data: brands, error: brandsError } = await this.client
+      // 3. 브랜드 조회 (locale 필터 적용)
+      let brandQuery = this.client
         .from("brands")
         .select("id, name, name_ko, locale")
         .in("id", brandIds);
+
+      if (brandLocale) {
+        brandQuery = brandQuery.eq("locale", brandLocale);
+      }
+
+      const { data: brands, error: brandsError } = await brandQuery;
 
       if (brandsError) {
         logger.error(
@@ -373,27 +329,36 @@ export class SupabaseProductsRepository implements IProductsRepository {
         throw new Error(`Supabase query failed: ${brandsError.message}`);
       }
 
-      // 브랜드 맵 생성
+      // 4. 브랜드 맵 생성 (locale 필터된 브랜드만)
       const brandMap = new Map<
         string,
         { name: string; name_ko: string | null }
       >();
+      const allowedBrandIds = new Set<string>();
       brands?.forEach((b) => {
         brandMap.set(b.id, { name: b.name, name_ko: b.name_ko });
+        allowedBrandIds.add(b.id);
       });
 
-      // 결과 매핑
-      const results: ProductWithBrand[] = products.map((p) => {
-        const brand = brandMap.get(p.brand_id);
-        return {
-          id: p.id,
-          name: p.name,
-          name_ko: p.name_ko,
-          brand_id: p.brand_id,
-          brand_name: brand?.name || "",
-          brand_name_ko: brand?.name_ko || null,
-        };
-      });
+      // 5. 결과 매핑 (locale 필터된 브랜드 상품만)
+      let results: ProductWithBrand[] = products
+        .filter((p) => !brandLocale || allowedBrandIds.has(p.brand_id))
+        .map((p) => {
+          const brand = brandMap.get(p.brand_id);
+          return {
+            id: p.id,
+            name: p.name,
+            name_ko: p.name_ko,
+            brand_id: p.brand_id,
+            brand_name: brand?.name || "",
+            brand_name_ko: brand?.name_ko || null,
+          };
+        });
+
+      // 6. limit 적용
+      if (brandLocale) {
+        results = results.slice(0, limit);
+      }
 
       logger.info(
         { count: results.length, brandLocale },
@@ -430,14 +395,16 @@ export class SupabaseProductsRepository implements IProductsRepository {
     );
 
     try {
-      // 1단계: 상품 조회
+      // 1단계: 상품 조회 (필터링 고려해 limit * 10)
+      const fetchLimit = limit * 10;
       const { data: allProducts, error: productsError } = await this.client
         .from(this.tableName)
         .select("id, name, name_ko, brand_id")
         .eq("status", "PUBLISHED")
         .not("brand_id", "is", null)
         .not("name", "like", "%테스트%")
-        .not("name", "like", "%매핑%");
+        .not("name", "like", "%매핑%")
+        .limit(fetchLimit);
 
       if (productsError) {
         logger.error(
