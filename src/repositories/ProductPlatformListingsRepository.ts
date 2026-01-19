@@ -35,7 +35,7 @@ export interface ProductPlatformListingUpsertRequest {
   product_id: string;
   platform_id: string;
   price: number;
-  link: string;
+  link: string | null;
 }
 
 /**

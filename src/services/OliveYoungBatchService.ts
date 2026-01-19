@@ -201,11 +201,13 @@ export class OliveYoungBatchService {
           "[OliveYoungBatch] 검색 결과 없음",
         );
 
-        // 기존 데이터 삭제 (Neural Search 결과 또는 실제 상품 없음)
-        await this.listingsRepository.deleteByProductAndPlatform(
-          product.id,
-          this.OLIVEYOUNG_PLATFORM_ID,
-        );
+        // 검색 결과 없음 → link: null로 upsert (updated_at 갱신되어 다음 배치에서 제외)
+        await this.listingsRepository.upsert({
+          product_id: product.id,
+          platform_id: this.OLIVEYOUNG_PLATFORM_ID,
+          link: null,
+          price: 0,
+        });
 
         return {
           ...baseResult,
@@ -464,13 +466,12 @@ export class OliveYoungBatchService {
 
           logger.info(
             {
-              batch: batchNumber,
-              progress: `${i + 1}/${products.length}`,
-              totalProcessed,
+              total: totalProcessed,
+              batch: `${i + 1}/${products.length}`,
               productId: product.id,
               productName: product.name_ko || product.name,
             },
-            "[OliveYoungBatch] 상품 처리 중",
+            `[OliveYoungBatch] 상품 처리 중 (${totalProcessed}개 완료)`,
           );
 
           const result = await this.processSingleProductWithSearcher(
