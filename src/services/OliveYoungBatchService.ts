@@ -111,8 +111,8 @@ export class OliveYoungBatchService {
     let successCount = 0;
     let failedCount = 0;
 
-    // Searcher 재사용 (브라우저 1개로 모든 상품 처리)
-    const searcher = SearcherFactory.createSearcher("oliveyoung");
+    // Searcher 재사용 (브라우저 1개로 모든 상품 처리, 크래시 시 재생성)
+    let searcher = SearcherFactory.createSearcher("oliveyoung");
 
     try {
       // 각 상품 순차 처리
@@ -128,10 +128,26 @@ export class OliveYoungBatchService {
           "[OliveYoungBatch] 상품 처리 중",
         );
 
-        const result = await this.processSingleProductWithSearcher(
-          product,
-          searcher,
-        );
+        let result: SingleResult;
+        try {
+          result = await this.processSingleProductWithSearcher(
+            product,
+            searcher,
+          );
+        } catch (error) {
+          // 크래시 시 Searcher 재생성 후 재시도
+          logger.warn(
+            { error: error instanceof Error ? error.message : String(error) },
+            "[OliveYoungBatch] 브라우저 크래시, Searcher 재생성",
+          );
+          await searcher.cleanup();
+          searcher = SearcherFactory.createSearcher("oliveyoung");
+
+          result = await this.processSingleProductWithSearcher(
+            product,
+            searcher,
+          );
+        }
         results.push(result);
 
         if (result.success) {
@@ -431,8 +447,8 @@ export class OliveYoungBatchService {
     let totalProcessed = 0;
     let batchNumber = 0;
 
-    // Searcher 재사용 (전체 배치 동안 브라우저 1개)
-    const searcher = SearcherFactory.createSearcher("oliveyoung");
+    // Searcher 재사용 (전체 배치 동안 브라우저 1개, 크래시 시 재생성)
+    let searcher = SearcherFactory.createSearcher("oliveyoung");
 
     try {
       while (true) {
@@ -474,10 +490,26 @@ export class OliveYoungBatchService {
             `[OliveYoungBatch] 상품 처리 중 (${totalProcessed}개 완료)`,
           );
 
-          const result = await this.processSingleProductWithSearcher(
-            product,
-            searcher,
-          );
+          let result: SingleResult;
+          try {
+            result = await this.processSingleProductWithSearcher(
+              product,
+              searcher,
+            );
+          } catch (error) {
+            // 크래시 시 Searcher 재생성 후 재시도
+            logger.warn(
+              { error: error instanceof Error ? error.message : String(error) },
+              "[OliveYoungBatch] 브라우저 크래시, Searcher 재생성",
+            );
+            await searcher.cleanup();
+            searcher = SearcherFactory.createSearcher("oliveyoung");
+
+            result = await this.processSingleProductWithSearcher(
+              product,
+              searcher,
+            );
+          }
           results.push(result);
 
           if (result.success) {
