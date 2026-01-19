@@ -278,10 +278,60 @@ export class SupabaseProductsRepository implements IProductsRepository {
     );
 
     try {
-      // 1. 상품 조회 (테스트 데이터 제외)
-      // brandLocale 필터가 있으면 더 많이 조회 후 필터링
-      const fetchLimit = brandLocale ? limit * 10 : limit;
+      // brandLocale이 있으면 inner join으로 SQL 레벨에서 필터링
+      if (brandLocale) {
+        const { data: productsWithBrands, error } = await this.client
+          .from(this.tableName)
+          .select(
+            "id, name, name_ko, brand_id, brands!inner(id, name, name_ko, locale)",
+          )
+          .eq("status", "PUBLISHED")
+          .eq("brands.locale", brandLocale)
+          .not("brand_id", "is", null)
+          .not("name", "like", "%테스트%")
+          .not("name", "like", "%매핑%")
+          .range(offset, offset + limit - 1);
 
+        if (error) {
+          logger.error(
+            { error: error.message, code: error.code },
+            "[ProductsRepository] 상품+브랜드 조회 실패",
+          );
+          throw new Error(`Supabase query failed: ${error.message}`);
+        }
+
+        if (!productsWithBrands || productsWithBrands.length === 0) {
+          logger.info("[ProductsRepository] 조회된 상품 없음");
+          return [];
+        }
+
+        // 결과 매핑 (inner join 결과는 단일 객체)
+        const results: ProductWithBrand[] = productsWithBrands.map((p) => {
+          const brandData = p.brands as unknown as {
+            id: string;
+            name: string;
+            name_ko: string | null;
+            locale: string;
+          };
+          return {
+            id: p.id,
+            name: p.name,
+            name_ko: p.name_ko,
+            brand_id: p.brand_id,
+            brand_name: brandData?.name || "",
+            brand_name_ko: brandData?.name_ko || null,
+          };
+        });
+
+        logger.info(
+          { count: results.length, brandLocale },
+          "[ProductsRepository] 상품+브랜드 조회 완료",
+        );
+
+        return results;
+      }
+
+      // brandLocale 없으면 기존 로직
       const { data: products, error: productsError } = await this.client
         .from(this.tableName)
         .select("id, name, name_ko, brand_id")
@@ -289,7 +339,7 @@ export class SupabaseProductsRepository implements IProductsRepository {
         .not("brand_id", "is", null)
         .not("name", "like", "%테스트%")
         .not("name", "like", "%매핑%")
-        .range(offset, offset + fetchLimit - 1);
+        .range(offset, offset + limit - 1);
 
       if (productsError) {
         logger.error(
@@ -304,22 +354,16 @@ export class SupabaseProductsRepository implements IProductsRepository {
         return [];
       }
 
-      // 2. 브랜드 ID 추출
+      // 브랜드 ID 추출
       const brandIds = [
         ...new Set(products.map((p) => p.brand_id).filter(Boolean)),
       ];
 
-      // 3. 브랜드 조회 (locale 필터 적용)
-      let brandQuery = this.client
+      // 브랜드 조회
+      const { data: brands, error: brandsError } = await this.client
         .from("brands")
         .select("id, name, name_ko, locale")
         .in("id", brandIds);
-
-      if (brandLocale) {
-        brandQuery = brandQuery.eq("locale", brandLocale);
-      }
-
-      const { data: brands, error: brandsError } = await brandQuery;
 
       if (brandsError) {
         logger.error(
@@ -329,36 +373,27 @@ export class SupabaseProductsRepository implements IProductsRepository {
         throw new Error(`Supabase query failed: ${brandsError.message}`);
       }
 
-      // 4. 브랜드 맵 생성 (locale 필터된 브랜드만)
+      // 브랜드 맵 생성
       const brandMap = new Map<
         string,
         { name: string; name_ko: string | null }
       >();
-      const allowedBrandIds = new Set<string>();
       brands?.forEach((b) => {
         brandMap.set(b.id, { name: b.name, name_ko: b.name_ko });
-        allowedBrandIds.add(b.id);
       });
 
-      // 5. 결과 매핑 (locale 필터된 브랜드 상품만)
-      let results: ProductWithBrand[] = products
-        .filter((p) => !brandLocale || allowedBrandIds.has(p.brand_id))
-        .map((p) => {
-          const brand = brandMap.get(p.brand_id);
-          return {
-            id: p.id,
-            name: p.name,
-            name_ko: p.name_ko,
-            brand_id: p.brand_id,
-            brand_name: brand?.name || "",
-            brand_name_ko: brand?.name_ko || null,
-          };
-        });
-
-      // 6. limit 적용
-      if (brandLocale) {
-        results = results.slice(0, limit);
-      }
+      // 결과 매핑
+      const results: ProductWithBrand[] = products.map((p) => {
+        const brand = brandMap.get(p.brand_id);
+        return {
+          id: p.id,
+          name: p.name,
+          name_ko: p.name_ko,
+          brand_id: p.brand_id,
+          brand_name: brand?.name || "",
+          brand_name_ko: brand?.name_ko || null,
+        };
+      });
 
       logger.info(
         { count: results.length, brandLocale },
@@ -370,6 +405,118 @@ export class SupabaseProductsRepository implements IProductsRepository {
       logger.error(
         { error: error instanceof Error ? error.message : String(error) },
         "[ProductsRepository] 조회 예외",
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * 스크래핑이 필요한 상품 조회
+   * - en_KR 브랜드 상품 중
+   * - product_platform_listings에 없거나
+   * - updated_at이 기준일 이전인 상품
+   * - offset 없음: 처리된 상품은 updated_at 갱신되어 자동 제외됨
+   */
+  async findProductsNeedingScrape(options: {
+    platformId: string;
+    cutoffDate: string; // 'YYYY-MM-DD' 형식
+    limit?: number;
+  }): Promise<ProductWithBrand[]> {
+    const { platformId, cutoffDate, limit = 50 } = options;
+
+    logger.info(
+      { platformId, cutoffDate, limit },
+      "[ProductsRepository] 스크래핑 필요 상품 조회 시작",
+    );
+
+    try {
+      // 1단계: en_KR 브랜드 상품 조회 (여유있게 limit * 5)
+      const { data: allProducts, error: productsError } = await this.client
+        .from(this.tableName)
+        .select(
+          "id, name, name_ko, brand_id, brands!inner(id, name, name_ko, locale)",
+        )
+        .eq("status", "PUBLISHED")
+        .eq("brands.locale", "en_KR")
+        .not("brand_id", "is", null)
+        .not("name", "like", "%테스트%")
+        .not("name", "like", "%매핑%")
+        .limit(limit * 5);
+
+      if (productsError) {
+        logger.error(
+          { error: productsError.message },
+          "[ProductsRepository] 상품 조회 실패",
+        );
+        throw new Error(`Supabase query failed: ${productsError.message}`);
+      }
+
+      if (!allProducts || allProducts.length === 0) {
+        logger.info("[ProductsRepository] 조회된 상품 없음");
+        return [];
+      }
+
+      const productIds = allProducts.map((p) => p.id);
+
+      // 2단계: 해당 상품들의 listings 조회 (최근 업데이트된 것만)
+      const { data: recentListings, error: listingsError } = await this.client
+        .from("product_platform_listings")
+        .select("product_id")
+        .eq("platform_id", platformId)
+        .in("product_id", productIds)
+        .gte("updated_at", cutoffDate);
+
+      if (listingsError) {
+        logger.error(
+          { error: listingsError.message },
+          "[ProductsRepository] listings 조회 실패",
+        );
+        throw new Error(`Supabase query failed: ${listingsError.message}`);
+      }
+
+      // 3단계: 최근 업데이트된 상품 제외
+      const recentProductIds = new Set(
+        recentListings?.map((l) => l.product_id) || [],
+      );
+
+      const filteredProducts = allProducts.filter(
+        (p) => !recentProductIds.has(p.id),
+      );
+
+      // 4단계: limit 적용 및 결과 매핑
+      const results: ProductWithBrand[] = filteredProducts
+        .slice(0, limit)
+        .map((p) => {
+          const brandData = p.brands as unknown as {
+            id: string;
+            name: string;
+            name_ko: string | null;
+            locale: string;
+          };
+          return {
+            id: p.id,
+            name: p.name,
+            name_ko: p.name_ko,
+            brand_id: p.brand_id,
+            brand_name: brandData?.name || "",
+            brand_name_ko: brandData?.name_ko || null,
+          };
+        });
+
+      logger.info(
+        {
+          totalFetched: allProducts.length,
+          recentlyUpdated: recentProductIds.size,
+          needsScrape: results.length,
+        },
+        "[ProductsRepository] 스크래핑 필요 상품 조회 완료",
+      );
+
+      return results;
+    } catch (error) {
+      logger.error(
+        { error: error instanceof Error ? error.message : String(error) },
+        "[ProductsRepository] 스크래핑 필요 상품 조회 예외",
       );
       throw error;
     }

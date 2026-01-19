@@ -105,6 +105,85 @@ router.post("/oliveyoung-sync", async (req: Request, res: Response) => {
 });
 
 /**
+ * 스크래핑 필요 상품 동기화 요청 스키마
+ */
+const OliveYoungSyncNeededRequestSchema = z.object({
+  cutoffDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 형식이어야 합니다"),
+  limit: z.number().int().min(1).max(1000).optional(),
+  delayMs: z.number().int().min(0).max(60000).optional(),
+});
+
+/**
+ * POST /api/v2/batch/oliveyoung-sync-needed
+ *
+ * 스크래핑 필요한 상품만 동기화
+ * - listings에 없거나 cutoffDate 이전에 업데이트된 상품만 처리
+ * - offset 없음: 반복 실행하면 처리된 상품은 자동 제외됨
+ *
+ * Body:
+ * {
+ *   "cutoffDate": "2025-01-16",  // 이 날짜 이전이면 스크래핑
+ *   "limit": 50,
+ *   "delayMs": 2000
+ * }
+ */
+router.post("/oliveyoung-sync-needed", async (req: Request, res: Response) => {
+  try {
+    const parseResult = OliveYoungSyncNeededRequestSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      res.status(400).json({
+        success: false,
+        error: "Bad Request",
+        message: parseResult.error.errors.map((e) => e.message).join(", "),
+      });
+      return;
+    }
+
+    const { cutoffDate, limit, delayMs } = parseResult.data;
+
+    logger.info(
+      { cutoffDate, limit, delayMs },
+      "[BatchRouter] 스크래핑 필요 상품 동기화 시작",
+    );
+
+    const service = new OliveYoungBatchService();
+    const result = await service.processProductsNeedingScrape({
+      cutoffDate,
+      limit,
+      delayMs,
+    });
+
+    logger.info(
+      {
+        totalProducts: result.totalProducts,
+        success: result.success,
+        failed: result.failed,
+        durationMs: result.durationMs,
+      },
+      "[BatchRouter] 스크래핑 필요 상품 동기화 완료",
+    );
+
+    res.json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    logger.error(
+      { error: error instanceof Error ? error.message : String(error) },
+      "[BatchRouter] 스크래핑 필요 상품 동기화 실패",
+    );
+
+    res.status(500).json({
+      success: false,
+      error: "Internal Server Error",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+/**
  * GET /api/v2/batch/status
  *
  * 배치 상태 조회 (현재는 단순 상태만 반환)

@@ -399,4 +399,112 @@ export class OliveYoungBatchService {
   private delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  /**
+   * 스크래핑 필요한 상품만 배치 처리
+   * - listings에 없거나 cutoffDate 이전에 업데이트된 상품만 처리
+   * - offset 없음: 처리된 상품은 자동 제외됨
+   */
+  async processProductsNeedingScrape(options: {
+    cutoffDate: string; // 'YYYY-MM-DD' 형식
+    limit?: number;
+    delayMs?: number;
+  }): Promise<BatchResult> {
+    const startTime = Date.now();
+    const delayMs = options.delayMs ?? this.DEFAULT_DELAY_MS;
+
+    logger.info(
+      {
+        cutoffDate: options.cutoffDate,
+        limit: options.limit,
+        delayMs,
+      },
+      "[OliveYoungBatch] 스크래핑 필요 상품 배치 처리 시작",
+    );
+
+    // 스크래핑 필요한 상품 조회
+    const products = await this.productsRepository.findProductsNeedingScrape({
+      platformId: this.OLIVEYOUNG_PLATFORM_ID,
+      cutoffDate: options.cutoffDate,
+      limit: options.limit,
+    });
+
+    logger.info(
+      { productCount: products.length },
+      "[OliveYoungBatch] 스크래핑 필요 상품 조회 완료",
+    );
+
+    if (products.length === 0) {
+      return {
+        totalProducts: 0,
+        processed: 0,
+        success: 0,
+        failed: 0,
+        results: [],
+        durationMs: Date.now() - startTime,
+      };
+    }
+
+    const results: SingleResult[] = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    // Searcher 재사용
+    const searcher = SearcherFactory.createSearcher("oliveyoung");
+
+    try {
+      for (let i = 0; i < products.length; i++) {
+        const product = products[i];
+
+        logger.info(
+          {
+            progress: `${i + 1}/${products.length}`,
+            productId: product.id,
+            productName: product.name_ko || product.name,
+          },
+          "[OliveYoungBatch] 상품 처리 중",
+        );
+
+        const result = await this.processSingleProductWithSearcher(
+          product,
+          searcher,
+        );
+        results.push(result);
+
+        if (result.success) {
+          successCount++;
+        } else {
+          failedCount++;
+        }
+
+        // Rate limiting
+        if (i < products.length - 1) {
+          await this.delay(delayMs);
+        }
+      }
+    } finally {
+      await searcher.cleanup();
+    }
+
+    const durationMs = Date.now() - startTime;
+
+    logger.info(
+      {
+        totalProducts: products.length,
+        success: successCount,
+        failed: failedCount,
+        durationMs,
+      },
+      "[OliveYoungBatch] 스크래핑 필요 상품 배치 처리 완료",
+    );
+
+    return {
+      totalProducts: products.length,
+      processed: products.length,
+      success: successCount,
+      failed: failedCount,
+      results,
+      durationMs,
+    };
+  }
 }
