@@ -402,105 +402,127 @@ export class OliveYoungBatchService {
 
   /**
    * 스크래핑 필요한 상품만 배치 처리
-   * - listings에 없거나 cutoffDate 이전에 업데이트된 상품만 처리
-   * - offset 없음: 처리된 상품은 자동 제외됨
+   * - 50개씩 DB 조회 → 처리 → 다음 50개 조회 반복
+   * - 처리된 상품은 updated_at 갱신되어 다음 조회에서 자동 제외
    */
   async processProductsNeedingScrape(options: {
     cutoffDate: string; // 'YYYY-MM-DD' 형식
-    limit?: number;
+    batchSize?: number;
     delayMs?: number;
   }): Promise<BatchResult> {
     const startTime = Date.now();
+    const batchSize = options.batchSize ?? 50;
     const delayMs = options.delayMs ?? this.DEFAULT_DELAY_MS;
 
     logger.info(
       {
         cutoffDate: options.cutoffDate,
-        limit: options.limit,
+        batchSize,
         delayMs,
       },
       "[OliveYoungBatch] 스크래핑 필요 상품 배치 처리 시작",
     );
 
-    // 스크래핑 필요한 상품 조회
-    const products = await this.productsRepository.findProductsNeedingScrape({
-      platformId: this.OLIVEYOUNG_PLATFORM_ID,
-      cutoffDate: options.cutoffDate,
-      limit: options.limit,
-    });
-
-    logger.info(
-      { productCount: products.length },
-      "[OliveYoungBatch] 스크래핑 필요 상품 조회 완료",
-    );
-
-    if (products.length === 0) {
-      return {
-        totalProducts: 0,
-        processed: 0,
-        success: 0,
-        failed: 0,
-        results: [],
-        durationMs: Date.now() - startTime,
-      };
-    }
-
     const results: SingleResult[] = [];
     let successCount = 0;
     let failedCount = 0;
+    let totalProcessed = 0;
+    let batchNumber = 0;
 
-    // Searcher 재사용
+    // Searcher 재사용 (전체 배치 동안 브라우저 1개)
     const searcher = SearcherFactory.createSearcher("oliveyoung");
 
     try {
-      for (let i = 0; i < products.length; i++) {
-        const product = products[i];
+      while (true) {
+        batchNumber++;
+
+        // 50개씩 조회 (처리된 상품은 자동 제외됨)
+        const products =
+          await this.productsRepository.findProductsNeedingScrape({
+            platformId: this.OLIVEYOUNG_PLATFORM_ID,
+            cutoffDate: options.cutoffDate,
+            limit: batchSize,
+          });
+
+        if (products.length === 0) {
+          logger.info(
+            { batchNumber },
+            "[OliveYoungBatch] 더 이상 처리할 상품 없음",
+          );
+          break;
+        }
+
+        logger.info(
+          { batchNumber, productCount: products.length },
+          "[OliveYoungBatch] 배치 조회 완료",
+        );
+
+        // 현재 배치 처리
+        for (let i = 0; i < products.length; i++) {
+          const product = products[i];
+          totalProcessed++;
+
+          logger.info(
+            {
+              batch: batchNumber,
+              progress: `${i + 1}/${products.length}`,
+              totalProcessed,
+              productId: product.id,
+              productName: product.name_ko || product.name,
+            },
+            "[OliveYoungBatch] 상품 처리 중",
+          );
+
+          const result = await this.processSingleProductWithSearcher(
+            product,
+            searcher,
+          );
+          results.push(result);
+
+          if (result.success) {
+            successCount++;
+          } else {
+            failedCount++;
+          }
+
+          // Rate limiting
+          if (i < products.length - 1) {
+            await this.delay(delayMs);
+          }
+        }
 
         logger.info(
           {
-            progress: `${i + 1}/${products.length}`,
-            productId: product.id,
-            productName: product.name_ko || product.name,
+            batchNumber,
+            batchProcessed: products.length,
+            totalProcessed,
+            success: successCount,
+            failed: failedCount,
           },
-          "[OliveYoungBatch] 상품 처리 중",
+          "[OliveYoungBatch] 배치 처리 완료",
         );
-
-        const result = await this.processSingleProductWithSearcher(
-          product,
-          searcher,
-        );
-        results.push(result);
-
-        if (result.success) {
-          successCount++;
-        } else {
-          failedCount++;
-        }
-
-        // Rate limiting
-        if (i < products.length - 1) {
-          await this.delay(delayMs);
-        }
       }
     } finally {
       await searcher.cleanup();
+      logger.info("[OliveYoungBatch] 브라우저 리소스 정리 완료");
     }
 
     const durationMs = Date.now() - startTime;
 
     logger.info(
       {
-        totalProducts: products.length,
+        totalBatches: batchNumber,
+        totalProducts: totalProcessed,
         success: successCount,
         failed: failedCount,
         durationMs,
       },
-      "[OliveYoungBatch] 스크래핑 필요 상품 배치 처리 완료",
+      "[OliveYoungBatch] 전체 배치 처리 완료",
     );
 
     return {
-      totalProducts: products.length,
-      processed: products.length,
+      totalProducts: totalProcessed,
+      processed: totalProcessed,
       success: successCount,
       failed: failedCount,
       results,

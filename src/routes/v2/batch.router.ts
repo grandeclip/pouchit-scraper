@@ -111,21 +111,18 @@ const OliveYoungSyncNeededRequestSchema = z.object({
   cutoffDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD 형식이어야 합니다"),
-  limit: z.number().int().min(1).max(1000).optional(),
   delayMs: z.number().int().min(0).max(60000).optional(),
 });
 
 /**
  * POST /api/v2/batch/oliveyoung-sync-needed
  *
- * 스크래핑 필요한 상품만 동기화
- * - listings에 없거나 cutoffDate 이전에 업데이트된 상품만 처리
- * - offset 없음: 반복 실행하면 처리된 상품은 자동 제외됨
+ * 스크래핑 필요한 상품 전체 동기화
+ * - listings에 없거나 cutoffDate 이전에 업데이트된 상품 전체 처리
  *
  * Body:
  * {
  *   "cutoffDate": "2025-01-16",  // 이 날짜 이전이면 스크래핑
- *   "limit": 50,
  *   "delayMs": 2000
  * }
  */
@@ -141,17 +138,16 @@ router.post("/oliveyoung-sync-needed", async (req: Request, res: Response) => {
       return;
     }
 
-    const { cutoffDate, limit, delayMs } = parseResult.data;
+    const { cutoffDate, delayMs } = parseResult.data;
 
     logger.info(
-      { cutoffDate, limit, delayMs },
+      { cutoffDate, delayMs },
       "[BatchRouter] 스크래핑 필요 상품 동기화 시작",
     );
 
     const service = new OliveYoungBatchService();
     const result = await service.processProductsNeedingScrape({
       cutoffDate,
-      limit,
       delayMs,
     });
 

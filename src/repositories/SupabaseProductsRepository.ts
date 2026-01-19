@@ -415,7 +415,7 @@ export class SupabaseProductsRepository implements IProductsRepository {
    * - en_KR 브랜드 상품 중
    * - product_platform_listings에 없거나
    * - updated_at이 기준일 이전인 상품
-   * - offset 없음: 처리된 상품은 updated_at 갱신되어 자동 제외됨
+   * - 처리된 상품은 updated_at 갱신되어 다음 조회에서 자동 제외됨
    */
   async findProductsNeedingScrape(options: {
     platformId: string;
@@ -425,12 +425,12 @@ export class SupabaseProductsRepository implements IProductsRepository {
     const { platformId, cutoffDate, limit = 50 } = options;
 
     logger.info(
-      { platformId, cutoffDate, limit },
+      { platformId, cutoffDate },
       "[ProductsRepository] 스크래핑 필요 상품 조회 시작",
     );
 
     try {
-      // 1단계: en_KR 브랜드 상품 조회 (여유있게 limit * 5)
+      // 1단계: en_KR 브랜드 상품 전체 조회
       const { data: allProducts, error: productsError } = await this.client
         .from(this.tableName)
         .select(
@@ -440,8 +440,7 @@ export class SupabaseProductsRepository implements IProductsRepository {
         .eq("brands.locale", "en_KR")
         .not("brand_id", "is", null)
         .not("name", "like", "%테스트%")
-        .not("name", "like", "%매핑%")
-        .limit(limit * 5);
+        .not("name", "like", "%매핑%");
 
       if (productsError) {
         logger.error(
