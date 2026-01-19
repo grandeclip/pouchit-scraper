@@ -411,7 +411,7 @@ export class SupabaseProductsRepository implements IProductsRepository {
   }
 
   /**
-   * 스크래핑이 필요한 상품 조회
+   * 스크래핑이 필요한 상품 조회 (애플리케이션 레벨 조인)
    * - en_KR 브랜드 상품 중
    * - product_platform_listings에 없거나
    * - updated_at이 기준일 이전인 상품
@@ -425,19 +425,16 @@ export class SupabaseProductsRepository implements IProductsRepository {
     const { platformId, cutoffDate, limit = 50 } = options;
 
     logger.info(
-      { platformId, cutoffDate },
+      { platformId, cutoffDate, limit },
       "[ProductsRepository] 스크래핑 필요 상품 조회 시작",
     );
 
     try {
-      // 1단계: en_KR 브랜드 상품 전체 조회
+      // 1단계: 상품 조회
       const { data: allProducts, error: productsError } = await this.client
         .from(this.tableName)
-        .select(
-          "id, name, name_ko, brand_id, brands!inner(id, name, name_ko, locale)",
-        )
+        .select("id, name, name_ko, brand_id")
         .eq("status", "PUBLISHED")
-        .eq("brands.locale", "en_KR")
         .not("brand_id", "is", null)
         .not("name", "like", "%테스트%")
         .not("name", "like", "%매핑%");
@@ -455,9 +452,47 @@ export class SupabaseProductsRepository implements IProductsRepository {
         return [];
       }
 
-      const productIds = allProducts.map((p) => p.id);
+      // 2단계: 브랜드 조회 (en_KR만)
+      const brandIds = [
+        ...new Set(allProducts.map((p) => p.brand_id).filter(Boolean)),
+      ];
 
-      // 2단계: 해당 상품들의 listings 조회 (최근 업데이트된 것만)
+      const { data: brands, error: brandsError } = await this.client
+        .from("brands")
+        .select("id, name, name_ko, locale")
+        .in("id", brandIds)
+        .eq("locale", "en_KR");
+
+      if (brandsError) {
+        logger.error(
+          { error: brandsError.message },
+          "[ProductsRepository] 브랜드 조회 실패",
+        );
+        throw new Error(`Supabase query failed: ${brandsError.message}`);
+      }
+
+      // 3단계: en_KR 브랜드 상품만 필터링
+      const brandMap = new Map<
+        string,
+        { name: string; name_ko: string | null }
+      >();
+      const allowedBrandIds = new Set<string>();
+      brands?.forEach((b) => {
+        brandMap.set(b.id, { name: b.name, name_ko: b.name_ko });
+        allowedBrandIds.add(b.id);
+      });
+
+      const enKrProducts = allProducts.filter((p) =>
+        allowedBrandIds.has(p.brand_id),
+      );
+
+      if (enKrProducts.length === 0) {
+        logger.info("[ProductsRepository] en_KR 브랜드 상품 없음");
+        return [];
+      }
+
+      // 4단계: listings 조회 (최근 업데이트된 것만)
+      const productIds = enKrProducts.map((p) => p.id);
       const { data: recentListings, error: listingsError } = await this.client
         .from("product_platform_listings")
         .select("product_id")
@@ -473,38 +508,34 @@ export class SupabaseProductsRepository implements IProductsRepository {
         throw new Error(`Supabase query failed: ${listingsError.message}`);
       }
 
-      // 3단계: 최근 업데이트된 상품 제외
+      // 5단계: 최근 업데이트된 상품 제외
       const recentProductIds = new Set(
         recentListings?.map((l) => l.product_id) || [],
       );
 
-      const filteredProducts = allProducts.filter(
+      const filteredProducts = enKrProducts.filter(
         (p) => !recentProductIds.has(p.id),
       );
 
-      // 4단계: limit 적용 및 결과 매핑
+      // 6단계: limit 적용 및 결과 매핑
       const results: ProductWithBrand[] = filteredProducts
         .slice(0, limit)
         .map((p) => {
-          const brandData = p.brands as unknown as {
-            id: string;
-            name: string;
-            name_ko: string | null;
-            locale: string;
-          };
+          const brand = brandMap.get(p.brand_id);
           return {
             id: p.id,
             name: p.name,
             name_ko: p.name_ko,
             brand_id: p.brand_id,
-            brand_name: brandData?.name || "",
-            brand_name_ko: brandData?.name_ko || null,
+            brand_name: brand?.name || "",
+            brand_name_ko: brand?.name_ko || null,
           };
         });
 
       logger.info(
         {
           totalFetched: allProducts.length,
+          enKrProducts: enKrProducts.length,
           recentlyUpdated: recentProductIds.size,
           needsScrape: results.length,
         },
