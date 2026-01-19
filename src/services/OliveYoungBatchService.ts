@@ -420,22 +420,21 @@ export class OliveYoungBatchService {
 
   /**
    * 스크래핑 필요한 상품만 배치 처리
-   * - 50개씩 DB 조회 → 처리 → 다음 50개 조회 반복
+   * - 500개씩 DB 조회 → 필터 통과한 전체 처리 → 다음 500개 조회 반복
    * - 처리된 상품은 updated_at 갱신되어 다음 조회에서 자동 제외
    */
   async processProductsNeedingScrape(options: {
     cutoffDate: string; // 'YYYY-MM-DD' 형식
-    batchSize?: number;
     delayMs?: number;
   }): Promise<BatchResult> {
+    const FETCH_SIZE = 500;
     const startTime = Date.now();
-    const batchSize = options.batchSize ?? 50;
     const delayMs = options.delayMs ?? this.DEFAULT_DELAY_MS;
 
     logger.info(
       {
         cutoffDate: options.cutoffDate,
-        batchSize,
+        fetchSize: FETCH_SIZE,
         delayMs,
       },
       "[OliveYoungBatch] 스크래핑 필요 상품 배치 처리 시작",
@@ -446,6 +445,7 @@ export class OliveYoungBatchService {
     let failedCount = 0;
     let totalProcessed = 0;
     let batchNumber = 0;
+    let offset = 0;
 
     // Searcher 재사용 (전체 배치 동안 브라우저 1개, 크래시 시 재생성)
     let searcher = SearcherFactory.createSearcher("oliveyoung");
@@ -454,12 +454,12 @@ export class OliveYoungBatchService {
       while (true) {
         batchNumber++;
 
-        // 50개씩 조회 (처리된 상품은 자동 제외됨)
+        // 500개씩 조회 (offset pagination으로 전체 상품 순회)
         const products =
           await this.productsRepository.findProductsNeedingScrape({
             platformId: this.OLIVEYOUNG_PLATFORM_ID,
             cutoffDate: options.cutoffDate,
-            limit: batchSize,
+            offset,
           });
 
         if (products.length === 0) {
@@ -534,6 +534,9 @@ export class OliveYoungBatchService {
           },
           "[OliveYoungBatch] 배치 처리 완료",
         );
+
+        // 다음 페이지로 이동
+        offset += FETCH_SIZE;
       }
     } finally {
       await searcher.cleanup();

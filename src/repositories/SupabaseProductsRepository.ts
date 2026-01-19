@@ -385,18 +385,18 @@ export class SupabaseProductsRepository implements IProductsRepository {
   async findProductsNeedingScrape(options: {
     platformId: string;
     cutoffDate: string; // 'YYYY-MM-DD' 형식
-    limit?: number;
+    offset?: number;
   }): Promise<ProductWithBrand[]> {
-    const { platformId, cutoffDate, limit = 50 } = options;
+    const FETCH_SIZE = 500;
+    const { platformId, cutoffDate, offset = 0 } = options;
 
     logger.info(
-      { platformId, cutoffDate, limit },
+      { platformId, cutoffDate, offset, fetchSize: FETCH_SIZE },
       "[ProductsRepository] 스크래핑 필요 상품 조회 시작",
     );
 
     try {
-      // 1단계: 상품 조회 (필터링 고려해 limit * 10)
-      const fetchLimit = limit * 10;
+      // 1단계: 상품 조회 (500개 단위)
       const { data: allProducts, error: productsError } = await this.client
         .from(this.tableName)
         .select("id, name, name_ko, brand_id")
@@ -404,7 +404,8 @@ export class SupabaseProductsRepository implements IProductsRepository {
         .not("brand_id", "is", null)
         .not("name", "like", "%테스트%")
         .not("name", "like", "%매핑%")
-        .limit(fetchLimit);
+        .order("id")
+        .range(offset, offset + FETCH_SIZE - 1);
 
       if (productsError) {
         logger.error(
@@ -484,20 +485,18 @@ export class SupabaseProductsRepository implements IProductsRepository {
         (p) => !recentProductIds.has(p.id),
       );
 
-      // 6단계: limit 적용 및 결과 매핑
-      const results: ProductWithBrand[] = filteredProducts
-        .slice(0, limit)
-        .map((p) => {
-          const brand = brandMap.get(p.brand_id);
-          return {
-            id: p.id,
-            name: p.name,
-            name_ko: p.name_ko,
-            brand_id: p.brand_id,
-            brand_name: brand?.name || "",
-            brand_name_ko: brand?.name_ko || null,
-          };
-        });
+      // 6단계: 결과 매핑 (필터 통과한 전체 반환)
+      const results: ProductWithBrand[] = filteredProducts.map((p) => {
+        const brand = brandMap.get(p.brand_id);
+        return {
+          id: p.id,
+          name: p.name,
+          name_ko: p.name_ko,
+          brand_id: p.brand_id,
+          brand_name: brand?.name || "",
+          brand_name_ko: brand?.name_ko || null,
+        };
+      });
 
       logger.info(
         {
