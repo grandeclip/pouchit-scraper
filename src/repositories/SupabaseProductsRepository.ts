@@ -381,12 +381,14 @@ export class SupabaseProductsRepository implements IProductsRepository {
    * - product_platform_listings에 없거나
    * - updated_at이 기준일 이전인 상품
    * - 처리된 상품은 updated_at 갱신되어 다음 조회에서 자동 제외됨
+   *
+   * @returns products: 필터 통과 상품, hasMoreData: 원본 데이터가 더 있는지
    */
   async findProductsNeedingScrape(options: {
     platformId: string;
     cutoffDate: string; // 'YYYY-MM-DD' 형식
     offset?: number;
-  }): Promise<ProductWithBrand[]> {
+  }): Promise<{ products: ProductWithBrand[]; hasMoreData: boolean }> {
     const FETCH_SIZE = 500;
     const { platformId, cutoffDate, offset = 0 } = options;
 
@@ -417,7 +419,7 @@ export class SupabaseProductsRepository implements IProductsRepository {
 
       if (!allProducts || allProducts.length === 0) {
         logger.info("[ProductsRepository] 조회된 상품 없음");
-        return [];
+        return { products: [], hasMoreData: false };
       }
 
       // 2단계: 브랜드 조회 (en_KR만)
@@ -456,7 +458,7 @@ export class SupabaseProductsRepository implements IProductsRepository {
 
       if (enKrProducts.length === 0) {
         logger.info("[ProductsRepository] en_KR 브랜드 상품 없음");
-        return [];
+        return { products: [], hasMoreData: allProducts.length === FETCH_SIZE };
       }
 
       // 4단계: listings 조회 (최근 업데이트된 것만)
@@ -498,17 +500,20 @@ export class SupabaseProductsRepository implements IProductsRepository {
         };
       });
 
+      const hasMoreData = allProducts.length === FETCH_SIZE;
+
       logger.info(
         {
           totalFetched: allProducts.length,
           enKrProducts: enKrProducts.length,
           recentlyUpdated: recentProductIds.size,
           needsScrape: results.length,
+          hasMoreData,
         },
         "[ProductsRepository] 스크래핑 필요 상품 조회 완료",
       );
 
-      return results;
+      return { products: results, hasMoreData };
     } catch (error) {
       logger.error(
         { error: error instanceof Error ? error.message : String(error) },

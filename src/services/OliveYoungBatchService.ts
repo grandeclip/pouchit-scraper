@@ -455,14 +455,15 @@ export class OliveYoungBatchService {
         batchNumber++;
 
         // 500개씩 조회 (offset pagination으로 전체 상품 순회)
-        const products =
+        const { products, hasMoreData } =
           await this.productsRepository.findProductsNeedingScrape({
             platformId: this.OLIVEYOUNG_PLATFORM_ID,
             cutoffDate: options.cutoffDate,
             offset,
           });
 
-        if (products.length === 0) {
+        // 필터 후 0개 + 원본 데이터도 없음 → 진짜 종료
+        if (products.length === 0 && !hasMoreData) {
           logger.info(
             { batchNumber },
             "[OliveYoungBatch] 더 이상 처리할 상품 없음",
@@ -470,8 +471,18 @@ export class OliveYoungBatchService {
           break;
         }
 
+        // 필터 후 0개지만 원본 데이터 더 있음 → 다음 offset으로
+        if (products.length === 0) {
+          logger.info(
+            { batchNumber, offset },
+            "[OliveYoungBatch] 이 배치에 조건 맞는 상품 없음, 다음으로 진행",
+          );
+          offset += FETCH_SIZE;
+          continue;
+        }
+
         logger.info(
-          { batchNumber, productCount: products.length },
+          { batchNumber, productCount: products.length, hasMoreData },
           "[OliveYoungBatch] 배치 조회 완료",
         );
 
